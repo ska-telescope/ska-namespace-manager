@@ -1,0 +1,27 @@
+build
+.coverage
+
+# Packages
+*.py[cod]
+*.egg
+*.eggs
+*.egg-info
+build
+__pycache__
+
+# Developer tools
+.ropeproject
+.idea
+.vscode
+.venv
+**/.project
+**/.pydevproject
+**/.settings
+
+# Miscellaneous
+.DS_Store
+
+# Deployment
+PrivateRules.mak
+Chart.lock
+**/charts/*.tgz
