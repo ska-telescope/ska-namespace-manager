@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ska-ser-namespace-manager.api.serviceName" . }}
+  namespace: {{ include "ska-ser-namespace-manager.namespace" . }}
+  labels:
+    {{- include "ska-ser-namespace-manager.api.labels" . | nindent 4 }}
+  {{- with .Values.api.service.https.annotations }}
+  annotations: {{ tpl (toYaml .) $ | nindent 4 }}
+  {{- end }}
+spec:
+  ports:
+  {{- if .Values.api.service.https.enabled }}
+  - port: {{ .Values.api.service.https.port }}
+    targetPort: https
+    protocol: TCP
+    name: https
+    {{- if and (eq .Values.api.service.https.type "NodePort") (not (empty .Values.api.service.https.nodePort)) }}
+    nodePort: {{ .Values.api.service.https.nodePort }}
+    {{- end }}
+  {{- else }}
+  - port: {{ .Values.api.service.http.port }}
+    targetPort: http
+    protocol: TCP
+    name: http
+    {{- if and (eq .Values.api.service.http.type "NodePort") (not (empty .Values.api.service.http.nodePort)) }}
+    nodePort: {{ .Values.api.service.http.nodePort }}
+    {{- end }}
+  {{- end }}
+  selector:
+    {{- include "ska-ser-namespace-manager.api.matchLabels" . | nindent 4 }}
+  type: {{ .Values.api.service.https.type }}

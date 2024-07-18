@@ -1,0 +1,134 @@
+{{- $appConfig := fromYaml (include "ska-ser-namespace-manager.api.config" .) -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "ska-ser-namespace-manager.api.name" . }}
+  namespace: {{ template "ska-ser-namespace-manager.namespace" . }}
+  labels:
+    {{- include "ska-ser-namespace-manager.api.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.api.replicas }}
+  {{- with .Values.api.updateStrategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "ska-ser-namespace-manager.api.matchLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ska-ser-namespace-manager.api.labels" . | nindent 8 }}
+        {{- with .Values.api.labels }}
+        {{- tpl (toYaml .) $ | nindent 8 }}
+        {{- end }}
+      {{- with .Values.api.annotations }}
+      annotations: {{ tpl (toYaml .) $ | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.api.imagePullSecrets }}
+      imagePullSecrets:
+        {{- tpl (toYaml .) $ | nindent 8 }}
+      {{- end }}
+      {{- with .Values.api.podSecurityContext }}
+      securityContext:
+        {{- tpl (toYaml .) $ | nindent 8 }}
+      {{- end }}
+      {{- with .Values.api.nodeSelector | default .Values.nodeSelector }}
+      nodeSelector:
+        {{- tpl (toYaml .) $ | nindent 8 }}
+      {{- end }}
+      {{- with .Values.api.tolerations | default .Values.tolerations}}
+      tolerations:
+        {{- tpl (toYaml .) $ | nindent 8 }}
+      {{- end }}
+      {{- with .Values.api.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- tpl (toYaml .) $ | nindent 8 }}
+      {{- end }}
+      {{- with .Values.api.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      {{- with .Values.api.dnsPolicy }}
+      dnsPolicy: {{ . }}
+      {{- end }}
+      {{- if or .Values.api.antiAffinity.enabled .Values.api.podAffinity .Values.api.nodeAffinity }}
+      affinity:
+        {{- if .Values.api.antiAffinity.enabled }}
+        {{- with .Values.api.podAntiAffinity }}
+        podAntiAffinity:
+          {{- tpl (toYaml .) $ | nindent 10 }}
+        {{- end }}
+        {{- end }}
+        {{- with .Values.api.podAffinity }}
+        podAffinity:
+          {{- tpl (toYaml .) $ | nindent 10 }}
+        {{- end }}
+        {{- with .Values.api.nodeAffinity }}
+        nodeAffinity:
+          {{- tpl (toYaml .) $ | nindent 10 }}
+        {{- end }}
+      {{- end }}
+      containers:
+        - name: api
+          image: {{ include "ska-ser-namespace-manager.image" (list . .Values.api) }}
+          imagePullPolicy: {{ default .Values.api.image.pullPolicy .Values.image.pullPolicy }}
+          args:
+            - "/opt/ska_ser_namespace_manager/api.py"
+          {{- range $arg := .Values.api.extraArgs }}
+            - {{ $arg }}
+          {{- end }}
+          {{- with .Values.api.resources }}
+          resources:
+            {{- tpl (toYaml .) $ | nindent 12 }}
+          {{- end }}
+          {{- with .Values.api.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+          {{- if .Values.api.service.https.enabled }}
+          - containerPort: {{ $appConfig.httpsPort }}
+            name: https
+            protocol: TCP
+          {{- else }}
+          - containerPort: {{ $appConfig.httpPort }}
+            name: http
+            protocol: TCP
+          {{- end }}
+          env:
+          - name: CONFIG_PATH
+            value: {{ template "ska-ser-namespace-manager.api.configPath" . }}/config.yml
+          {{- with (concat .Values.extraEnvVars .Values.api.extraEnvVars) }}
+          {{- toYaml . | nindent 10 }}
+          {{- end }}
+          {{- with .Values.api.startupProbe }}
+          startupProbe:
+            {{- tpl (toYaml .) $ | nindent 12 }}
+          {{- end }}
+          {{- with .Values.api.livenessProbe }}
+          livenessProbe:
+            {{- tpl (toYaml .) $ | nindent 12 }}
+          {{- end }}
+          {{- with .Values.api.readinessProbe }}
+          readinessProbe:
+            {{- tpl (toYaml .) $ | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: {{ template "ska-ser-namespace-manager.api.configPath" . }}
+              readOnly: true
+            {{- if .Values.api.service.https.enabled }}
+            - name: pki
+              mountPath: {{ $appConfig.pkiPath }}
+              readOnly: true
+            {{- end }}
+      volumes:
+      - name: config
+        secret:
+          secretName: {{ template "ska-ser-namespace-manager.api.configName" . }}
+      {{- if .Values.api.service.https.enabled }}
+      - name: pki
+        secret:
+          secretName: {{ template "ska-ser-namespace-manager.api.serviceName" . }}-cert
+      {{- end }}

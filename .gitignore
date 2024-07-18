@@ -25,3 +25,7 @@ __pycache__
 PrivateRules.mak
 Chart.lock
 **/charts/*.tgz
+**/charts/*/environments/templated
+local.y*ml
+manifests.yaml
+local_config.y*ml

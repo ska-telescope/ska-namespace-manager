@@ -61,7 +61,7 @@ Currently there are no unit or integration tests.
 To contribute, simply checkout the repository:
 
 ```
-git clone git@gitlab.com:ska-telescope/ska-namespace-manager.git
+git clone git@gitlab.com:ska-telescope/ska-ser-namespace-manager.git
 git submodule update --init --recursive
 
 make k8s-install-chart

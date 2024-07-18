@@ -1,0 +1,166 @@
+nameOverride:
+fullnameOverride:
+
+labels: {}
+
+nodeSelector: {}
+
+tolerations: []
+
+extraEnvVars: []
+
+image:
+  repository: artefact.skao.int/ska-ser-namespace-manager
+  pullPolicy: IfNotPresent
+  tag:
+
+configPath: /etc/config
+config: {}
+
+api:
+  config:
+    httpsPort: 9443
+    httpPort: 8080
+    pkiPath: /etc/pki
+    people_db:
+      spreadsheet_id:
+      spreadsheet_range: "A2:Z1001"
+      credentials:
+        type: service_account
+        project_id:
+        private_key_id:
+        private_key:
+        client_email:
+        client_id:
+        universe_domain: googleapis.com
+        auth_uri: https://accounts.google.com/o/oauth2/auth
+        token_uri: https://oauth2.googleapis.com/token
+        auth_provider_x509_cert_url: https://www.googleapis.com/oauth2/v1/certs
+        client_x509_cert_url:
+
+  pki:
+    createSelfSignedCert: true
+    ca:
+    key:
+    cert:
+
+  image:
+    repository:
+    pullPolicy:
+    tag:
+
+  replicas: 1
+
+  labels: {}
+
+  annotations: {}
+
+  updateStrategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 40%
+    type: RollingUpdate
+
+  dnsPolicy: ClusterFirst
+
+  apiPriorityAndFairness: false
+  # -- Priority level configuration.
+  # The block is directly forwarded into the priorityLevelConfiguration, so you can use whatever specification you want.
+  # ref: https://kubernetes.io/docs/concepts/cluster-administration/flow-control/#prioritylevelconfiguration
+  # @default -- See [values.yaml](values.yaml)
+  priorityLevelConfigurationSpec:
+    type: Limited
+    limited:
+      nominalConcurrencyShares: 10
+      limitResponse:
+        queuing:
+          queueLengthLimit: 50
+        type: Queue
+
+  startupProbe:
+    httpGet:
+      path: /health/readiness
+      port: 9443
+      scheme: HTTPS
+    failureThreshold: 20
+    initialDelaySeconds: 2
+    periodSeconds: 6
+
+  livenessProbe:
+    httpGet:
+      path: /health/liveness
+      port: 9443
+      scheme: HTTPS
+    initialDelaySeconds: 15
+    periodSeconds: 60
+    timeoutSeconds: 5
+    failureThreshold: 2
+    successThreshold: 1
+
+  readinessProbe:
+    httpGet:
+      path: /health/readiness
+      port: 9443
+      scheme: HTTPS
+    initialDelaySeconds: 5
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+    successThreshold: 1
+
+  nodeSelector: {}
+
+  tolerations: []
+
+  antiAffinity:
+    enabled: true
+
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 1
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/component
+                operator: In
+                values:
+                  - api
+          topologyKey: kubernetes.io/hostname
+
+  podAffinity: {}
+
+  nodeAffinity: {}
+
+  topologySpreadConstraints: []
+
+  podSecurityContext: {}
+
+  imagePullSecrets: []
+
+  priorityClassName: ""
+
+  resources:
+    limits:
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+  securityContext: {}
+
+  extraArgs: []
+
+  extraEnvVars: []
+
+  service:
+    https:
+      enabled: true
+      port: 443
+      type: ClusterIP
+      nodePort:
+      annotations: {}
+    http:
+      port: 80
+      type: ClusterIP
+      nodePort:
+      annotations: {}
