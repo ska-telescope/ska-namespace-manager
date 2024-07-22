@@ -1,0 +1,4 @@
+image:
+  repository: registry.gitlab.com/ska-telescope/ska-namespace-manager/ska-namespace-manager
+  pullPolicy: IfNotPresent
+  tag: 0.0.0-dev.c7b0ba954

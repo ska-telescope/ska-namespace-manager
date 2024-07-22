@@ -1,0 +1,7 @@
+apiVersion: v2
+name: ska-namespace-manager
+description: SKA Namespace Manager Helm Chart
+icon: https://www.skao.int/themes/custom/ska/assets/images/logo-color.svg
+type: application
+version: 0.0.0
+appVersion: 0.0.0
