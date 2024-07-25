@@ -34,5 +34,7 @@ RUN apk add bash curl jq
 
 COPY src/ /opt/ska_ser_namespace_manager
 
+ENV PYTHONPATH="/opt/ska_ser_namespace_manager"
+
 ENTRYPOINT ["python3", "-u"]
 CMD ["/opt/ska_ser_namespace_manager/api.py"]

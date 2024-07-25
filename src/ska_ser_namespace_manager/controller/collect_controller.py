@@ -12,12 +12,14 @@ Usage:
 
 import datetime
 
+import yaml
+
 from ska_ser_namespace_manager.controller.collect_controller_config import (
     CollectControllerConfig,
 )
 from ska_ser_namespace_manager.controller.controller import (
-    ConditionalControllerTask,
-    ControllerTask,
+    conditional_controller_task,
+    controller_task,
 )
 from ska_ser_namespace_manager.controller.leader_controller import (
     LeaderController,
@@ -35,23 +37,74 @@ class CollectController(LeaderController):
         """
         Initialize the CollectController
         """
-        super().__init__(CollectControllerConfig, [self.collect])
+        super().__init__(CollectControllerConfig, [self.check_new_namespaces])
         if self.config.leader_election.enabled:
-            self.add_tasks([self.leader])
+            self.add_tasks([self.loadbalance_namespaces])
 
-    @ControllerTask(period=datetime.timedelta(milliseconds=1000))
-    def collect(self) -> None:
+    def create_collect_cronjob(self, namespace: str) -> None:
         """
-        Dummy task
-        """
-        logging.info("CollectController task")
+        Create a new CronJob for the given namespace.
 
-    @ConditionalControllerTask(
-        period=datetime.timedelta(milliseconds=5000),
+        :param namespace: The namespace to create the CronJob for.
+        :type namespace: str
+        """
+        with open(
+            "ska_ser_namespace_manager/collector/resources/cronjob.yaml",
+            "r",
+            encoding="utf-8",
+        ) as file:
+            content = file.read()
+            content = content.replace("{{namespace}}", namespace)
+            cronjob_manifest = yaml.safe_load(content)
+
+        try:
+            self.batch_v1.create_namespaced_cron_job(
+                "ska-ser-namespace-manager", cronjob_manifest
+            )
+            logging.info(
+                "Collect CronJob for namespace %s created.", namespace
+            )
+            
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logging.error(
+                "Exception when creating Collect CronJob for namespace %s: %s",
+                namespace,
+                e,
+            )
+            self.terminate()
+
+    @controller_task(period=datetime.timedelta(seconds=1))
+    def check_new_namespaces(self) -> None:
+        """
+        Check for new namespaces and create a CronJob for each new namespace.
+        """
+        unmanaged_namespaces = self.get_namespaces_by(
+            exclude_annotations={"manager.cicd.skao.int/managed": "true"},
+            # annotations={"manager.cicd.skao.int/managed_by": "true"}
+        )
+
+        for namespace in unmanaged_namespaces:
+            namespace = namespace.metadata.name
+
+            self.patch_namespace(
+                namespace,
+                annotations={"manager.cicd.skao.int/managed": "true"},
+            )
+            logging.info("New namespace detected: %s", namespace)
+            self.create_collect_cronjob(namespace)
+
+    @conditional_controller_task(
+        period=datetime.timedelta(milliseconds=500),
         run_if=LeaderController.is_leader,
     )
-    def leader(self) -> None:
+    def loadbalance_namespaces(self) -> None:
         """
-        Dummy task
+        Lists namespaces which aren't managed and loadbalances
+        them between the existing collect controllers.
         """
-        logging.info("CollectController leader task: %s", self.is_leader())
+        # List controllers: list pods in manager namespace, filter by name
+        # List all namespaces
+        # Check number of namespaces allocated to each
+        # controller: manager.cicd.skao.int/managed_by
+        # loadbalance namespaces between controllers
+        # set manager.cicd.skao.int/managed_by to controller name

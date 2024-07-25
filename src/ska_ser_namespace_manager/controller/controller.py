@@ -23,12 +23,13 @@ from ska_ser_namespace_manager.controller.controller_config import (
     ControllerConfig,
 )
 from ska_ser_namespace_manager.core.config import ConfigLoader
+from ska_ser_namespace_manager.core.k8s import KubernetesAPI
 from ska_ser_namespace_manager.core.logging import logging
 
 T = TypeVar("T", bound=ControllerConfig)
 
 
-class Controller:
+class Controller(KubernetesAPI):
     """
     A generic controller class to implement simple process
     management tasks
@@ -45,6 +46,7 @@ class Controller:
         :param config_class: Class to use to load configs
         :param tasks: List of tasks to manage
         """
+        super().__init__()
         self.shutdown_event = threading.Event()
         self.config: T = ConfigLoader().load(config_class)
         self.threads = defaultdict(threading.Thread)
@@ -59,6 +61,13 @@ class Controller:
         for task in tasks:
             logging.info("Managing task '%s'", task.__name__)
             self.threads[task.__name__] = threading.Thread(target=task)
+
+    def terminate(self):
+        """
+        Signal the controller to terminate
+        :return:
+        """
+        self.shutdown_event.set()
 
     def __shutdown(
         self, signum: int, frame  # pylint: disable=unused-argument
@@ -89,26 +98,26 @@ class Controller:
 
         for task, thread in self.threads.items():
             thread.join()
-            logging.info("Thread for task '%s' completed", task)
+            logging.debug("Thread for task '%s' completed", task)
 
         self.cleanup()
 
 
-def ControllerTask(  # pylint: disable=invalid-name
+def controller_task(
     wrapped=None,
     period: datetime.timedelta | Callable = datetime.timedelta(
         milliseconds=1000
     ),
 ):
     """
-    ControllerTask decorator allows to wrap the looping behavior for tasks
+    controller_task decorator allows to wrap the looping behavior for tasks
 
     :param wrapped: Function wrapped with the decorator
     :param period: Function calling period
     :return: Wrapped function implementing a periodic call of a function
     """
     if wrapped is None:
-        return functools.partial(ControllerTask, period=period)
+        return functools.partial(controller_task, period=period)
 
     @wrapt.decorator
     def wrapper(wrapped, instance: Controller, args, kwargs):
@@ -127,7 +136,7 @@ def ControllerTask(  # pylint: disable=invalid-name
     return wrapper(wrapped)  # pylint: disable=no-value-for-parameter
 
 
-def ConditionalControllerTask(  # pylint: disable=invalid-name
+def conditional_controller_task(
     wrapped=None,
     period: datetime.timedelta | Callable = datetime.timedelta(
         milliseconds=1000
@@ -144,7 +153,7 @@ def ConditionalControllerTask(  # pylint: disable=invalid-name
     """
     if wrapped is None:
         return functools.partial(
-            ConditionalControllerTask, period=period, run_if=run_if
+            conditional_controller_task, period=period, run_if=run_if
         )
 
     @wrapt.decorator

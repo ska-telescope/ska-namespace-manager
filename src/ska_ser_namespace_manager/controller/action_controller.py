@@ -15,10 +15,7 @@ import datetime
 from ska_ser_namespace_manager.controller.action_controller_config import (
     ActionControllerConfig,
 )
-from ska_ser_namespace_manager.controller.controller import (
-    ConditionalControllerTask,
-    ControllerTask,
-)
+from ska_ser_namespace_manager.controller.controller import controller_task
 from ska_ser_namespace_manager.controller.leader_controller import (
     LeaderController,
 )
@@ -35,23 +32,57 @@ class ActionController(LeaderController):
         """
         Initialize the CollectController
         """
-        super().__init__(ActionControllerConfig, [self.act])
-        if self.config.leader_election.enabled:
-            self.add_tasks([self.leader])
+        super().__init__(
+            ActionControllerConfig,
+            [self.delete_stale_namespaces, self.delete_failed_namespaces],
+        )
 
-    @ControllerTask(period=datetime.timedelta(milliseconds=1000))
-    def act(self) -> None:
+    @controller_task(period=datetime.timedelta(seconds=1))
+    def delete_stale_namespaces(self) -> None:
         """
-        Dummy task
+        Looks for namespaces with stale status and deletes them.
+        :return:
         """
-        logging.info("ActionController task")
+        stale_namespaces = self.get_namespaces_by(
+            annotations={
+                "manager.cicd.skao.int/managed": "true",
+                "cicd.skao.int/status": "stale",
+            }
+        )
+        for namespace in stale_namespaces:
+            if namespace.status.phase == "Terminating":
+                logging.debug(
+                    "Namespace %s is already terminating",
+                    namespace.metadata.name,
+                )
+                continue
 
-    @ConditionalControllerTask(
-        period=datetime.timedelta(milliseconds=5000),
-        run_if=LeaderController.is_leader,
-    )
-    def leader(self) -> None:
+            logging.info(
+                "Deleting stale namespace %s", namespace.metadata.name
+            )
+            self.delete_namespace(namespace.metadata.name)
+
+    @controller_task(period=datetime.timedelta(seconds=1))
+    def delete_failed_namespaces(self) -> None:
         """
-        Dummy task
+        Looks for namespaces with failed status and deletes them.
+        :return:
         """
-        logging.info("ActionController leader task: %s", self.is_leader())
+        failed_namespaces = self.get_namespaces_by(
+            annotations={
+                "manager.cicd.skao.int/managed": "true",
+                "cicd.skao.int/status": "failed",
+            }
+        )
+        for namespace in failed_namespaces:
+            if namespace.status.phase == "Terminating":
+                logging.debug(
+                    "Namespace %s is already terminating",
+                    namespace.metadata.name,
+                )
+                continue
+
+            logging.info(
+                "Deleting failed namespace %s", namespace.metadata.name
+            )
+            self.delete_namespace(namespace.metadata.name)

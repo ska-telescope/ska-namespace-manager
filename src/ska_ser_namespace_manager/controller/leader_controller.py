@@ -14,7 +14,7 @@ from typing import Callable, List, TypeVar
 
 from ska_ser_namespace_manager.controller.controller import (
     Controller,
-    ControllerTask,
+    controller_task,
 )
 from ska_ser_namespace_manager.controller.leader_controller_config import (
     LeaderControllerConfig,
@@ -55,9 +55,9 @@ class LeaderController(Controller):
             self.config.leader_election.lease_ttl.total_seconds() / 2, 0.5
         )
 
-    @ControllerTask(period=__acquire_lease_period)
+    @controller_task(period=__acquire_lease_period)
     def __acquire_lease(self) -> None:
-        if self.leader_lock:
+        if self.leader_lock is not None:
             self.leader_lock.acquire_lease()
 
     def cleanup(self) -> None:

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-collect_controller provides the execution script for the CollectController
+action_controller provides the execution script for the CollectController
 component
 """
 
