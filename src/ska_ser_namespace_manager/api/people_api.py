@@ -13,17 +13,18 @@ from ska_ser_namespace_manager.api.api_config import APIConfig
 from ska_ser_namespace_manager.api.people_db import PeopleDB
 
 api = APIRouter()
-config = APIConfig()
-people_db = PeopleDB()
 
 
-async def reload_people_db():
+async def is_ready():
     """
-    Reload the People DB if needed
+    Check if the people api is ready
     :return: True if DB cached, False otherwise
     """
-    await people_db._get_sheet()  # pylint: disable=protected-access
-    return people_db._cache_available()  # pylint: disable=protected-access
+    config = APIConfig()
+    return (
+        await PeopleDB().refresh()
+        or config.people_database.spreadsheet_id == "dummy"
+    )
 
 
 @api.get(
@@ -49,6 +50,7 @@ async def handle_get_user(
     :param slack_id: User's Slack Id
     :return: Matched user
     """
+    people_db = PeopleDB()
     matched_user: PeopleDatabaseUser = None
     if gitlab_handle:
         matched_user = await people_db.get_user_by_gitlab_handle(gitlab_handle)

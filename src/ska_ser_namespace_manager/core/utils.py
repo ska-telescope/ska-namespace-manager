@@ -20,10 +20,11 @@ class Singleton(type):
             cls._instances[cls] = super(Singleton, cls).__call__(
                 *args, **kwargs
             )
+
         return cls._instances[cls]
 
 
-def deserialize_request(request: Request):
+def deserialize_request(request: Request):  # pragma: no cover
     """
     Deserializes request into useful information for debugging
 
@@ -38,11 +39,3 @@ def deserialize_request(request: Request):
         },
         indent=4,
     )
-
-
-def to_bool(value: str | bool):
-    """
-    Converts string to bool
-    """
-
-    return value.lower() in ["yes", "true"]

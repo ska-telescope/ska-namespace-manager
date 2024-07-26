@@ -29,3 +29,4 @@ Chart.lock
 local.y*ml
 manifests.yaml
 local_config.y*ml
+pytest.stdout

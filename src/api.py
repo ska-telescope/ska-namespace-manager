@@ -17,7 +17,9 @@ from fastapi.responses import JSONResponse
 
 from ska_ser_namespace_manager.api.api_config import APIConfig
 from ska_ser_namespace_manager.api.people_api import api as people_api
-from ska_ser_namespace_manager.api.people_api import reload_people_db
+from ska_ser_namespace_manager.api.people_api import (
+    is_ready as people_api_ready,
+)
 from ska_ser_namespace_manager.core.utils import deserialize_request
 
 
@@ -33,7 +35,15 @@ async def lifespan(_):
 app = FastAPI(title="SKA Namespace Manager REST API", lifespan=lifespan)
 
 api = APIRouter()
-config = APIConfig()
+
+
+async def apis_ready() -> bool:
+    """
+    Return complete readiness of the API
+
+    :return: True if the API is ready, false otherwise
+    """
+    return await people_api_ready()
 
 
 @app.exception_handler(Exception)
@@ -70,7 +80,7 @@ async def liveness():
     Returns the liveness of the API
     """
     return JSONResponse(
-        content=jsonable_encoder({"status", "ok"}),
+        content=jsonable_encoder({"status": "ok"}),
         status_code=http.HTTPStatus.OK,
     )
 
@@ -80,11 +90,7 @@ async def readiness():
     """
     Returns the readiness of the API
     """
-    # Comparing with the dummy spreadsheet for ci builds
-    ready = (
-        await reload_people_db()
-        or config.people_database.spreadsheet_id == "dummy"
-    )
+    ready = await apis_ready()
     return JSONResponse(
         content=jsonable_encoder({"status": "ok" if ready else "error"}),
         status_code=(
@@ -100,6 +106,7 @@ app.include_router(api, prefix="/api")
 
 
 if __name__ == "__main__":
+    config = APIConfig()
     uvicorn.run(
         "api:app",
         host="0.0.0.0",

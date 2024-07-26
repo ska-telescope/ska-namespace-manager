@@ -14,9 +14,6 @@ stages:
   - pages
   - publish
 
-python-test:
-  variables:
-    PYTHON_TEST_FILE: "tests/"
 
 include:
   - project: "ska-telescope/templates-repository"
@@ -29,7 +26,7 @@ include:
     file: "gitlab-ci/includes/oci-image.gitlab-ci.yml"
 
   - project: "ska-telescope/templates-repository"
-    file: "gitlab-ci/includes/k8s.gitlab-ci.yml"
+    file: "gitlab-ci/includes/k8s-test-runner.gitlab-ci.yml"
 
   - project: "ska-telescope/templates-repository"
     file: "gitlab-ci/includes/release.gitlab-ci.yml"

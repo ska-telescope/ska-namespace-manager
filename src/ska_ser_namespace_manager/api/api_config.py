@@ -3,10 +3,8 @@ api_config centralizes all the configuration logging for the
 api component
 """
 
-import json
 import os
 
-import yaml
 from pydantic import BaseModel
 
 from ska_ser_namespace_manager.core.config import Config
@@ -18,7 +16,7 @@ class GoogleServiceAccount(BaseModel):
     able to interact with the People's database
     """
 
-    type: str
+    type: str = "service_account"
     project_id: str
     private_key_id: str
     private_key: str
@@ -62,30 +60,15 @@ class APIConfig(Config):
     people_database: PeopleDatabaseConfig
 
     def load(self):
-        with open(self.config_path, encoding="utf-8") as config_data:
-            config = yaml.safe_load(config_data)
-            self.https_port = int(config.get("httpsPort", 9443))
-            self.https_enabled = config.get("httpsEnabled", False)
-            self.pki_path = config.get("pkiPath", "/etc/pki")
-            self.http_port = int(config.get("httpPort", 8080))
-            self.people_database = PeopleDatabaseConfig(
-                **config.get("people_db", {})
-            )
+        self.https_port = int(self.config_data.get("httpsPort", 9443))
+        self.https_enabled = self.config_data.get("httpsEnabled", False)
+        self.pki_path = self.config_data.get("pkiPath", "/etc/pki")
+        self.http_port = int(self.config_data.get("httpPort", 8080))
+        self.people_database = PeopleDatabaseConfig(
+            **self.config_data.get("people_db", {})
+        )
 
         if self.https_enabled:
             self.ca_path = os.path.join(self.pki_path, "ca.crt")
             self.cert_path = os.path.join(self.pki_path, "tls.crt")
             self.key_path = os.path.join(self.pki_path, "tls.key")
-
-    def __str__(self) -> str:
-        return json.dumps(
-            {
-                "https_port": self.https_port,
-                "https_enabled": self.https_enabled,
-                "pki_path": self.pki_path,
-                "http_port": self.http_port,
-                "ca_path": self.ca_path,
-                "cert_path": self.cert_path,
-                "key_path": self.key_path,
-            }
-        )
