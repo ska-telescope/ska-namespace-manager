@@ -9,7 +9,6 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from ska_cicd_services_api.people_database_api import PeopleDatabaseUser
 
-from ska_ser_namespace_manager.api.api_config import APIConfig
 from ska_ser_namespace_manager.api.people_db import PeopleDB
 
 api = APIRouter()
@@ -20,11 +19,7 @@ async def is_ready():
     Check if the people api is ready
     :return: True if DB cached, False otherwise
     """
-    config = APIConfig()
-    return (
-        await PeopleDB().refresh()
-        or config.people_database.spreadsheet_id == "dummy"
-    )
+    return await PeopleDB().refresh()
 
 
 @api.get(

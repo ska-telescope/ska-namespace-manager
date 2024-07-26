@@ -20,6 +20,7 @@ from ska_ser_namespace_manager.api.people_api import api as people_api
 from ska_ser_namespace_manager.api.people_api import (
     is_ready as people_api_ready,
 )
+from ska_ser_namespace_manager.core.config import ConfigLoader
 from ska_ser_namespace_manager.core.utils import deserialize_request
 
 
@@ -106,7 +107,8 @@ app.include_router(api, prefix="/api")
 
 
 if __name__ == "__main__":
-    config = APIConfig()
+    config: APIConfig
+    config = ConfigLoader().load(APIConfig)
     uvicorn.run(
         "api:app",
         host="0.0.0.0",

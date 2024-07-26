@@ -1,13 +1,11 @@
 """
-api_config centralizes all the configuration logging for the
+api_config centralizes all the configuration loading for the
 api component
 """
 
 import os
 
 from pydantic import BaseModel
-
-from ska_ser_namespace_manager.core.config import Config
 
 
 class GoogleServiceAccount(BaseModel):
@@ -43,31 +41,22 @@ class PeopleDatabaseConfig(BaseModel):
     cache_ttl: int = 3600
 
 
-class APIConfig(Config):
+class APIConfig(BaseModel):
     """
     APIConfig is a singleton class to provide abstraction from
     configuration loading for the API
     """
 
-    https_port: int
-    https_enabled: bool
-    pki_path: str
-    http_port: int
-    ca_path: str = None
-    cert_path: str = None
-    key_path: str = None
-
+    https_port: int = 9443
+    https_enabled: bool = False
+    pki_path: str = "/etc/pki"
+    http_port: int = 8080
+    ca_path: str | None = None
+    cert_path: str | None = None
+    key_path: str | None = None
     people_database: PeopleDatabaseConfig
 
-    def load(self):
-        self.https_port = int(self.config_data.get("httpsPort", 9443))
-        self.https_enabled = self.config_data.get("httpsEnabled", False)
-        self.pki_path = self.config_data.get("pkiPath", "/etc/pki")
-        self.http_port = int(self.config_data.get("httpPort", 8080))
-        self.people_database = PeopleDatabaseConfig(
-            **self.config_data.get("people_db", {})
-        )
-
+    def model_post_init(self, _):
         if self.https_enabled:
             self.ca_path = os.path.join(self.pki_path, "ca.crt")
             self.cert_path = os.path.join(self.pki_path, "tls.crt")

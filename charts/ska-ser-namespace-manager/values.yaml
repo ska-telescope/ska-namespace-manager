@@ -15,14 +15,15 @@ image:
   tag:
 
 configPath: /etc/config
+leaderElectionPath: /etc/leader/lock
 config: {}
 
 api:
   config:
-    httpsPort: 9443
-    httpPort: 8080
-    pkiPath: /etc/pki
-    people_db:
+    https_port: 9443
+    http_port: 8080
+    pki_path: /etc/pki
+    people_database:
       spreadsheet_id:
       spreadsheet_range: "System Team API!A2:Z1001"
       credentials:
@@ -50,6 +51,10 @@ api:
     tag:
 
   replicas: 1
+
+  pvc:
+    leaderElection:
+      storageClassName:
 
   labels: {}
 
@@ -164,3 +169,191 @@ api:
       type: ClusterIP
       nodePort:
       annotations: {}
+
+collectController:
+  config:
+    leader_election:
+      enabled: false
+      path: /etc/leader/lock
+    namespaces: []
+
+  image:
+    repository:
+    pullPolicy:
+    tag:
+
+  replicas: 3
+
+  pvc:
+    leaderElection:
+      storageClassName:
+
+  labels: {}
+
+  annotations: {}
+
+  updateStrategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 40%
+    type: RollingUpdate
+
+  dnsPolicy: ClusterFirst
+
+  apiPriorityAndFairness: false
+  # -- Priority level configuration.
+  # The block is directly forwarded into the priorityLevelConfiguration, so you can use whatever specification you want.
+  # ref: https://kubernetes.io/docs/concepts/cluster-administration/flow-control/#prioritylevelconfiguration
+  # @default -- See [values.yaml](values.yaml)
+  priorityLevelConfigurationSpec:
+    type: Limited
+    limited:
+      nominalConcurrencyShares: 10
+      limitResponse:
+        queuing:
+          queueLengthLimit: 50
+        type: Queue
+
+  startupProbe:
+
+  livenessProbe:
+
+  readinessProbe:
+
+  nodeSelector: {}
+
+  tolerations: []
+
+  antiAffinity:
+    enabled: true
+
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 1
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/component
+                operator: In
+                values:
+                  - collect-controller
+          topologyKey: kubernetes.io/hostname
+
+  podAffinity: {}
+
+  nodeAffinity: {}
+
+  topologySpreadConstraints: []
+
+  podSecurityContext: {}
+
+  imagePullSecrets: []
+
+  priorityClassName: ""
+
+  resources:
+    limits:
+      memory: 2Gi
+    requests:
+      cpu: 400m
+      memory: 512Mi
+
+  securityContext: {}
+
+  extraArgs: []
+
+  extraEnvVars: []
+
+actionController:
+  config:
+    leader_election:
+      enabled: false
+      path: /etc/leader/lock
+    namespaces: []
+
+  image:
+    repository:
+    pullPolicy:
+    tag:
+
+  replicas: 1
+
+  pvc:
+    leaderElection:
+      storageClassName:
+
+  labels: {}
+
+  annotations: {}
+
+  updateStrategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 40%
+    type: RollingUpdate
+
+  dnsPolicy: ClusterFirst
+
+  apiPriorityAndFairness: false
+  # -- Priority level configuration.
+  # The block is directly forwarded into the priorityLevelConfiguration, so you can use whatever specification you want.
+  # ref: https://kubernetes.io/docs/concepts/cluster-administration/flow-control/#prioritylevelconfiguration
+  # @default -- See [values.yaml](values.yaml)
+  priorityLevelConfigurationSpec:
+    type: Limited
+    limited:
+      nominalConcurrencyShares: 10
+      limitResponse:
+        queuing:
+          queueLengthLimit: 50
+        type: Queue
+
+  startupProbe:
+
+  livenessProbe:
+
+  readinessProbe:
+
+  nodeSelector: {}
+
+  tolerations: []
+
+  antiAffinity:
+    enabled: true
+
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 1
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/component
+                operator: In
+                values:
+                  - action-controller
+          topologyKey: kubernetes.io/hostname
+
+  podAffinity: {}
+
+  nodeAffinity: {}
+
+  topologySpreadConstraints: []
+
+  podSecurityContext: {}
+
+  imagePullSecrets: []
+
+  priorityClassName: ""
+
+  resources:
+    limits:
+      memory: 2Gi
+    requests:
+      cpu: 400m
+      memory: 512Mi
+
+  securityContext: {}
+
+  extraArgs: []
+
+  extraEnvVars: []

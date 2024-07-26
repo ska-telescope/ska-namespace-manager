@@ -1,0 +1,12 @@
+{{- if .Values.collectController.apiPriorityAndFairness }}
+apiVersion: v1
+kind: PriorityLevelConfiguration
+metadata:
+  name: {{ template "ska-ser-namespace-manager.collect-controller.name" . }}
+  labels:
+    {{- include "ska-ser-namespace-manager.collect-controller.labels" . | nindent 4 }}
+{{- with .Values.collectController.priorityLevelConfigurationSpec }}
+spec:
+  {{- tpl (toYaml .) $ | nindent 2 }}
+{{- end }}
+{{- end }}

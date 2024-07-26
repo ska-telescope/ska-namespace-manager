@@ -32,6 +32,7 @@ async def test_not_found_slack_id():
         mock_people_db.get_user_by_slack_id = AsyncMock(return_value=None)
         async with AsyncClient(app=app, base_url="http://test") as ac:
             response = await ac.get("/api/people?slack_id=marvin")
+
             assert response.status_code == http.HTTPStatus.NOT_FOUND
             assert response.json() == {"status": "not found"}
 
@@ -62,6 +63,7 @@ async def test_not_found_all():
             response = await ac.get(
                 "/api/people?email=marvin&slack_id=marvin&gitlab_handle=marvin"
             )
+
             assert response.status_code == http.HTTPStatus.NOT_FOUND
             assert response.json() == {"status": "not found"}
 
@@ -118,6 +120,7 @@ async def test_slack_id():
         mock_people_db.get_user_by_slack_id = AsyncMock(return_value=user)
         async with AsyncClient(app=app, base_url="http://test") as ac:
             response = await ac.get("/api/people?slack_id=marvin")
+
             assert response.status_code == http.HTTPStatus.OK
             assert response.json() == user.model_dump()
 

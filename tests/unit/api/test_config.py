@@ -1,51 +1,17 @@
 """test_config tests the APIConfig class"""
 
-import io
-import json
-import os
-import tempfile
-
 import pytest
 
 from ska_ser_namespace_manager.api.api_config import APIConfig
-from ska_ser_namespace_manager.core.config import Config
+from ska_ser_namespace_manager.core.config import ConfigLoader
 
 
 @pytest.fixture()
-def config_from_path():
-    config_path: str
-    with tempfile.NamedTemporaryFile(delete=False) as fp:
-        fp.write(
-            json.dumps(
-                {
-                    "httpsEnabled": True,
-                    "pkiPath": "file-path",
-                    "people_db": {
-                        "credentials": {
-                            "client_email": "dummy",
-                            "client_id": "dummy",
-                            "client_x509_cert_url": "dummy",
-                            "private_key": "dummy",
-                            "private_key_id": "dummy",
-                            "project_id": "dummy",
-                        },
-                        "spreadsheet_id": "file-dummy",
-                    },
-                }
-            ).encode("utf-8")
-        )
-        config_path = fp.name
-
-    yield config_path
-    APIConfig.dispose()
-
-
-@pytest.fixture()
-def config_from_dict():
+def config_https_enabled():
     yield {
-        "httpsEnabled": True,
-        "pkiPath": "dict-path",
-        "people_db": {
+        "https_enabled": True,
+        "pki_path": "https-enabled",
+        "people_database": {
             "credentials": {
                 "client_email": "dummy",
                 "client_id": "dummy",
@@ -54,74 +20,49 @@ def config_from_dict():
                 "private_key_id": "dummy",
                 "project_id": "dummy",
             },
-            "spreadsheet_id": "dict-dummy",
+            "spreadsheet_id": "dummy",
         },
     }
-    APIConfig.dispose()
+    ConfigLoader().dispose(APIConfig)
 
 
 @pytest.fixture()
-def config_from_stream():
-    yield io.StringIO(
-        json.dumps(
-            {
-                "pkiPath": "stream-path",
-                "people_db": {
-                    "credentials": {
-                        "client_email": "dummy",
-                        "client_id": "dummy",
-                        "client_x509_cert_url": "dummy",
-                        "private_key": "dummy",
-                        "private_key_id": "dummy",
-                        "project_id": "dummy",
-                    },
-                    "spreadsheet_id": "stream-dummy",
-                },
-            }
-        )
-    )
-    APIConfig.dispose()
+def config_https_disabled():
+    yield {
+        "https_enabled": False,
+        "pki_path": "https-disabled",
+        "people_database": {
+            "credentials": {
+                "client_email": "dummy",
+                "client_id": "dummy",
+                "client_x509_cert_url": "dummy",
+                "private_key": "dummy",
+                "private_key_id": "dummy",
+                "project_id": "dummy",
+            },
+            "spreadsheet_id": "dummy",
+        },
+    }
+    ConfigLoader().dispose(APIConfig)
 
 
-def test_config_dispose():
-    os.environ["LOG_LEVEL"] = "DEBUG"
-    config = Config("/dev/null")
-    assert config.log_level == os.environ["LOG_LEVEL"]
+class TestAPIConfig:
+    def test_config_https_enabled(self, config_https_enabled):
+        config: APIConfig
+        config = ConfigLoader().load(APIConfig, config_https_enabled)
 
-    Config.dispose()
-
-    os.environ["LOG_LEVEL"] = "INFO"
-    config = Config("/dev/null")
-    assert config.log_level == os.environ["LOG_LEVEL"]
-
-
-class TestConfig:
-    def test_load_config_from_envvar_path(self, config_from_path):
-        os.environ["CONFIG_PATH"] = config_from_path
-        APIConfig()
-        del os.environ["CONFIG_PATH"]
-
-    def test_load_config_from_path(self, config_from_path):
-        config = APIConfig(config_from_path)
-        assert config.https_port == 9443
         assert config.https_enabled
-        assert config.pki_path == "file-path"
-        assert config.http_port == 8080
-        assert config.ca_path == "file-path/ca.crt"
-        assert config.cert_path == "file-path/tls.crt"
-        assert config.key_path == "file-path/tls.key"
-        assert config.people_database.spreadsheet_id == "file-dummy"
-        assert config.people_database.cache_ttl == 3600
+        assert config.pki_path == "https-enabled"
+        assert config.ca_path == "https-enabled/ca.crt"
+        assert config.cert_path == "https-enabled/tls.crt"
+        assert config.key_path == "https-enabled/tls.key"
 
-    def test_load_config_from_dict(self, config_from_dict):
-        config = APIConfig(config_from_dict)
-        assert config.ca_path == "dict-path/ca.crt"
-        assert config.cert_path == "dict-path/tls.crt"
-        assert config.key_path == "dict-path/tls.key"
-        assert config.people_database.spreadsheet_id == "dict-dummy"
+    def test_config_https_disabled(self, config_https_disabled):
+        config: APIConfig
+        config = ConfigLoader().load(APIConfig, config_https_disabled)
 
-    def test_load_config_from_stream(self, config_from_stream):
-        config = APIConfig(config_from_stream)
         assert not config.https_enabled
+        assert config.pki_path == "https-disabled"
         assert not config.ca_path
-        assert config.people_database.spreadsheet_id == "stream-dummy"
+        assert not config.cert_path
+        assert not config.key_path

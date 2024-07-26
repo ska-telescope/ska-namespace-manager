@@ -4,7 +4,7 @@ image:
 
 api:
   config:
-    people_db:
+    people_database:
       spreadsheet_id: "dummy"
       credentials:
         client_email: "dummy"

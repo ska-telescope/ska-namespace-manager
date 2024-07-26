@@ -1,75 +1,79 @@
 """
-config provides a basic configuration class meant to be
-inherited by components specific classes
+config provides a basic configuration classes meant to be
+inherited by components specific classes and a singleton
+configuration loader
 """
 
 import io
-import logging
 import os
+from collections import defaultdict
 
 import yaml
+from pydantic import BaseModel
 
+from ska_ser_namespace_manager.core.logging import logging
 from ska_ser_namespace_manager.core.utils import Singleton
 
-LOGGING_FORMAT = "%(asctime)s [level=%(levelname)s]: %(message)s"
 
-
-class Config(metaclass=Singleton):
+class ConfigLoader(metaclass=Singleton):
     """
-    Config is a singleton class to provide abstraction from
-    configuration loading
-
-    config: Config data in dict form
+    ConfigLoader is a singleton class responsible for loading
+    configurations only once
     """
 
-    config_data: dict
+    configs: dict
 
-    def __init__(self, config: str | dict | io.IOBase = None) -> None:
-        """
-        Initializes base config properties
-
-        :return:
-        """
+    def __init__(self):
         super().__init__()
-        self.log_level = os.environ.get("LOG_LEVEL", "INFO")
-        logging.basicConfig(
-            level=logging.getLevelName(self.log_level), format=LOGGING_FORMAT
-        )
+        self.configs = defaultdict()
+
+    def load(
+        self, clazz: type, config: str | dict | io.IOBase = None
+    ) -> BaseModel:
+        """
+        Loads a configuration and stores it in a "singleton"
+        list
+
+        :param clazz: Class of the configuration
+        :param config: Config data or source
+        """
+        if clazz in self.configs:
+            return self.configs[clazz]
 
         config_source = config
         if config_source is None:
             config_source = os.environ.get(
                 "CONFIG_PATH", "/etc/config/config.yml"
             )
-
-        if isinstance(config_source, str):
-            logging.info("Loading configuration from %s", config_source)
-            with open(config_source, encoding="utf-8") as cf:
-                self.config_data = yaml.safe_load(cf)
+        config_data = config
+        if config is None or isinstance(config_source, str):
+            config_path = (
+                config
+                if config
+                else os.environ.get("CONFIG_PATH", "/etc/config/config.yml")
+            )
+            logging.info(
+                "Loading configuration for '%s' from %s",
+                clazz.__qualname__,
+                config_path,
+            )
+            with open(config_path, encoding="utf-8") as cf:
+                config_data = yaml.safe_load(cf)
         elif isinstance(config_source, io.IOBase):
-            self.config_data = yaml.safe_load(config_source)
-        else:
-            self.config_data = config_source
+            config_data = yaml.safe_load(config_source)
 
-        if self.config_data is None:
-            self.config_data = {}
+        if config_data is None:
+            config_data = {}
             logging.warning("Provided configuration is empty")
 
-        self.load()
+        self.configs[clazz] = clazz(**config_data)
+        return self.configs[clazz]
 
-    def load(self) -> None:
+    def dispose(self, clazz: type) -> None:
         """
-        Load configuration
+        Removes the loaded class from the "singleton" instances
 
-        :return:
+        :param clazz: Class of the configuration
         """
-
-    @classmethod
-    def dispose(cls):
-        """
-        Dispose the instance of the class
-
-        :param cls: class
-        """
-        if cls in cls._instances:
-            del cls._instances[cls]
+        if clazz in self.configs:
+            del self.configs[clazz]

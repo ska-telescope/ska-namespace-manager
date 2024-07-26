@@ -88,11 +88,11 @@ spec:
           {{- end }}
           ports:
           {{- if .Values.api.service.https.enabled }}
-          - containerPort: {{ $appConfig.httpsPort }}
+          - containerPort: {{ $appConfig.https_port }}
             name: https
             protocol: TCP
           {{- else }}
-          - containerPort: {{ $appConfig.httpPort }}
+          - containerPort: {{ $appConfig.http_port }}
             name: http
             protocol: TCP
           {{- end }}
@@ -120,7 +120,7 @@ spec:
               readOnly: true
             {{- if .Values.api.service.https.enabled }}
             - name: pki
-              mountPath: {{ $appConfig.pkiPath }}
+              mountPath: {{ $appConfig.pki_path }}
               readOnly: true
             {{- end }}
       volumes:

@@ -6,6 +6,7 @@ from ska_cicd_services_api
 from ska_cicd_services_api.people_database_api import PeopleDatabaseApi
 
 from ska_ser_namespace_manager.api.api_config import APIConfig
+from ska_ser_namespace_manager.core.config import ConfigLoader
 from ska_ser_namespace_manager.core.utils import Singleton
 
 
@@ -20,7 +21,9 @@ class PeopleDB(PeopleDatabaseApi, metaclass=Singleton):  # pragma: no cover
 
         :return:
         """
-        people_db_config = APIConfig().people_database
+        config: APIConfig
+        config = ConfigLoader().load(APIConfig)
+        people_db_config = config.people_database
         PeopleDatabaseApi.__init__(
             self,
             service_account_data=people_db_config.credentials.model_dump(),

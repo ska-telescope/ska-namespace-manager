@@ -28,7 +28,7 @@
 {{- template "ska-ser-namespace-manager.merge" (list
   (toYaml .Values.config)
   (toYaml .Values.api.config)
-  (toYaml (dict "httpsEnabled" .Values.api.service.https.enabled))
+  (toYaml (dict "https_enabled" .Values.api.service.https.enabled))
 ) -}}
 {{- end -}}
 
