@@ -8,6 +8,9 @@ from typing import Annotated, List
 
 from pydantic import BeforeValidator
 
+from ska_ser_namespace_manager.controller.controller_config import (
+    ControllerNamespaceMatcher,
+)
 from ska_ser_namespace_manager.controller.leader_controller_config import (
     LeaderControllerConfig,
 )
