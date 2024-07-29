@@ -17,12 +17,15 @@ from ska_ser_namespace_manager.controller.action_controller_config import (
     ActionControllerConfig,
 )
 from ska_ser_namespace_manager.controller.controller import (
-    Controller,
+    ConditionalControllerTask,
     ControllerTask,
+)
+from ska_ser_namespace_manager.controller.leader_controller import (
+    LeaderController,
 )
 
 
-class ActionController(Controller):
+class ActionController(LeaderController):
     """
     ActionController is responsible for creating tasks to perform actions
     on managed resources and manage those tasks
@@ -40,3 +43,13 @@ class ActionController(Controller):
         Dummy task
         """
         logging.info("ActionController task")
+
+    @ConditionalControllerTask(
+        period=datetime.timedelta(milliseconds=5000),
+        run_if=LeaderController.is_leader,
+    )
+    def leader(self) -> None:
+        """
+        Dummy task
+        """
+        logging.info("ActionController leader task: %s", self.is_leader())

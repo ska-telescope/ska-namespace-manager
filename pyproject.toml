@@ -27,6 +27,7 @@ starlette = "^0.37.2"
 fastapi = "^0.111.1"
 ska-cicd-services-api = "0.31.0+dev.cb7eacadc"
 wrapt = "^1.16.0"
+filelock = "^3.15.4"
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.4.2"

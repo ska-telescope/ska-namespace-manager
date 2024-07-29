@@ -5,8 +5,8 @@ for the action controller component
 
 from pydantic import BaseModel
 
-from ska_ser_namespace_manager.controller.controller_config import (
-    ControllerConfig,
+from ska_ser_namespace_manager.controller.leader_controller_config import (
+    LeaderControllerConfig,
 )
 
 
@@ -19,7 +19,7 @@ class ActionNamespaceConfig(BaseModel):
     """
 
 
-class ActionControllerConfig(ControllerConfig):
+class ActionControllerConfig(LeaderControllerConfig):
     """
     ActionControllerConfig is a singleton class to provide abstraction
     from configuration loading for the ActionController

@@ -108,16 +108,16 @@ spec:
             - name: config
               mountPath: {{ template "ska-ser-namespace-manager.action-controller.configPath" . }}
               readOnly: true
-          {{- if gt (int .Values.actionController.replicas) 1 }}
+          {{- if and (gt (int .Values.actionController.replicas) 1) .Values.actionController.config.leader_election.enabled }}
             - name: leader-election
-              mountPath: {{ dir (include "ska-ser-namespace-manager.action-controller.leaderElectionPath" .) }}
+              mountPath: {{ .Values.actionController.config.leader_election.path }}
               readOnly: true
           {{- end }}
       volumes:
         - name: config
           secret:
             secretName: {{ template "ska-ser-namespace-manager.action-controller.configName" . }}
-      {{- if gt (int .Values.actionController.replicas) 1 }}
+      {{- if and (gt (int .Values.actionController.replicas) 1) .Values.actionController.config.leader_election.enabled }}
         - name: leader-election
           persistentVolumeClaim:
             claimName: {{ template "ska-ser-namespace-manager.action-controller.leaderElectionVol" . }}

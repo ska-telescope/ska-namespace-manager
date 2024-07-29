@@ -15,6 +15,7 @@ import logging
 import signal
 import threading
 from collections import defaultdict
+from typing import Callable
 
 import wrapt
 from pydantic import BaseModel
@@ -33,7 +34,7 @@ class Controller:
     threads: dict[str, threading.Thread]
 
     def __init__(
-        self, config_class: type, tasks: list[callable] | None
+        self, config_class: type, tasks: list[Callable] | None
     ) -> None:
         """
         Initialize the Controller
@@ -48,10 +49,10 @@ class Controller:
             logging.info("Managing task '%s'", task.__name__)
             self.threads[task.__name__] = threading.Thread(target=task)
 
-        signal.signal(signal.SIGINT, self.__shutdown__)
-        signal.signal(signal.SIGTERM, self.__shutdown__)
+        signal.signal(signal.SIGINT, self.__shutdown)
+        signal.signal(signal.SIGTERM, self.__shutdown)
 
-    def __shutdown__(
+    def __shutdown(
         self, signum: int, frame  # pylint: disable=unused-argument
     ) -> None:
         """
@@ -64,6 +65,13 @@ class Controller:
         logging.info("Received shutdown signal: %s [%s]", signum, frame)
         self.shutdown_event.set()
 
+    def cleanup(self) -> None:
+        """
+        Cleanup resources
+
+        :return:
+        """
+
     def run(self) -> None:
         """
         Run the Controller.
@@ -71,14 +79,18 @@ class Controller:
         for _, thread in self.threads.items():
             thread.start()
 
-        logging.info("Waiting threads to complete ...")
         for task, thread in self.threads.items():
             thread.join()
             logging.info("Thread for task '%s' completed", task)
 
+        self.cleanup()
+
 
 def ControllerTask(  # pylint: disable=invalid-name
-    wrapped=None, period=datetime.timedelta(milliseconds=1000)
+    wrapped=None,
+    period: datetime.timedelta | Callable = datetime.timedelta(
+        milliseconds=1000
+    ),
 ):
     """
     ControllerTask decorator allows to wrap the looping behavior for tasks
@@ -95,7 +107,58 @@ def ControllerTask(  # pylint: disable=invalid-name
         while not instance.shutdown_event.is_set():
             wrapped(*args, **kwargs)
 
-            if instance.shutdown_event.wait(timeout=period.total_seconds()):
+            if instance.shutdown_event.wait(
+                timeout=(
+                    period.total_seconds()
+                    if isinstance(period, datetime.timedelta)
+                    else period(instance)
+                )
+            ):
+                break
+
+    return wrapper(wrapped)  # pylint: disable=no-value-for-parameter
+
+
+def ConditionalControllerTask(  # pylint: disable=invalid-name
+    wrapped=None,
+    period: datetime.timedelta | Callable = datetime.timedelta(
+        milliseconds=1000
+    ),
+    run_if: Callable | bool | None = None,
+):
+    """
+    ControllerTask decorator allows to wrap the looping behavior for tasks
+
+    :param wrapped: Function wrapped with the decorator
+    :param period: Function calling period
+    :param run_if: Run function if True
+    :return: Wrapped function implementing a periodic call of a function
+    """
+    if wrapped is None:
+        return functools.partial(
+            ConditionalControllerTask, period=period, run_if=run_if
+        )
+
+    @wrapt.decorator
+    def wrapper(wrapped, instance: Controller, args, kwargs):
+        while not instance.shutdown_event.is_set():
+            run: bool = True
+            if run_if is not None:
+                if callable(run_if):
+                    run = run_if(instance)
+                else:
+                    run = run_if
+
+            if run:
+                wrapped(*args, **kwargs)
+
+            if instance.shutdown_event.wait(
+                timeout=(
+                    period.total_seconds()
+                    if isinstance(period, datetime.timedelta)
+                    else period(instance)
+                )
+            ):
                 break
 
     return wrapper(wrapped)  # pylint: disable=no-value-for-parameter

@@ -15,7 +15,6 @@ image:
   tag:
 
 configPath: /etc/config
-leaderElectionPath: /etc/leader/lock
 config: {}
 
 api:
@@ -173,8 +172,9 @@ api:
 collectController:
   config:
     leader_election:
-      enabled: false
-      path: /etc/leader/lock
+      enabled: true
+      path: /etc/leader
+      lease_ttl: 5
     namespaces: []
 
   image:
@@ -267,8 +267,9 @@ collectController:
 actionController:
   config:
     leader_election:
-      enabled: false
-      path: /etc/leader/lock
+      enabled: true
+      path: /etc/leader
+      lease_ttl: 5s
     namespaces: []
 
   image:

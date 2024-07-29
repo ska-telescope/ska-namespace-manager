@@ -17,12 +17,15 @@ from ska_ser_namespace_manager.controller.collect_controller_config import (
     CollectControllerConfig,
 )
 from ska_ser_namespace_manager.controller.controller import (
-    Controller,
+    ConditionalControllerTask,
     ControllerTask,
+)
+from ska_ser_namespace_manager.controller.leader_controller import (
+    LeaderController,
 )
 
 
-class CollectController(Controller):
+class CollectController(LeaderController):
     """
     CollectController is responsible for creating tasks to collect
     information on managed resources and manage those tasks
@@ -32,7 +35,7 @@ class CollectController(Controller):
         """
         Initialize the CollectController
         """
-        super().__init__(CollectControllerConfig, [self.collect])
+        super().__init__(CollectControllerConfig, [self.collect, self.leader])
 
     @ControllerTask(period=datetime.timedelta(milliseconds=1000))
     def collect(self) -> None:
@@ -40,3 +43,13 @@ class CollectController(Controller):
         Dummy task
         """
         logging.info("CollectController task")
+
+    @ConditionalControllerTask(
+        period=datetime.timedelta(milliseconds=5000),
+        run_if=LeaderController.is_leader,
+    )
+    def leader(self) -> None:
+        """
+        Dummy task
+        """
+        logging.info("CollectController leader task: %s", self.is_leader())
