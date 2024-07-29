@@ -2,9 +2,20 @@
 utils provides utility classes and functions
 """
 
+import datetime
 import json
+import re
+from typing import Any
 
 from starlette.requests import Request
+
+UNITS = {
+    "s": "seconds",
+    "m": "minutes",
+    "h": "hours",
+    "d": "days",
+    "w": "weeks",
+}
 
 
 class Singleton(type):
@@ -38,4 +49,26 @@ def deserialize_request(request: Request):  # pragma: no cover
             },
         },
         indent=4,
+    )
+
+
+def parse_timedelta(v: Any) -> datetime.timedelta:
+    """
+    Parses string to timedelta
+
+    :param v: Input time delta
+    :return: Timedelta as datetime.timedelta
+    """
+    timedelta = str(v)
+    return datetime.timedelta(
+        **{
+            UNITS.get(m.group("unit").lower(), "seconds"): float(
+                m.group("val")
+            )
+            for m in re.finditer(
+                r"(?P<val>\d+(\.\d+)?)(?P<unit>[smhdw])",
+                timedelta.replace(" ", ""),
+                flags=re.I,
+            )
+        }
     )

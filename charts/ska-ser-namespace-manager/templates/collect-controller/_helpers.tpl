@@ -20,6 +20,10 @@
 {{- printf "%s-collect-controller-config" (include "ska-ser-namespace-manager.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{- define "ska-ser-namespace-manager.collect-controller.serviceAccount" -}}
+{{- printf "%s-collect-controller-sa" (include "ska-ser-namespace-manager.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
 {{- define "ska-ser-namespace-manager.collect-controller.leaderElectionVol" -}}
 {{- printf "%s-collect-controller-leader" (include "ska-ser-namespace-manager.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
@@ -28,8 +32,18 @@
 {{- template "ska-ser-namespace-manager.merge" (list
   (toYaml .Values.config)
   (toYaml .Values.collectController.config)
-  (toYaml (dict "leader_election" (dict "enabled" (gt (int .Values.collectController.replicas) 1))) )
+  (include "ska-ser-namespace-manager.action-controller.contextConfig" .)
 ) -}}
+{{- end -}}
+
+{{- define "ska-ser-namespace-manager.collect-controller.contextConfig" -}}
+leader_election:
+  enabled: {{ gt (int .Values.collectController.replicas) 1 }}
+context:
+  namespace: {{ .Release.Namespace }}
+  service_account: {{ include "ska-ser-namespace-manager.collect-controller.serviceAccount" . }}
+  matchLabels:
+    {{ include "ska-ser-namespace-manager.collect-controller.labels" . }}
 {{- end -}}
 
 {{- define "ska-ser-namespace-manager.collect-controller.configPath" -}}

@@ -21,6 +21,16 @@ class SomeConfig(BaseModel):
 
 
 @pytest.fixture()
+def config_from_path_empty():
+    config_path: str
+    with tempfile.NamedTemporaryFile(delete=False) as fp:
+        config_path = fp.name
+
+    yield config_path
+    ConfigLoader().dispose(SomeConfig)
+
+
+@pytest.fixture()
 def config_from_path():
     config_path: str
     with tempfile.NamedTemporaryFile(delete=False) as fp:
@@ -74,6 +84,23 @@ class TestConfigLoader:
         assert config.string_field == "after"
 
         ConfigLoader().dispose(SomeConfig)
+
+    def test_singleton(self):
+        config: SomeConfig
+        config = ConfigLoader().load(SomeConfig, {"string_field": "before"})
+
+        assert config.string_field == "before"
+
+        config: SomeConfig
+        config = ConfigLoader().load(SomeConfig, {"string_field": "after"})
+
+        assert config.string_field == "before"
+
+        ConfigLoader().dispose(SomeConfig)
+
+    def test_empty_config(self, config_from_path_empty):
+        with pytest.raises(ValueError):
+            ConfigLoader().load(SomeConfig, config_from_path_empty)
 
     def test_load_config_from_envvar_path(self, config_from_path):
         os.environ["CONFIG_PATH"] = config_from_path

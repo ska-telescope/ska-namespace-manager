@@ -11,7 +11,6 @@ Usage:
 """
 
 import datetime
-import logging
 
 from ska_ser_namespace_manager.controller.action_controller_config import (
     ActionControllerConfig,
@@ -23,6 +22,7 @@ from ska_ser_namespace_manager.controller.controller import (
 from ska_ser_namespace_manager.controller.leader_controller import (
     LeaderController,
 )
+from ska_ser_namespace_manager.core.logging import logging
 
 
 class ActionController(LeaderController):

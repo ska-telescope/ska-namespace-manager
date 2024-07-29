@@ -3,19 +3,33 @@ collect_controller_config centralizes all the configuration loading
 for the collect controller component
 """
 
-from pydantic import BaseModel
+import datetime
+from typing import Annotated, List
+
+from pydantic import BeforeValidator
 
 from ska_ser_namespace_manager.controller.leader_controller_config import (
     LeaderControllerConfig,
 )
+from ska_ser_namespace_manager.core.namespace import NamespaceMatcher
+from ska_ser_namespace_manager.core.utils import parse_timedelta
 
 
-class CollectNamespaceConfig(BaseModel):
+class CollectNamespaceConfig(NamespaceMatcher):
     """
-    CollectNamespaceConfig holds the namespace collection configuration.
-    Since the collectors will annotate the namespaces with the infered
-    states, it needs to know how to characterize a given namespace
+    CollectNamespaceConfig holds the configurations indicating how to
+    dictate namespace phases.
+
+    * ttl: Namespace ttl to become stale
+    * grace_period: Grace period to mark a failing namespace as failed
     """
+
+    ttl: (
+        Annotated[datetime.timedelta, BeforeValidator(parse_timedelta)] | None
+    ) = None
+    grace_period: (
+        Annotated[datetime.timedelta, BeforeValidator(parse_timedelta)] | None
+    ) = datetime.timedelta(minutes=1)
 
 
 class CollectControllerConfig(LeaderControllerConfig):
@@ -24,4 +38,4 @@ class CollectControllerConfig(LeaderControllerConfig):
     from configuration loading for the CollectController
     """
 
-    namespaces: list[CollectNamespaceConfig]
+    namespaces: List[CollectNamespaceConfig]

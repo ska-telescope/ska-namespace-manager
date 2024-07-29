@@ -7,12 +7,15 @@ configuration loader
 import io
 import os
 from collections import defaultdict
+from typing import TypeVar
 
 import yaml
 from pydantic import BaseModel
 
 from ska_ser_namespace_manager.core.logging import logging
 from ska_ser_namespace_manager.core.utils import Singleton
+
+T = TypeVar("T", bound=BaseModel)
 
 
 class ConfigLoader(metaclass=Singleton):
@@ -27,9 +30,7 @@ class ConfigLoader(metaclass=Singleton):
         super().__init__()
         self.configs = defaultdict()
 
-    def load(
-        self, clazz: type, config: str | dict | io.IOBase = None
-    ) -> BaseModel:
+    def load(self, clazz: T, config: str | dict | io.IOBase = None) -> T:
         """
         Loads a configuration and stores it in a "singleton"
         list
@@ -63,8 +64,7 @@ class ConfigLoader(metaclass=Singleton):
             config_data = yaml.safe_load(config_source)
 
         if config_data is None:
-            config_data = {}
-            logging.warning("Provided configuration is empty")
+            raise ValueError("Unable to load a valid configuration")
 
         self.configs[clazz] = clazz(**config_data)
         return self.configs[clazz]

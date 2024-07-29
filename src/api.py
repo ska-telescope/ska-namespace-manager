@@ -5,9 +5,7 @@ with the SKA Namespace Manager ecosystem and the abstraction of data stores
 """
 
 import http
-import logging
 import traceback
-from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import APIRouter, FastAPI
@@ -21,20 +19,10 @@ from ska_ser_namespace_manager.api.people_api import (
     is_ready as people_api_ready,
 )
 from ska_ser_namespace_manager.core.config import ConfigLoader
+from ska_ser_namespace_manager.core.logging import logging
 from ska_ser_namespace_manager.core.utils import deserialize_request
 
-
-@asynccontextmanager
-async def lifespan(_):
-    """
-    Lifespan hook. Do 'startup' operations before yield and
-    'cleanup' operations after
-    """
-    yield
-
-
-app = FastAPI(title="SKA Namespace Manager REST API", lifespan=lifespan)
-
+app = FastAPI(title="SKA Namespace Manager REST API")
 api = APIRouter()
 
 
@@ -48,7 +36,7 @@ async def apis_ready() -> bool:
 
 
 @app.exception_handler(Exception)
-async def exception_handler_request(request, exc):
+async def exception_handler_request(request, exc):  # pragma: no cover
     """
     Exception handler to return a standard HTTP response and log
     request information for debugging
@@ -62,7 +50,9 @@ async def exception_handler_request(request, exc):
 
 
 @app.exception_handler(RequestValidationError)
-async def requestvalidation_exception_handler_request(request, exc):
+async def requestvalidation_exception_handler_request(
+    request, exc
+):  # pragma: no cover
     """
     Exception handler to return a standard HTTP response and log
     request information for debugging

@@ -1,12 +1,13 @@
 """leader_lock implements a filelock based leader election lock"""
 
 import datetime
-import logging
 import os
 import traceback
 from pathlib import Path
 
 from filelock import FileLock, Timeout
+
+from ska_ser_namespace_manager.core.logging import logging
 
 
 class LeaderLock:

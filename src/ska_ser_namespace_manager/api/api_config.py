@@ -4,6 +4,7 @@ api component
 """
 
 import os
+from typing import Optional
 
 from pydantic import BaseModel
 
@@ -51,9 +52,9 @@ class APIConfig(BaseModel):
     https_enabled: bool = False
     pki_path: str = "/etc/pki"
     http_port: int = 8080
-    ca_path: str | None = None
-    cert_path: str | None = None
-    key_path: str | None = None
+    ca_path: Optional[str] = None
+    cert_path: Optional[str] = None
+    key_path: Optional[str] = None
     people_database: PeopleDatabaseConfig
 
     def model_post_init(self, _):

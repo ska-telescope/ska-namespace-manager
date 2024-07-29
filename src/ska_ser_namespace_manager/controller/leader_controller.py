@@ -11,6 +11,7 @@ Usage:
 
 import datetime
 import threading
+from typing import Callable, List, TypeVar
 
 from ska_ser_namespace_manager.controller.controller import (
     Controller,
@@ -21,6 +22,8 @@ from ska_ser_namespace_manager.controller.leader_controller_config import (
 )
 from ska_ser_namespace_manager.controller.leader_lock import LeaderLock
 
+T = TypeVar("T", bound=LeaderControllerConfig)
+
 
 class LeaderController(Controller):
     """
@@ -30,9 +33,7 @@ class LeaderController(Controller):
 
     leader_lock: LeaderLock
 
-    def __init__(
-        self, config_class: type, tasks: list[callable] | None
-    ) -> None:
+    def __init__(self, config_class: T, tasks: List[Callable] | None) -> None:
         """
         Initialize the Controller
 
@@ -40,7 +41,7 @@ class LeaderController(Controller):
         :param tasks: List of tasks to manage
         """
         super().__init__(config_class, tasks)
-        self.config: LeaderControllerConfig
+        self.config: T
         self.leader_lock = None
         if self.config.leader_election.enabled:
             self.leader_lock = LeaderLock(

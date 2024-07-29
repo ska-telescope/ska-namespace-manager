@@ -11,16 +11,21 @@ Usage:
 
 import datetime
 import functools
-import logging
 import signal
 import threading
 from collections import defaultdict
-from typing import Callable
+from typing import Callable, List, TypeVar
 
 import wrapt
 from pydantic import BaseModel
 
+from ska_ser_namespace_manager.controller.controller_config import (
+    ControllerConfig,
+)
 from ska_ser_namespace_manager.core.config import ConfigLoader
+from ska_ser_namespace_manager.core.logging import logging
+
+T = TypeVar("T", bound=ControllerConfig)
 
 
 class Controller:
@@ -33,9 +38,7 @@ class Controller:
     config: BaseModel
     threads: dict[str, threading.Thread]
 
-    def __init__(
-        self, config_class: type, tasks: list[Callable] | None
-    ) -> None:
+    def __init__(self, config_class: T, tasks: List[Callable] | None) -> None:
         """
         Initialize the Controller
 
@@ -43,7 +46,7 @@ class Controller:
         :param tasks: List of tasks to manage
         """
         self.shutdown_event = threading.Event()
-        self.config = ConfigLoader().load(config_class)
+        self.config: T = ConfigLoader().load(config_class)
         self.threads = defaultdict(threading.Thread)
         for task in tasks:
             logging.info("Managing task '%s'", task.__name__)

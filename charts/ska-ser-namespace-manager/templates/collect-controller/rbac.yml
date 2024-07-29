@@ -1,0 +1,56 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "ska-ser-namespace-manager.collect-controller.serviceAccount" . }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ printf "%s-collect-controller-role" (include "ska-ser-namespace-manager.fullname" .) | trunc 63 | trimSuffix "-" }}
+rules:
+- apiGroups: ["batch"]
+  resources: ["cronjobs", "jobs"]
+  verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ printf "%s-collect-controller-rb" (include "ska-ser-namespace-manager.fullname" .) | trunc 63 | trimSuffix "-" }}
+subjects:
+- kind: ServiceAccount
+  name: {{ include "ska-ser-namespace-manager.collect-controller.serviceAccount" . }}
+roleRef:
+  kind: Role
+  name: {{ printf "%s-collect-controller-role" (include "ska-ser-namespace-manager.fullname" .) | trunc 63 | trimSuffix "-" }}
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ printf "%s-collect-controller-crole" (include "ska-ser-namespace-manager.fullname" .) | trunc 63 | trimSuffix "-" }}
+rules:
+- apiGroups: [""]
+  resources: ["pods", "persistentvolumeclaims", "persistentvolumes", "events", "namespaces"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["update", "patch", "delete"]
+- apiGroups: ["apps"]
+  resources: ["daemonsets", "deployments", "replicasets", "statefulsets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ printf "%s-collect-controller-croleb" (include "ska-ser-namespace-manager.fullname" .) | trunc 63 | trimSuffix "-" }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "ska-ser-namespace-manager.collect-controller.serviceAccount" . }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: ClusterRole
+  name: {{ printf "%s-collect-controller-crole" (include "ska-ser-namespace-manager.fullname" .) | trunc 63 | trimSuffix "-" }}
+  apiGroup: rbac.authorization.k8s.io

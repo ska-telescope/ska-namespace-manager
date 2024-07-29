@@ -174,7 +174,7 @@ collectController:
     leader_election:
       enabled: true
       path: /etc/leader
-      lease_ttl: 5
+      lease_ttl: 5s
     namespaces: []
 
   image:
@@ -182,7 +182,7 @@ collectController:
     pullPolicy:
     tag:
 
-  replicas: 3
+  replicas: 1
 
   pvc:
     leaderElection:
