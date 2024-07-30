@@ -17,23 +17,31 @@
 {{- end -}}
 
 {{- define "ska-ser-namespace-manager.collect-controller.configName" -}}
-{{- printf "%s-collect-controller-config" (include "ska-ser-namespace-manager.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- printf "%s-collect-ctl-config" (include "ska-ser-namespace-manager.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
 {{- define "ska-ser-namespace-manager.collect-controller.serviceAccount" -}}
-{{- printf "%s-collect-controller-sa" (include "ska-ser-namespace-manager.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- printf "%s-collect-ctl-sa" (include "ska-ser-namespace-manager.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "ska-ser-namespace-manager.collect-controller.clusterWidePrefix" -}}
+{{- printf "%s-%s-collect-ctl" (include "ska-ser-namespace-manager.fullname" .) (.Release.Namespace | sha256sum | substr 0 4) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
 {{- define "ska-ser-namespace-manager.collect-controller.leaderElectionVol" -}}
-{{- printf "%s-collect-controller-leader" (include "ska-ser-namespace-manager.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- printf "%s-collect-ctl-leader" (include "ska-ser-namespace-manager.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
 {{- define "ska-ser-namespace-manager.collect-controller.config" -}}
 {{- template "ska-ser-namespace-manager.merge" (list
   (toYaml .Values.config)
   (toYaml .Values.collectController.config)
-  (include "ska-ser-namespace-manager.action-controller.contextConfig" .)
+  (include "ska-ser-namespace-manager.collect-controller.contextConfig" .)
 ) -}}
+{{- end -}}
+
+{{- define "ska-ser-namespace-manager.collect-controller.configVersion" -}}
+{{ include "ska-ser-namespace-manager.collect-controller.config" . | sha256sum | substr 0 16 }}
 {{- end -}}
 
 {{- define "ska-ser-namespace-manager.collect-controller.contextConfig" -}}
@@ -43,7 +51,7 @@ context:
   namespace: {{ .Release.Namespace }}
   service_account: {{ include "ska-ser-namespace-manager.collect-controller.serviceAccount" . }}
   matchLabels:
-    {{ include "ska-ser-namespace-manager.collect-controller.labels" . }}
+    {{ include "ska-ser-namespace-manager.collect-controller.matchLabels" . | nindent 4 }}
 {{- end -}}
 
 {{- define "ska-ser-namespace-manager.collect-controller.configPath" -}}

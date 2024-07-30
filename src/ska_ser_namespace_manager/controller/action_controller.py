@@ -36,6 +36,8 @@ class ActionController(LeaderController):
         Initialize the CollectController
         """
         super().__init__(ActionControllerConfig, [self.act])
+        if self.config.leader_election.enabled:
+            self.add_tasks([self.leader])
 
     @ControllerTask(period=datetime.timedelta(milliseconds=1000))
     def act(self) -> None:

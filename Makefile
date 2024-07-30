@@ -12,7 +12,6 @@ include .make/helm.mk
 CHART_ENVIRONMENTS_DIR = ./charts/$(K8S_CHART)/environments
 
 K8S_CHART_VARS = export \
-	PROJECT=$(PROJECT) \
 	VERSION=$(VERSION) \
 	TAG=$(VERSION)-dev.c$(CI_COMMIT_SHORT_SHA);
 
@@ -28,7 +27,7 @@ ifeq ($(ENVIRONMENT_VALUES_EXISTS),true)
 K8S_CHART_PARAMS += -f <(envsubst < $(CHART_ENVIRONMENTS_DIR)/$(ENVIRONMENT).yml)
 endif
 
-PYTHON_SWITCHES_FOR_PYLINT = --min-public-methods 0 --max-attributes 10
+PYTHON_SWITCHES_FOR_PYLINT = --min-public-methods 0 --max-attributes 10 --max-args 8
 PYTHON_TEST_FILE = ./tests/unit
 PYTHON_VARS_AFTER_PYTEST = --disable-warnings
 K8S_TEST_TEST_COMMAND = $(PYTHON_VARS_BEFORE_PYTEST) $(PYTHON_RUNNER) \

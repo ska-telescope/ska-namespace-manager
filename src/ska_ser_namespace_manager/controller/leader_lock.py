@@ -21,15 +21,23 @@ class LeaderLock:
     lease_path: str
     lease_ttl: datetime.timedelta
     file_lock: FileLock
+    timeout: float
 
     def __init__(
-        self, lock_path: str, lease_path: str, lease_ttl: datetime.timedelta
+        self,
+        lock_path: str,
+        lease_path: str,
+        lease_ttl: datetime.timedelta,
+        timeout: float = 1,
+        rethrow_exception: bool = False,
     ) -> None:
         self.lock_path = lock_path
         self.lease_path = lease_path
         self.lease_ttl = lease_ttl
         self.file_lock = FileLock(lock_path, thread_local=False)
         self.lease_lock = FileLock(lease_path, thread_local=False)
+        self.timeout = timeout
+        self.rethrow_exception = rethrow_exception
 
     def acquire_lease(self):
         """
@@ -43,7 +51,12 @@ class LeaderLock:
             if self.is_leader():
                 self.renew_lease()
             else:
-                self.file_lock.acquire(timeout=1)
+                # Release before trying a lock on a new file
+                if self.file_lock.is_locked:
+                    logging.warning("Releasing stale lock ...")
+                    self.file_lock.release(force=True)
+
+                self.file_lock.acquire(timeout=self.timeout)
                 logging.info("Acquired leader lock")
         except Timeout:
             logging.debug("Failed to acquire leader lock")
@@ -59,24 +72,21 @@ class LeaderLock:
         try:
             if os.path.exists(self.lock_path):
                 stat = os.stat(self.lock_path)
-                modification_time = datetime.datetime.fromtimestamp(
-                    stat.st_mtime
-                )
-                if (
-                    datetime.datetime.now() - modification_time
-                ) > self.lease_ttl:  # stale lease detected
-                    logging.info(
-                        "Detected stale lease. Attempting to acquire lock ..."
+                lease_time = datetime.datetime.fromtimestamp(stat.st_atime)
+                if (datetime.datetime.now() - lease_time) > 2 * self.lease_ttl:
+                    logging.warning(
+                        "Detected stale lease. Attempting to acquire"
+                        " stale lock ..."
                     )
                     with self.lease_lock.acquire(timeout=-1, blocking=False):
                         os.remove(self.lock_path)
                         self.file_lock.acquire(timeout=-1, blocking=False)
 
-                    os.remove(self.lease_path)
-
         except Timeout as exc:
             logging.error("Failed to force-acquire leader lock")
             traceback.print_exception(exc)
+            if self.rethrow_exception:
+                raise exc
         finally:
             if os.path.exists(self.lease_path):
                 os.remove(self.lease_path)
@@ -92,12 +102,22 @@ class LeaderLock:
 
     def is_leader(self):
         """
-        Tells if this is the leader
+        Tells if this is the leader. Also it checks the st_ino flag
+        to understand if the underlying file changed and the lock we
+        think we have is now stale
 
         :return: True if it is the leader, False otherwise
         """
+        locked = self.file_lock.is_locked
+        if locked and os.path.exists(self.lock_path):
+            locked = (
+                os.stat(self.lock_path).st_ino
+                == os.fstat(
+                    self.file_lock._context.lock_file_fd  # pylint: disable=protected-access  # noqa: E501
+                ).st_ino
+            )
 
-        return self.file_lock.is_locked
+        return locked
 
     def release(self):
         """

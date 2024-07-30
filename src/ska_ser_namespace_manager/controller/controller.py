@@ -48,12 +48,17 @@ class Controller:
         self.shutdown_event = threading.Event()
         self.config: T = ConfigLoader().load(config_class)
         self.threads = defaultdict(threading.Thread)
+        self.add_tasks(tasks)
+        signal.signal(signal.SIGINT, self.__shutdown)
+        signal.signal(signal.SIGTERM, self.__shutdown)
+
+    def add_tasks(self, tasks: List[Callable]) -> None:
+        """
+        Add tasks to the task manager
+        """
         for task in tasks:
             logging.info("Managing task '%s'", task.__name__)
             self.threads[task.__name__] = threading.Thread(target=task)
-
-        signal.signal(signal.SIGINT, self.__shutdown)
-        signal.signal(signal.SIGTERM, self.__shutdown)
 
     def __shutdown(
         self, signum: int, frame  # pylint: disable=unused-argument

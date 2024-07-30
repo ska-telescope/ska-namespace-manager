@@ -10,7 +10,6 @@ Usage:
 """
 
 import datetime
-import threading
 from typing import Callable, List, TypeVar
 
 from ska_ser_namespace_manager.controller.controller import (
@@ -49,13 +48,11 @@ class LeaderController(Controller):
                 lease_path=self.config.leader_election.lease_path,
                 lease_ttl=self.config.leader_election.lease_ttl,
             )
-            self.threads["__acquire_lease"] = threading.Thread(
-                target=self.__acquire_lease
-            )
+            self.add_tasks([self.__acquire_lease])
 
     def __acquire_lease_period(self) -> datetime.timedelta:
         return max(
-            self.config.leader_election.lease_ttl.total_seconds() - 1, 0.5
+            self.config.leader_election.lease_ttl.total_seconds() / 2, 0.5
         )
 
     @ControllerTask(period=__acquire_lease_period)
@@ -65,7 +62,8 @@ class LeaderController(Controller):
 
     def cleanup(self) -> None:
         super().cleanup()
-        self.leader_lock.release()
+        if self.leader_lock:
+            self.leader_lock.release()
 
     def is_leader(self):
         """

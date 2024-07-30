@@ -6,6 +6,8 @@ metadata:
   namespace: {{ template "ska-ser-namespace-manager.namespace" . }}
   labels:
     {{- include "ska-ser-namespace-manager.collect-controller.labels" . | nindent 4 }}
+  annotations:
+    skao.int/configVersion: {{ include "ska-ser-namespace-manager.collect-controller.configVersion" . }}
 spec:
   replicas: {{ .Values.collectController.replicas }}
   {{- with .Values.collectController.updateStrategy }}
@@ -22,9 +24,11 @@ spec:
         {{- with .Values.collectController.labels }}
         {{- tpl (toYaml .) $ | nindent 8 }}
         {{- end }}
-      {{- with .Values.collectController.annotations }}
-      annotations: {{ tpl (toYaml .) $ | nindent 8 }}
-      {{- end }}
+      annotations: 
+        skao.int/configVersion: {{ include "ska-ser-namespace-manager.collect-controller.configVersion" . }}
+        {{- with .Values.collectController.annotations }}
+        {{- tpl (toYaml .) $ | nindent 8 }}
+        {{- end }}
     spec:
       serviceAccountName: {{ include "ska-ser-namespace-manager.collect-controller.serviceAccount" . }}
       {{- with .Values.collectController.imagePullSecrets }}
@@ -109,7 +113,7 @@ spec:
           - name: config
             mountPath: {{ template "ska-ser-namespace-manager.collect-controller.configPath" . }}
             readOnly: true
-          {{- if and (gt (int .Values.collectController.replicas) 1) .Values.collectController.config.leader_election.enabled }}
+          {{- if gt (int .Values.collectController.replicas) 1 }}
           - name: leader-election
             mountPath: {{ .Values.collectController.config.leader_election.path }}
           {{- end }}
@@ -117,7 +121,7 @@ spec:
       - name: config
         secret:
           secretName: {{ template "ska-ser-namespace-manager.collect-controller.configName" . }}
-      {{- if and (gt (int .Values.collectController.replicas) 1) .Values.collectController.config.leader_election.enabled }}
+      {{- if gt (int .Values.collectController.replicas) 1 }}
       - name: leader-election
         persistentVolumeClaim:
           claimName: {{ template "ska-ser-namespace-manager.collect-controller.leaderElectionVol" . }}

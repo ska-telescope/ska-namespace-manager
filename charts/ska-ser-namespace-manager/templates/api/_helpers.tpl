@@ -28,8 +28,16 @@
 {{- template "ska-ser-namespace-manager.merge" (list
   (toYaml .Values.config)
   (toYaml .Values.api.config)
-  (toYaml (dict "https_enabled" .Values.api.service.https.enabled))
+  (include "ska-ser-namespace-manager.api.contextConfig" .)
 ) -}}
+{{- end -}}
+
+{{- define "ska-ser-namespace-manager.api.configVersion" -}}
+{{ include "ska-ser-namespace-manager.api.config" . | sha256sum | substr 0 16 }}
+{{- end -}}
+
+{{- define "ska-ser-namespace-manager.api.contextConfig" -}}
+https_enabled: {{ .Values.api.service.https.enabled }}
 {{- end -}}
 
 {{- define "ska-ser-namespace-manager.api.configPath" -}}

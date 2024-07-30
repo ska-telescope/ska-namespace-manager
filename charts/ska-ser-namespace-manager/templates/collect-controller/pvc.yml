@@ -1,4 +1,4 @@
-{{- if and (gt (int .Values.collectController.replicas) 1) .Values.collectController.config.leader_election.enabled }}
+{{- if gt (int .Values.collectController.replicas) 1 }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

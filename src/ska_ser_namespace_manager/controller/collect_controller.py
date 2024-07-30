@@ -35,7 +35,9 @@ class CollectController(LeaderController):
         """
         Initialize the CollectController
         """
-        super().__init__(CollectControllerConfig, [self.collect, self.leader])
+        super().__init__(CollectControllerConfig, [self.collect])
+        if self.config.leader_election.enabled:
+            self.add_tasks([self.leader])
 
     @ControllerTask(period=datetime.timedelta(milliseconds=1000))
     def collect(self) -> None:

@@ -6,6 +6,8 @@ metadata:
   namespace: {{ template "ska-ser-namespace-manager.namespace" . }}
   labels:
     {{- include "ska-ser-namespace-manager.api.labels" . | nindent 4 }}
+  annotations:
+    skao.int/configVersion: {{ include "ska-ser-namespace-manager.api.configVersion" . }}
 spec:
   replicas: {{ .Values.api.replicas }}
   {{- with .Values.api.updateStrategy }}
@@ -22,9 +24,11 @@ spec:
         {{- with .Values.api.labels }}
         {{- tpl (toYaml .) $ | nindent 8 }}
         {{- end }}
-      {{- with .Values.api.annotations }}
-      annotations: {{ tpl (toYaml .) $ | nindent 8 }}
-      {{- end }}
+      annotations: 
+        skao.int/configVersion: {{ include "ska-ser-namespace-manager.api.configVersion" . }}
+        {{- with .Values.api.annotations }}
+        {{- tpl (toYaml .) $ | nindent 8 }}
+        {{- end }}
     spec:
       {{- with .Values.api.imagePullSecrets }}
       imagePullSecrets:
