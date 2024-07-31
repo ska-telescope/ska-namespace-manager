@@ -43,6 +43,7 @@ async def handle_get_user(
     email: str = Query(default=None),
     slack_id: str = Query(default=None),
     gitlab_handle: str = Query(default=None),
+    ignore_not_found: bool = Query(default=False),
 ):
     """
     Get User given Gitlab handle or Slack Id
@@ -50,6 +51,8 @@ async def handle_get_user(
     :param email: User's email
     :param slack_id: User's Slack Id
     :param gitlab_handle: User's Gitlab Handle
+    :param ignore_not_found: True if the API should return a 200
+    even if the user is not found
     :return: Matched user
     """
     people_db = PeopleDB()
@@ -71,6 +74,8 @@ async def handle_get_user(
             else {"status": "not found"}
         ),
         status_code=(
-            http.HTTPStatus.OK if matched_user else http.HTTPStatus.NOT_FOUND
+            http.HTTPStatus.OK
+            if matched_user or ignore_not_found
+            else http.HTTPStatus.NOT_FOUND
         ),
     )

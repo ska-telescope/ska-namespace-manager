@@ -50,7 +50,7 @@ async def test_not_found_gitlab_handle():
 
 
 @pytest.mark.asyncio
-async def test_not_all():
+async def test_not_found_all():
     with patch(
         "ska_ser_namespace_manager.api.people_api.PeopleDB", autospec=True
     ) as mock_people_db_class:
@@ -63,6 +63,22 @@ async def test_not_all():
                 "/api/people?email=marvin&slack_id=marvin&gitlab_handle=marvin"
             )
             assert response.status_code == http.HTTPStatus.NOT_FOUND
+            assert response.json() == {"status": "not found"}
+
+
+@pytest.mark.asyncio
+async def test_not_found_ignore():
+    with patch(
+        "ska_ser_namespace_manager.api.people_api.PeopleDB", autospec=True
+    ) as mock_people_db_class:
+        mock_people_db = mock_people_db_class.return_value
+        mock_people_db.get_user_by_email = AsyncMock(return_value=None)
+        mock_people_db.get_user_by_slack_id = AsyncMock(return_value=None)
+        mock_people_db.get_user_by_gitlab_handle = AsyncMock(return_value=None)
+        async with AsyncClient(app=app, base_url="http://test") as ac:
+            response = await ac.get("/api/people?email=&ignore_not_found=true")
+
+            assert response.status_code == http.HTTPStatus.OK
             assert response.json() == {"status": "not found"}
 
 
