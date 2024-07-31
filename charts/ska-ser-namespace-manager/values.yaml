@@ -24,7 +24,7 @@ api:
     pkiPath: /etc/pki
     people_db:
       spreadsheet_id:
-      spreadsheet_range: "A2:Z1001"
+      spreadsheet_range: "System Team API!A2:Z1001"
       credentials:
         type: service_account
         project_id:

@@ -28,5 +28,5 @@ Chart.lock
 **/charts/*/environments/templated
 local.y*ml
 manifests.yaml
-local_config.y*ml
+local_*config.y*ml
 pytest.stdout

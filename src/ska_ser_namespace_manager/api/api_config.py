@@ -39,7 +39,7 @@ class PeopleDatabaseConfig(BaseModel):
 
     credentials: GoogleServiceAccount
     spreadsheet_id: str
-    spreadsheet_range: str = "A2:Z1001"
+    spreadsheet_range: str = "System Team API!A2:Z1001"
     cache_ttl: int = 3600
 
 

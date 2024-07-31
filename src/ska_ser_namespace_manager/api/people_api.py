@@ -40,18 +40,24 @@ Get user given a Gitlab Handle or Slack ID
     },
 )
 async def handle_get_user(
-    gitlab_handle: str = Query(default=None),
+    email: str = Query(default=None),
     slack_id: str = Query(default=None),
+    gitlab_handle: str = Query(default=None),
 ):
     """
     Get User given Gitlab handle or Slack Id
 
-    :param gitlab_handle: User's Gitlab Handle
+    :param email: User's email
     :param slack_id: User's Slack Id
+    :param gitlab_handle: User's Gitlab Handle
     :return: Matched user
     """
     people_db = PeopleDB()
     matched_user: PeopleDatabaseUser = None
+
+    if email:
+        matched_user = await people_db.get_user_by_email(email)
+
     if gitlab_handle:
         matched_user = await people_db.get_user_by_gitlab_handle(gitlab_handle)
 
