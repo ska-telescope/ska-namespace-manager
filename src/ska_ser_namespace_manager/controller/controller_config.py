@@ -15,6 +15,9 @@ class KubernetesContext(BaseModel):
     matchLabels: dict[str, str]
     namespace: str
     service_account: str
+    image: str
+    config_path: str
+    config_secret: str
 
 
 class ControllerConfig(BaseModel):

@@ -49,9 +49,12 @@ leader_election:
   enabled: {{ gt (int .Values.collectController.replicas) 1 }}
 context:
   namespace: {{ .Release.Namespace }}
-  service_account: {{ include "ska-ser-namespace-manager.collect-controller.serviceAccount" . }}
+  service_account: {{ template "ska-ser-namespace-manager.collect-controller.serviceAccount" . }}
+  config_secret: {{ template "ska-ser-namespace-manager.collect-controller.configName" . }}
+  config_path: {{ template "ska-ser-namespace-manager.collect-controller.configPath" . }}
   matchLabels:
     {{ include "ska-ser-namespace-manager.collect-controller.matchLabels" . | nindent 4 }}
+  image: {{ include "ska-ser-namespace-manager.image" (list . .Values.collectController) }}
 {{- end -}}
 
 {{- define "ska-ser-namespace-manager.collect-controller.configPath" -}}

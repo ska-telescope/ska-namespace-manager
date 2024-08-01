@@ -1,16 +1,10 @@
 """
-This module provides the a generic LeaderController class to build
+leader_controller provides the a generic LeaderController class to build
 other controllers with leader election
-
-Usage:
-    To use this module, create an instance of LeaderController or inherit
-    from it and call the run() method.
-    Example:
-        LeaderController().run()
 """
 
 import datetime
-from typing import Callable, List, TypeVar
+from typing import Callable, List, Optional, TypeVar
 
 from ska_ser_namespace_manager.controller.controller import (
     Controller,
@@ -32,14 +26,20 @@ class LeaderController(Controller):
 
     leader_lock: LeaderLock
 
-    def __init__(self, config_class: T, tasks: List[Callable] | None) -> None:
+    def __init__(
+        self,
+        config_class: T,
+        tasks: List[Callable] | None,
+        kubeconfig: Optional[str] = None,
+    ) -> None:
         """
         Initialize the Controller
 
         :param config_class: Class to use to load configs
         :param tasks: List of tasks to manage
+        :param kubeconfig: Kubeconfig to use
         """
-        super().__init__(config_class, tasks)
+        super().__init__(config_class, tasks, kubeconfig)
         self.config: T
         self.leader_lock = None
         if self.config.leader_election.enabled:
@@ -71,4 +71,6 @@ class LeaderController(Controller):
 
         :return: True if controller is the leader, False otherwise
         """
-        return self.leader_lock and self.leader_lock.is_leader()
+        return (
+            self.leader_lock and self.leader_lock.is_leader()
+        ) or not self.config.leader_election.enabled

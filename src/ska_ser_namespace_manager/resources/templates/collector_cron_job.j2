@@ -1,0 +1,42 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ action }}-{{ namespace }}
+  labels:
+    manager.cicd.skao.int/namespace: {{ namespace }}
+  annotations:
+    manager.cicd.skao.int/action: {{ action }}
+spec:
+  schedule: "{{ actions[action].schedule }}"
+  successfulJobsHistoryLimit: {{ actions[action].successful_jobs_history_limit }}
+  failedJobsHistoryLimit: {{ actions[action].failed_jobs_history_limit }}
+  concurrencyPolicy: {{ actions[action].concurrency_policy }}
+  jobTemplate:
+    labels:
+      manager.cicd.skao.int/namespace: {{ namespace }}
+    spec:
+      template:
+        spec:
+          serviceAccountName: {{ context.service_account }}
+          containers:
+          - name: collector
+            image: {{ context.image }}
+            imagePullPolicy: IfNotPresent
+            command:
+            - "python"
+            - "collector.py"
+            - "--action"
+            - "{{ action }}"
+            - "--namespace"
+            - "{{ namespace }}"
+            env:
+            - name: CONFIG_PATH
+              value: {{ context.config_path }}/config.yml
+            volumeMounts:
+            - name: config
+              mountPath: {{ context.config_path }}
+          volumes:
+          - name: config
+            secret:
+              secretName: {{ context.config_secret }}
+          restartPolicy: OnFailure

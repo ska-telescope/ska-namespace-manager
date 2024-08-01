@@ -175,7 +175,14 @@ collectController:
       enabled: true
       path: /etc/leader
       lease_ttl: 5s
-    namespaces: []
+    namespaces:
+      - names:
+          - ci-*
+        ttl: 5m
+        grace_period: 2m
+        tasks:
+          check-namespace:
+            schedule: "*/1 * * * *"
 
   image:
     repository:
@@ -270,7 +277,9 @@ actionController:
       enabled: true
       path: /etc/leader
       lease_ttl: 5s
-    namespaces: []
+    namespaces:
+      - names:
+          - ci-*
 
   image:
     repository:

@@ -1,5 +1,0 @@
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: controller-sa
-  namespace: ska-ser-namespace-manager

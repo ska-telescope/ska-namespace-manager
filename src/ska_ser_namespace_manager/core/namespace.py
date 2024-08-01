@@ -7,6 +7,13 @@ from typing import Dict, List, Optional, TypeVar
 
 from pydantic import BaseModel
 
+FORBIDDEN_NAMESPACES = [
+    "kube-system",
+    "kube-public",
+    "kube-node-lease",
+    "default",
+]
+
 
 class Namespace(BaseModel):
     """

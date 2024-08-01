@@ -1,53 +1,66 @@
 """
-Entry point for the namespace collector Cronjob which collects
+collector is an entry point to run collection tasks to gather
 information on namespaces and labels them according to its state.
 """
 
 import argparse
 import sys
 
+from ska_ser_namespace_manager.collector.collector import Collector
+from ska_ser_namespace_manager.collector.collector_config import (
+    CollectorConfig,
+)
 from ska_ser_namespace_manager.collector.namespace_collector import (
     NamespaceCollector,
 )
 from ska_ser_namespace_manager.core.logging import logging
 
+ACTIONS = {
+    **{
+        action: NamespaceCollector
+        for action in NamespaceCollector.get_actions()
+    }
+}
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Namespace Checker")
+    parser = argparse.ArgumentParser(
+        description="SKA Namespace Manager Collector"
+    )
     parser.add_argument(
         "--action",
         type=str,
         required=True,
-        help="Action to perform (e.g., check_namespace)",
+        help=f"Action to perform (one of: {ACTIONS.keys()})",
     )
     parser.add_argument(
-        "--namespace", type=str, required=True, help="Namespace to check"
+        "--namespace",
+        type=str,
+        required=True,
+        help="Namespace to collect information about",
     )
     parser.add_argument(
-        "--kubeconfig_path",
+        "--kubeconfig",
         type=str,
         required=False,
         help="Path to the kubeconfig file",
     )
     args = parser.parse_args()
 
-    method_name = args.action
-    target_namespace = args.namespace
-    kubeconfig_path = args.kubeconfig_path
+    action = args.action
+    namespace = args.namespace
+    kubeconfig = args.kubeconfig
 
-    if kubeconfig_path:
-        logging.info("Using kubeconfig file at %s", kubeconfig_path)
+    if action not in ACTIONS:
+        logging.error("Can't run undefined action '%s'", action)
+        sys.exit(1)
 
-    logging.info(
-        "Running %s for namespace: '%s", method_name, target_namespace
+    if kubeconfig:
+        logging.info("Using kubeconfig at %s", kubeconfig)
+
+    logging.info("Running '%s' for namespace '%s'", action, namespace)
+
+    collector_class: Collector = ACTIONS[action]
+    namespace_collector = collector_class(
+        namespace, CollectorConfig, kubeconfig
     )
-
-    checker = NamespaceCollector(target_namespace, kubeconfig_path)
-
-    methods = {"check_namespace": checker.check_namespace}
-
-    if method_name not in methods:
-        logging.error("Function %s is not defined.", method_name)
-        sys.exit()
-
-    logging.info("Calling method %s", method_name)
-    methods[method_name]()
+    collector_class.get_actions()[action](namespace_collector)

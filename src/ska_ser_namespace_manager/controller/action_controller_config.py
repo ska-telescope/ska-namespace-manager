@@ -21,7 +21,7 @@ class ActionNamespacePhaseConfig(BaseModel):
     for a particular phase of the namespace
 
     * delete: Delete when in phase
-    * notify_on_delete: Notify the owner when namespace enters the phase
+    * notify_on_delete: Notify the owner when namespace is deleted on
     * delete_grace_period: Grace period after notifying the owner until the
     actual action takes place
     """
@@ -43,6 +43,7 @@ class ActionNamespaceConfig(NamespaceMatcher):
     """
 
     stale: ActionNamespacePhaseConfig = ActionNamespacePhaseConfig()
+    failing: ActionNamespacePhaseConfig = ActionNamespacePhaseConfig(delete=False)
     failed: ActionNamespacePhaseConfig = ActionNamespacePhaseConfig()
 
 

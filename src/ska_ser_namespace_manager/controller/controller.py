@@ -1,20 +1,15 @@
 """
-This module provides the a generic Controller class to build
+controller provides the a generic Controller class to build
 other controllers
-
-Usage:
-    To use this module, create an instance of Controller or inherit
-    from it and call the run() method.
-    Example:
-        Controller().run()
 """
 
 import datetime
 import functools
 import signal
 import threading
+import traceback
 from collections import defaultdict
-from typing import Callable, List, TypeVar
+from typing import Callable, List, Optional, TypeVar
 
 import wrapt
 from pydantic import BaseModel
@@ -23,8 +18,10 @@ from ska_ser_namespace_manager.controller.controller_config import (
     ControllerConfig,
 )
 from ska_ser_namespace_manager.core.config import ConfigLoader
-from ska_ser_namespace_manager.core.k8s import KubernetesAPI
+from ska_ser_namespace_manager.core.kubernetes_api import KubernetesAPI
 from ska_ser_namespace_manager.core.logging import logging
+from ska_ser_namespace_manager.core.namespace import FORBIDDEN_NAMESPACES
+from ska_ser_namespace_manager.core.template_factory import TemplateFactory
 
 T = TypeVar("T", bound=ControllerConfig)
 
@@ -38,18 +35,29 @@ class Controller(KubernetesAPI):
     shutdown_event: threading.Event
     config: BaseModel
     threads: dict[str, threading.Thread]
+    forbidden_namespaces: list[str]
 
-    def __init__(self, config_class: T, tasks: List[Callable] | None) -> None:
+    def __init__(
+        self,
+        config_class: T,
+        tasks: List[Callable] | None,
+        kubeconfig: Optional[str] = None,
+    ) -> None:
         """
         Initialize the Controller
 
         :param config_class: Class to use to load configs
         :param tasks: List of tasks to manage
+        :param kubeconfig: Kubeconfig to use
         """
-        super().__init__()
+        super().__init__(kubeconfig)
         self.shutdown_event = threading.Event()
         self.config: T = ConfigLoader().load(config_class)
         self.threads = defaultdict(threading.Thread)
+        self.template_factory = TemplateFactory()
+        self.forbidden_namespaces = FORBIDDEN_NAMESPACES + [
+            self.config.context.namespace
+        ]
         self.add_tasks(tasks)
         signal.signal(signal.SIGINT, self.__shutdown)
         signal.signal(signal.SIGTERM, self.__shutdown)
@@ -122,7 +130,13 @@ def controller_task(
     @wrapt.decorator
     def wrapper(wrapped, instance: Controller, args, kwargs):
         while not instance.shutdown_event.is_set():
-            wrapped(*args, **kwargs)
+            try:
+                wrapped(*args, **kwargs)
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                logging.error(
+                    "Failure in task '%s': %s", wrapped.__name__, exc
+                )
+                traceback.print_exception(exc)
 
             if instance.shutdown_event.wait(
                 timeout=(
@@ -167,7 +181,15 @@ def conditional_controller_task(
                     run = run_if
 
             if run:
-                wrapped(*args, **kwargs)
+                try:
+                    wrapped(*args, **kwargs)
+                except (
+                    Exception  # pylint: disable=broad-exception-caught
+                ) as exc:
+                    logging.error(
+                        "Failure in task '%s': %s", wrapped.__name__, exc
+                    )
+                    traceback.print_exception(exc)
 
             if instance.shutdown_event.wait(
                 timeout=(

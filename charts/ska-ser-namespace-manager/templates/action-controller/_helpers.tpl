@@ -50,8 +50,11 @@ leader_election:
 context:
   namespace: {{ .Release.Namespace }}
   service_account: {{ include "ska-ser-namespace-manager.action-controller.serviceAccount" . }}
+  config_secret: {{ include "ska-ser-namespace-manager.action-controller.configName" . }}
+  config_path: {{ template "ska-ser-namespace-manager.action-controller.configPath" . }}
   matchLabels:
     {{ include "ska-ser-namespace-manager.action-controller.matchLabels" . | nindent 4 }}
+  image: {{ include "ska-ser-namespace-manager.image" (list . .Values.actionController) }}
 {{- end -}}
 
 {{- define "ska-ser-namespace-manager.action-controller.configPath" -}}
