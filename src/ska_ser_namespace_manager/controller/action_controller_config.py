@@ -3,16 +3,14 @@ action_controller_config centralizes all the configuration loading
 for the action controller component
 """
 
-import datetime
-from typing import Annotated, List
+from typing import List
 
-from pydantic import BaseModel, BeforeValidator
+from pydantic import BaseModel
 
 from ska_ser_namespace_manager.controller.leader_controller_config import (
     LeaderControllerConfig,
 )
 from ska_ser_namespace_manager.core.namespace import NamespaceMatcher
-from ska_ser_namespace_manager.core.utils import parse_timedelta
 
 
 class ActionNamespacePhaseConfig(BaseModel):
@@ -22,15 +20,10 @@ class ActionNamespacePhaseConfig(BaseModel):
 
     * delete: Delete when in phase
     * notify_on_delete: Notify the owner when namespace is deleted on
-    * delete_grace_period: Grace period after notifying the owner until the
-    actual action takes place
     """
 
     delete: bool = True
     notify_on_delete: bool = True
-    delete_grace_period: Annotated[
-        datetime.timedelta, BeforeValidator(parse_timedelta)
-    ] = datetime.timedelta(seconds=0)
 
 
 class ActionNamespaceConfig(NamespaceMatcher):
@@ -43,7 +36,6 @@ class ActionNamespaceConfig(NamespaceMatcher):
     """
 
     stale: ActionNamespacePhaseConfig = ActionNamespacePhaseConfig()
-    failing: ActionNamespacePhaseConfig = ActionNamespacePhaseConfig(delete=False)
     failed: ActionNamespacePhaseConfig = ActionNamespacePhaseConfig()
 
 

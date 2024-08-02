@@ -68,7 +68,7 @@ class Collector(KubernetesAPI):
             )
             self.namespace_config = CollectNamespaceConfig()
 
-        logging.info(
+        logging.debug(
             "Configuration: \n%s",
             yaml.safe_dump(
                 yaml.safe_load(self.namespace_config.model_dump_json())

@@ -2,11 +2,13 @@
 utils provides utility classes and functions
 """
 
+import base64
 import datetime
 import json
 import re
-from typing import Any
+from typing import Any, Tuple
 
+import pytz
 from starlette.requests import Request
 
 UNITS = {
@@ -72,3 +74,29 @@ def parse_timedelta(v: Any) -> datetime.timedelta:
             )
         }
     )
+
+
+def now() -> str:
+    """
+    Gets now date as UTC in ISO8601 format
+    """
+    return datetime.datetime.now(pytz.UTC).isoformat().replace("+00:00", "Z")
+
+
+def encode_slack_address(slack_id: str, name: str) -> str:
+    """
+    Encodes the slack id and user name in base64
+    """
+    return base64.b64encode(f"{slack_id}::{name}".encode("utf-8")).decode(
+        "utf-8"
+    )
+
+
+def decode_slack_address(address: str) -> Tuple[str, str]:
+    """
+    Decodes the slack id and user name from base64
+    """
+    if address in [None, ""]:
+        return None, None
+
+    return tuple(base64.b64decode(address).decode("utf-8").split("::"))

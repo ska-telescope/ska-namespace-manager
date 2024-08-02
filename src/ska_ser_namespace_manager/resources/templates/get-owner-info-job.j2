@@ -1,0 +1,40 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ action }}-{{ namespace }}
+  annotations:
+    manager.cicd.skao.int/action: {{ action }}
+    manager.cicd.skao.int/namespace: {{ namespace }}
+spec:
+  activeDeadlineSeconds: {{ actions[action].active_deadline_seconds or '' }}
+  backoffLimit: {{ actions[action].backoff_limit or '' }}
+  parallelism: {{ actions[action].parallelism or '' }}
+  template:
+    metadata:
+      annotations:
+        manager.cicd.skao.int/action: {{ action }}
+        manager.cicd.skao.int/namespace: {{ namespace }}
+    spec:
+      serviceAccountName: {{ context.service_account }}
+      containers:
+      - name: collector
+        image: {{ context.image }}
+        imagePullPolicy: IfNotPresent
+        command:
+        - "python"
+        - "collector.py"
+        - "--action"
+        - "{{ action }}"
+        - "--namespace"
+        - "{{ namespace }}"
+        env:
+        - name: CONFIG_PATH
+          value: {{ context.config_path }}/config.yml
+        volumeMounts:
+        - name: config
+          mountPath: {{ context.config_path }}
+      volumes:
+      - name: config
+        secret:
+          secretName: {{ context.config_secret }}
+      restartPolicy: OnFailure

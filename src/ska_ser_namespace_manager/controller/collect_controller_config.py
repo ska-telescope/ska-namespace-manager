@@ -22,6 +22,7 @@ class CollectActions(str, Enum):
     """
 
     CHECK_NAMESPACE = "check-namespace"
+    GET_OWNER_INFO = "get-owner-info"
 
     def __str__(self):
         return self.value
@@ -35,9 +36,12 @@ class CollectTaskConfig(BaseModel):
     """
 
     schedule: Optional[str] = "*/1 * * * *"
-    successful_jobs_history_limit: Optional[int] = 1
-    failed_jobs_history_limit: Optional[int] = 3
+    successful_jobs_history_limit: Optional[int] = None
+    failed_jobs_history_limit: Optional[int] = None
     concurrency_policy: Optional[str] = "Forbid"
+    active_deadline_seconds: Optional[int] = None
+    backoff_limit: Optional[int] = None
+    parallelism: Optional[int] = None
 
 
 class CollectNamespaceConfig(NamespaceMatcher):
@@ -58,10 +62,21 @@ class CollectNamespaceConfig(NamespaceMatcher):
     actions: Optional[Dict[CollectActions, CollectTaskConfig]] = None
 
     def model_post_init(self, _):
+        default_actions = {
+            action: CollectTaskConfig() for action in CollectActions
+        }
         if self.actions is None:
-            self.actions = {
-                CollectActions.CHECK_NAMESPACE: CollectTaskConfig()
-            }
+            self.actions = default_actions
+        else:
+            for action in CollectActions:
+                self.actions[action] = CollectTaskConfig(
+                    **{
+                        **CollectTaskConfig().model_dump(),
+                        **self.actions.get(
+                            action, CollectTaskConfig()
+                        ).model_dump(),
+                    }
+                )
 
 
 class CollectConfig(BaseModel):

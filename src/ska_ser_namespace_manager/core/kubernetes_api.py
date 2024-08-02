@@ -4,9 +4,9 @@ with a Kubernetes cluster. It offers methods for loading Kubernetes
 configurations and core namespace and resource management functionality
 """
 
+import re
 import traceback
 from typing import Dict, List, Optional
-import re
 
 from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
@@ -112,35 +112,47 @@ class KubernetesAPI:
         both, and optionally exclude namespaces with certain labels or
         annotations.
 
-        :param labels: Optional dictionary of labels to filter namespaces (regex supported)
-        :param annotations: Optional dictionary of annotations to filter namespaces (regex supported)
-        :param exclude_labels: Optional dictionary of labels to exclude namespaces (regex supported)
-        :param exclude_annotations: Optional dictionary of annotations to exclude namespaces (regex supported)
+        :param labels: Optional dictionary of labels to filter
+        namespaces (regex supported)
+        :param annotations: Optional dictionary of annotations to filter
+        namespaces (regex supported)
+        :param exclude_labels: Optional dictionary of labels to exclude
+        namespaces (regex supported)
+        :param exclude_annotations: Optional dictionary of annotations to
+        exclude namespaces (regex supported)
         :return: List of namespaces matching the criteria
         """
         try:
             label_selector = ""
             if labels:
-                label_selector += ",".join(f"{key}={value}" for key, value in labels.items())
+                label_selector += ",".join(
+                    f"{key}={value}" for key, value in labels.items()
+                )
             if exclude_labels:
                 if label_selector:
                     label_selector += ","
-                label_selector += ",".join(f"{key}!={value}" for key, value in exclude_labels.items())
+                label_selector += ",".join(
+                    f"{key}!={value}" for key, value in exclude_labels.items()
+                )
 
-            namespaces: List[client.V1Namespace] = self.v1.list_namespace(label_selector=label_selector).items
+            namespaces: List[client.V1Namespace] = self.v1.list_namespace(
+                label_selector=label_selector
+            ).items
             filtered_namespaces = []
 
             for ns in namespaces:
                 ns_annotations = ns.metadata.annotations or {}
 
                 if annotations and not all(
-                    key in ns_annotations and self._matches_regex(ns_annotations[key], value)
+                    key in ns_annotations
+                    and self._matches_regex(ns_annotations[key], value)
                     for key, value in annotations.items()
                 ):
                     continue
 
                 if exclude_annotations and any(
-                    key in ns_annotations and self._matches_regex(ns_annotations[key], value)
+                    key in ns_annotations
+                    and self._matches_regex(ns_annotations[key], value)
                     for key, value in exclude_annotations.items()
                 ):
                     continue
@@ -247,14 +259,20 @@ class KubernetesAPI:
         exclude cronjobs
         :return: List of cronjobs matching the criteria
         """
-        try:            
+        try:
             label_selector = ""
             if labels:
-                label_selector += ",".join(f"{key}={value}" for key, value in labels.items())
+                label_selector += ",".join(
+                    f"{key}={value}" for key, value in labels.items()
+                )
+
             if exclude_labels:
                 if label_selector:
                     label_selector += ","
-                label_selector += ",".join(f"{key}!={value}" for key, value in exclude_labels.items())
+
+                label_selector += ",".join(
+                    f"{key}!={value}" for key, value in exclude_labels.items()
+                )
 
             cronjobs: List[client.V1CronJob] = (
                 self.batch_v1.list_namespaced_cron_job(
@@ -262,23 +280,22 @@ class KubernetesAPI:
                 ).items
             )
             filtered_cronjobs = []
-            for cj in cronjobs:
-                cj_labels = cj.metadata.labels or {}
-                cj_annotations = cj.metadata.annotations or {}
+            for cronjob in cronjobs:
+                cronjob_annotations = cronjob.metadata.annotations or {}
 
                 if annotations and not all(
-                    cj_annotations.get(key) == value
+                    cronjob_annotations.get(key) == value
                     for key, value in annotations.items()
                 ):
                     continue
 
                 if exclude_annotations and any(
-                    cj_annotations.get(key) == value
+                    cronjob_annotations.get(key) == value
                     for key, value in exclude_annotations.items()
                 ):
                     continue
 
-                filtered_cronjobs.append(cj)
+                filtered_cronjobs.append(cronjob)
 
             return filtered_cronjobs
         except Exception as exc:  # pylint: disable=broad-exception-caught
@@ -286,7 +303,7 @@ class KubernetesAPI:
             traceback.print_exception(exc)
             return []
 
-    def get_cronjobs_by(
+    def get_jobs_by(
         self,
         namespace: str,
         labels: Optional[Dict[str, str]] = None,
@@ -295,47 +312,58 @@ class KubernetesAPI:
         exclude_annotations: Optional[Dict[str, str]] = None,
     ) -> List[client.V1Namespace]:
         """
-        List all namespaces with a given label, annotation, or combination of
-        both, and optionally exclude namespaces with certain labels or
-        annotations.
+        List all jobs within a namespace given label, annotation, or
+        combination of both, and optionally exclude jobs with certain
+        labels or annotations.
 
-        :param labels: Optional dictionary of labels to filter namespaces (regex supported)
-        :param annotations: Optional dictionary of annotations to filter namespaces (regex supported)
-        :param exclude_labels: Optional dictionary of labels to exclude namespaces (regex supported)
-        :param exclude_annotations: Optional dictionary of annotations to exclude namespaces (regex supported)
-        :return: List of namespaces matching the criteria
+        :param labels: Optional dictionary of labels to filter jobs
+        :param annotations: Optional dictionary of annotations to filter
+        jobs
+        :param exclude_labels: Optional dictionary of labels to exclude
+        jobs
+        :param exclude_annotations: Optional dictionary of annotations to
+        exclude jobs
+        :return: List of jobs matching the criteria
         """
         try:
             label_selector = ""
             if labels:
-                label_selector += ",".join(f"{key}={value}" for key, value in labels.items())
+                label_selector += ",".join(
+                    f"{key}={value}" for key, value in labels.items()
+                )
+
             if exclude_labels:
                 if label_selector:
                     label_selector += ","
-                label_selector += ",".join(f"{key}!={value}" for key, value in exclude_labels.items())
 
-            cronjobs: List[client.V1CronJob] = (self.batch_v1.list_namespaced_cron_job(namespace=namespace, label_selector=label_selector).items)
-            filtered_cronjobs = []
-            for cj in cronjobs:
-                cj_annotations = cj.metadata.annotations or {}
+                label_selector += ",".join(
+                    f"{key}!={value}" for key, value in exclude_labels.items()
+                )
+
+            jobs: List[client.V1Job] = self.batch_v1.list_namespaced_job(
+                namespace=namespace
+            ).items
+            filtered_jobs = []
+            for job in jobs:
+                job_annotations = job.metadata.annotations or {}
 
                 if annotations and not all(
-                    cj_annotations.get(key) == value
+                    job_annotations.get(key) == value
                     for key, value in annotations.items()
                 ):
                     continue
 
                 if exclude_annotations and any(
-                    cj_annotations.get(key) == value
+                    job_annotations.get(key) == value
                     for key, value in exclude_annotations.items()
                 ):
                     continue
 
-                filtered_cronjobs.append(cj)
+                filtered_jobs.append(job)
 
-            return filtered_cronjobs
+            return filtered_jobs
         except Exception as exc:  # pylint: disable=broad-exception-caught
-            logging.error("Failed to list cronjobs: %s", exc)
+            logging.error("Failed to list jobs: %s", exc)
             traceback.print_exception(exc)
             return []
 
