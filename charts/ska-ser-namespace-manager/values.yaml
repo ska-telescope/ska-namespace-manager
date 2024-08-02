@@ -183,6 +183,8 @@ collectController:
         tasks:
           check-namespace:
             schedule: "*/1 * * * *"
+    people_api:
+      url:
 
   image:
     repository:
@@ -280,6 +282,8 @@ actionController:
     namespaces:
       - names:
           - ci-*
+    notifier:
+      token:
 
   image:
     repository:

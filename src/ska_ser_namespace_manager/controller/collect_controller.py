@@ -47,8 +47,6 @@ class CollectController(LeaderController):
             yaml.safe_dump(yaml.safe_load(self.config.model_dump_json())),
         )
         self.add_tasks([self.synchronize_cronjobs, self.synchronize_jobs])
-        if self.config.leader_election.enabled:
-            self.add_tasks([self.loadbalance_namespaces])
 
         self.namespace_cronjobs = [CollectActions.CHECK_NAMESPACE]
         self.namespace_jobs = [CollectActions.GET_OWNER_INFO]
@@ -61,8 +59,7 @@ class CollectController(LeaderController):
         unmanaged_namespaces = [
             namespace
             for namespace in self.get_namespaces_by(
-                exclude_annotations={"manager.cicd.skao.int/managed": "true"},
-                # annotations={"manager.cicd.skao.int/managed_by": "true"}
+                exclude_annotations={"manager.cicd.skao.int/managed": "true"}
             )
             if namespace.metadata.name not in self.forbidden_namespaces
         ]
@@ -274,7 +271,24 @@ class CollectController(LeaderController):
                         namespace,
                     )
 
-                    # Delete job pods
+                    job_pods = self.get_namespace_pods_by(
+                        namespace=self.config.context.namespace,
+                        labels={
+                            "job-name": job.metadata.name,
+                        },
+                    )
+
+                    for pod in job_pods:
+                        self.v1.delete_namespaced_pod(
+                            pod.metadata.name, self.config.context.namespace
+                        )
+                        logging.info(
+                            "Deleted '%s' Pod from Job '%s'"
+                            " for namespace '%s'",
+                            action,
+                            job.metadata.name,
+                            namespace,
+                        )
 
                     continue
 
@@ -297,19 +311,3 @@ class CollectController(LeaderController):
                 logging.debug(
                     "Patched '%s' Job for namespace '%s'", action, namespace
                 )
-
-    @conditional_controller_task(
-        period=datetime.timedelta(milliseconds=500),
-        run_if=LeaderController.is_leader,
-    )
-    def loadbalance_namespaces(self) -> None:
-        """
-        Lists namespaces which aren't managed and loadbalances
-        them between the existing collect controllers.
-        """
-        # List controllers: list pods in manager namespace, filter by name
-        # List all namespaces
-        # Check number of namespaces allocated to each
-        # controller: manager.cicd.skao.int/managed_by
-        # loadbalance namespaces between controllers
-        # set manager.cicd.skao.int/managed_by to controller name

@@ -3,7 +3,7 @@ action_controller_config centralizes all the configuration loading
 for the action controller component
 """
 
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel
 
@@ -39,6 +39,17 @@ class ActionNamespaceConfig(NamespaceMatcher):
     failed: ActionNamespacePhaseConfig = ActionNamespacePhaseConfig()
 
 
+class NotifierConfig(BaseModel):
+    """
+    NotificationsConfig holds configurations to govern how we notify
+    users. For now, it assumes slack notifications
+
+    * token: Slack App bot token
+    """
+
+    token: Optional[str] = None
+
+
 class ActionControllerConfig(LeaderControllerConfig):
     """
     ActionControllerConfig is a singleton class to provide abstraction
@@ -46,3 +57,4 @@ class ActionControllerConfig(LeaderControllerConfig):
     """
 
     namespaces: List[ActionNamespaceConfig]
+    notifier: NotifierConfig = NotifierConfig()

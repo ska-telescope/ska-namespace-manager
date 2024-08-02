@@ -55,6 +55,8 @@ context:
   matchLabels:
     {{ include "ska-ser-namespace-manager.collect-controller.matchLabels" . | nindent 4 }}
   image: {{ include "ska-ser-namespace-manager.image" (list . .Values.collectController) }}
+people_api:
+  url: {{ include "ska-ser-namespace-manager.api.serviceName" . }}.{{ .Release.Namespace }}.svc
 {{- end -}}
 
 {{- define "ska-ser-namespace-manager.collect-controller.configPath" -}}

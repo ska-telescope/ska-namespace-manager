@@ -128,6 +128,7 @@ class KubernetesAPI:
                 label_selector += ",".join(
                     f"{key}={value}" for key, value in labels.items()
                 )
+
             if exclude_labels:
                 if label_selector:
                     label_selector += ","
@@ -177,6 +178,73 @@ class KubernetesAPI:
         try:
             pods: client.V1PodList = self.v1.list_namespaced_pod(namespace)
             return pods.items
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            logging.error("Failed to list pods: %s", exc)
+            traceback.print_exception(exc)
+            return []
+
+    def get_namespace_pods_by(
+        self,
+        namespace: str,
+        labels: Optional[Dict[str, str]] = None,
+        annotations: Optional[Dict[str, str]] = None,
+        exclude_labels: Optional[Dict[str, str]] = None,
+        exclude_annotations: Optional[Dict[str, str]] = None,
+    ) -> List[client.V1Pod]:
+        """
+        List all pods with a given label, annotation, or combination of
+        both, and optionally exclude pods with certain labels or
+        annotations.
+
+        :param labels: Optional dictionary of labels to filter
+        pods (regex supported)
+        :param annotations: Optional dictionary of annotations to filter
+        pods (regex supported)
+        :param exclude_labels: Optional dictionary of labels to exclude
+        pods (regex supported)
+        :param exclude_annotations: Optional dictionary of annotations to
+        exclude pods (regex supported)
+        :return: List of pods matching the criteria
+        """
+        try:
+            label_selector = ""
+            if labels:
+                label_selector += ",".join(
+                    f"{key}={value}" for key, value in labels.items()
+                )
+
+            if exclude_labels:
+                if label_selector:
+                    label_selector += ","
+                label_selector += ",".join(
+                    f"{key}!={value}" for key, value in exclude_labels.items()
+                )
+
+            pods: List[client.V1Pod] = self.v1.list_namespaced_pod(
+                namespace=namespace, label_selector=label_selector
+            ).items
+            filtered_pods = []
+
+            for pod in pods:
+                pod_annotations = pod.metadata.annotations or {}
+
+                if annotations and not all(
+                    key in pod_annotations
+                    and self._matches_regex(pod_annotations[key], value)
+                    for key, value in annotations.items()
+                ):
+                    continue
+
+                if exclude_annotations and any(
+                    key in pod_annotations
+                    and self._matches_regex(pod_annotations[key], value)
+                    for key, value in exclude_annotations.items()
+                ):
+                    continue
+
+                filtered_pods.append(pod)
+
+            return filtered_pods
         except Exception as exc:  # pylint: disable=broad-exception-caught
             logging.error("Failed to list pods: %s", exc)
             traceback.print_exception(exc)

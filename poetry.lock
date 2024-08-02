@@ -1364,6 +1364,25 @@ url = "https://pypi.org/simple"
 reference = "PyPI-public"
 
 [[package]]
+name = "humanfriendly"
+version = "10.0"
+description = "Human friendly output for text interfaces using Python"
+optional = false
+python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
+files = [
+    {file = "humanfriendly-10.0-py2.py3-none-any.whl", hash = "sha256:1697e1a8a8f550fd43c2865cd84542fc175a61dcb779b6fee18cf6b6ccba1477"},
+    {file = "humanfriendly-10.0.tar.gz", hash = "sha256:6b0b831ce8f15f7300721aa49829fc4e83921a9a301cc7f606be6686a2288ddc"},
+]
+
+[package.dependencies]
+pyreadline3 = {version = "*", markers = "sys_platform == \"win32\" and python_version >= \"3.8\""}
+
+[package.source]
+type = "legacy"
+url = "https://pypi.org/simple"
+reference = "PyPI-public"
+
+[[package]]
 name = "idna"
 version = "3.7"
 description = "Internationalized Domain Names in Applications (IDNA)"
@@ -2278,6 +2297,22 @@ url = "https://pypi.org/simple"
 reference = "PyPI-public"
 
 [[package]]
+name = "pyreadline3"
+version = "3.4.1"
+description = "A python implementation of GNU readline."
+optional = false
+python-versions = "*"
+files = [
+    {file = "pyreadline3-3.4.1-py3-none-any.whl", hash = "sha256:b0efb6516fd4fb07b45949053826a62fa4cb353db5be2bbb4a7aa1fdd1e345fb"},
+    {file = "pyreadline3-3.4.1.tar.gz", hash = "sha256:6f3d1f7b8a31ba32b73917cefc1f28cc660562f39aea8646d30bd6eff21f7bae"},
+]
+
+[package.source]
+type = "legacy"
+url = "https://pypi.org/simple"
+reference = "PyPI-public"
+
+[[package]]
 name = "pytest"
 version = "8.3.2"
 description = "pytest: simple powerful testing with Python"
@@ -2694,6 +2729,44 @@ jira = "<3.0"
 type = "legacy"
 url = "https://gitlab.com/api/v4/projects/22233142/packages/pypi/simple"
 reference = "gitlab-ska-cicd-services-api"
+
+[[package]]
+name = "slack-bolt"
+version = "1.19.1"
+description = "The Bolt Framework for Python"
+optional = false
+python-versions = ">=3.6"
+files = [
+    {file = "slack_bolt-1.19.1-py2.py3-none-any.whl", hash = "sha256:b916829ece0ff7a2cae1502f1774fd100592cd8a81a39e4f04e3137a3f19522b"},
+    {file = "slack_bolt-1.19.1.tar.gz", hash = "sha256:a3041d8f49eba22c3be4dd8f57602d6685d367c0e1cc7619260e1ce4a363d07f"},
+]
+
+[package.dependencies]
+slack-sdk = ">=3.25.0,<4"
+
+[package.source]
+type = "legacy"
+url = "https://pypi.org/simple"
+reference = "PyPI-public"
+
+[[package]]
+name = "slack-sdk"
+version = "3.31.0"
+description = "The Slack API Platform SDK for Python"
+optional = false
+python-versions = ">=3.6"
+files = [
+    {file = "slack_sdk-3.31.0-py2.py3-none-any.whl", hash = "sha256:a120cc461e8ebb7d9175f171dbe0ded37a6878d9f7b96b28e4bad1227399047b"},
+    {file = "slack_sdk-3.31.0.tar.gz", hash = "sha256:740d2f9c49cbfcbd46fca56b4be9d527934c225312aac18fd2c0fca0ef6bc935"},
+]
+
+[package.extras]
+optional = ["SQLAlchemy (>=1.4,<3)", "aiodns (>1.0)", "aiohttp (>=3.7.3,<4)", "boto3 (<=2)", "websocket-client (>=1,<2)", "websockets (>=9.1,<13)"]
+
+[package.source]
+type = "legacy"
+url = "https://pypi.org/simple"
+reference = "PyPI-public"
 
 [[package]]
 name = "sniffio"
@@ -3538,4 +3611,4 @@ reference = "PyPI-public"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "ef116d9ea86c387d03ac1354c133eb958650ab0da70b6b5266c0b4fe5ef84ad9"
+content-hash = "39b7468cbbf47ba10f213fb70df0acb3203d6bb2b5daef4b52343a2c8677b110"

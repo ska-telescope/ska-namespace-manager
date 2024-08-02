@@ -76,18 +76,36 @@ def parse_timedelta(v: Any) -> datetime.timedelta:
     )
 
 
-def now() -> str:
+def format_utc(date: datetime.datetime) -> str:
     """
-    Gets now date as UTC in ISO8601 format
+    Formats date as UTC in ISO8601 format
+
+    :param date: Date to format
+    :return: Date in utc
     """
-    return datetime.datetime.now(pytz.UTC).isoformat().replace("+00:00", "Z")
+    return date.isoformat().replace("+00:00", "Z")
 
 
-def encode_slack_address(slack_id: str, name: str) -> str:
+def utc(delta: datetime.timedelta = datetime.timedelta(microseconds=0)) -> str:
     """
-    Encodes the slack id and user name in base64
+    Gets a date as UTC in ISO8601 format
+
+    :param delta: Delta to add to now
+    :return: Date in utc
     """
-    return base64.b64encode(f"{slack_id}::{name}".encode("utf-8")).decode(
+    return format_utc((datetime.datetime.now(pytz.UTC) + delta))
+
+
+def encode_slack_address(name: str, slack_id: str) -> str:
+    """
+    Encodes the slack id and user name in base64 into an
+    "address"
+
+    :param slack_id: User name
+    :param slack_id: User slack id
+    :return: Encoded address
+    """
+    return base64.b64encode(f"{name}::{slack_id}".encode("utf-8")).decode(
         "utf-8"
     )
 
@@ -95,6 +113,9 @@ def encode_slack_address(slack_id: str, name: str) -> str:
 def decode_slack_address(address: str) -> Tuple[str, str]:
     """
     Decodes the slack id and user name from base64
+
+    :param address: Address to decode
+    :return: Name and slack id
     """
     if address in [None, ""]:
         return None, None

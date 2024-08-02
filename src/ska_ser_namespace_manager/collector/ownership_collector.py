@@ -3,7 +3,11 @@ ownership_collector gets and adds ownership information to
 a namespace
 """
 
+import sys
 from typing import Callable, Dict
+
+import requests
+from ska_cicd_services_api.people_database_api import PeopleDatabaseUser
 
 from ska_ser_namespace_manager.collector.collector import Collector
 from ska_ser_namespace_manager.controller.collect_controller_config import (
@@ -43,13 +47,33 @@ class OwnershipCollector(Collector):
             logging.error("Failed to get namespace '%s'", self.namespace)
             return
 
-        # TODO: Curl the API to actually get the data
-
+        labels = namespace.metadata.labels or {}
         annotations = namespace.metadata.annotations or {}
-        annotations["manager.cicd.skao.int/owner"] = encode_slack_address(
-            slack_id="U03FF5JBF0U", name="Osório, Pedro"
+        response = requests.get(
+            self.config.people_api.url,
+            params={
+                "gitlab_handle": labels.get("cicd.skao.int/author", ""),
+                "email": annotations.get("cicd.skao.int/authorEmail", ""),
+            },
+            timeout=10,
         )
-        self.patch_namespace(self.namespace, annotations=annotations)
+        if response.status_code != 200:
+            logging.error(
+                "Failed to retrieve information from People API: %s",
+                response.status_code,
+            )
+            sys.exit(1)
+        else:
+            user = PeopleDatabaseUser(**response.json())
+
+        self.patch_namespace(
+            self.namespace,
+            annotations={
+                "manager.cicd.skao.int/owner": encode_slack_address(
+                    name=user.name, slack_id=user.slack_id
+                )
+            },
+        )
         logging.debug(
             "Completed ownership check for namespace: '%s", self.namespace
         )

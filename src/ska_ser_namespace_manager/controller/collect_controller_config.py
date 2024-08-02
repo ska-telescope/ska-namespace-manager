@@ -79,6 +79,17 @@ class CollectNamespaceConfig(NamespaceMatcher):
                 )
 
 
+class PeopleAPIConfig(BaseModel):
+    """
+    PeopleAPIConfig holds configurations to govern how we call the
+    people api
+
+    * url: URL for the people API
+    """
+
+    url: Optional[str] = "http://localhost:8080/api/people"
+
+
 class CollectConfig(BaseModel):
     """
     CollectConfig holds the configurations governing collection of
@@ -86,6 +97,7 @@ class CollectConfig(BaseModel):
     """
 
     namespaces: Optional[List[CollectNamespaceConfig]] = None
+    people_api: PeopleAPIConfig = PeopleAPIConfig()
 
     def model_post_init(self, _):
         if self.namespaces is None:
