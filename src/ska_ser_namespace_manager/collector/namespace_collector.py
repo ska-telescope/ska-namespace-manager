@@ -3,8 +3,9 @@ namespace_collector checks Kubernetes namespaces
 for staleness and failures
 """
 
-from datetime import datetime, timezone
-from typing import Callable, Dict
+from datetime import datetime, timezone, timedelta
+from dateutil.parser import parse
+from typing import Callable, Dict, List
 
 import pytz
 
@@ -45,6 +46,14 @@ class NamespaceCollector(Collector):
         :param annotations: The annotations to update
         :param status: The status to set
         """
+        if annotations.get("manager.cicd.skao.int/status", None) == status:
+            logging.info(
+                "Namespace %s status is already set to %s",
+                self.namespace,
+                status,
+            )
+            return
+
         annotations["manager.cicd.skao.int/status"] = status
         annotations["manager.cicd.skao.int/status_timestamp"] = now()
         logging.info(
@@ -77,95 +86,82 @@ class NamespaceCollector(Collector):
 
         return is_stale
 
-    # def _has_pod_errors(self, pod) -> bool:
-    #     """
-    #     Check if a pod has errors in its container statuses.
+    def _is_after_grace_period(self, annotations: Dict[str, str]) -> bool:
+        current_time = now()
+        status_timestamp = parse(annotations.get("manager.cicd.skao.int/status_timestamp", current_time)).replace(tzinfo=None)
+        grace_time = status_timestamp + self.namespace_config.grace_period
+        logging.debug("Status Timestamp: %s; Grace Timestamp: %s", status_timestamp, grace_time)
+        return grace_time < parse(current_time).replace(tzinfo=None)
 
-    #     :param pod: The pod to check.
-    #     :type pod: V1Pod
-    #     :return: True if the pod has errors, False otherwise.
-    #     :rtype: bool
-    #     """
-    #     for container_status in pod.status.container_statuses:
-    #         container_name = container_status.name
-    #         state = container_status.state
-    #         if state.waiting and state.waiting.reason in [
-    #             "ImagePullBackOff",
-    #             "ErrImagePull",
-    #         ]:
-    #             self.logger.info(
-    #                 "  Container: %s, Error: %s, Message: %s",
-    #                 container_name,
-    #                 state.waiting.reason,
-    #                 state.waiting.message,
-    #             )
-    #             return True
-    #     return False
 
-    # def check_failure(self, annotations: Dict[str, str]) -> None:
-    #     """
-    #     Check for failures in the namespace.
+    def _check_resource_status(self, namespace: str, resource_type: str) -> List[str]:
+        """
+        Check if any resources of the given type in the specified namespace have errors.
 
-    #     :param annotations: The annotations to update.
-    #     :type annotations: Dict[str, str]
-    #     """
-    #     self.logger.debug(
-    #         "Checking for failures in namespace: %s", self.namespace_str
-    #     )
+        :param namespace: The namespace to check.
+        :param resource_type: The type of resource to check ('deployment', 'statefulset', 'daemonset', 'replicaset').
+        :return: List of names of failing resources.
+        """
+        failing_resources = []
 
-    #     try:
-    #         pods = self.get_pods_from_namespace(self.namespace_str)
-    #     except ApiException as e:
-    #         self.logger.error(
-    #             "Failed to list pods in namespace %s: %s",
-    #             self.namespace_str,
-    #             e,
-    #         )
-    #         return
+        try:
+            if resource_type == 'deployment':
+                resources = self.apps_v1.list_namespaced_deployment(namespace)
+            elif resource_type == 'statefulset':
+                resources = self.apps_v1.list_namespaced_stateful_set(namespace)
+            elif resource_type == 'daemonset':
+                resources = self.apps_v1.list_namespaced_daemon_set(namespace)
+            elif resource_type == 'replicaset':
+                resources = self.apps_v1.list_namespaced_replica_set(namespace)
+            else:
+                raise ValueError(f"Unsupported resource type: {resource_type}")
 
-    #     has_errors = False
-    #     for pod in pods:
-    #         pod_status = pod.status.phase
-    #         # NOTE: should we check Pending, Failure and Unknown?
-    #         if pod_status == "Pending":
-    #             self.logger.info(
-    #                 "Pod: %s, Status: %s", pod.metadata.name, pod_status
-    #             )
-    #             has_errors = self._has_pod_errors(pod)
+            for resource in resources.items:
+                available_replicas = resource.status.available_replicas or 0
+                desired_replicas = resource.status.replicas or 0
+                if available_replicas < desired_replicas:
+                    failing_resources.append(resource.metadata.name)
+                    logging.warning("Namespace %s has a %s %s which has less replicas than desired.", namespace, resource_type, resource.metadata.name)
+        
+        except Exception as e:
+            logging.error("Exception when retrieving %s: %s", resource_type, e)
 
-    #     current_time = datetime.utcnow().replace(tzinfo=None)
-    #     status = annotations.get("cicd.skao.int/status", "not_checked")
-    #     status_timestamp = parse(
-    #         annotations.get(
-    #             "cicd.skao.int/status_timestamp",
-    #             current_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
-    #         )
-    #     ).replace(tzinfo=None)
+        return failing_resources
 
-    #     grace_time = status_timestamp + timedelta(seconds=self.grace_period)
+    def check_failure(self, annotations: Dict[str, str]) -> bool:
+        """
+        Check if there are failures in Deployment, StatefulSet, or DaemonSet and manage status annotations.
 
-    #     if has_errors:
-    #         self.logger.debug(
-    #             "Errors detected in namespace: %s", self.namespace_str
-    #         )
+        :param annotations: Annotations to consider.
+        :return: True if there are failures, False otherwise.
+        """
+        old_failing_resources = set(filter(None, annotations.get("manager.cicd.skao.int/failing_resources", '').split(",")))
+        
+        deployments = self._check_resource_status(self.namespace, 'deployment')
+        statefulsets = self._check_resource_status(self.namespace, 'statefulset')
+        daemonsets = self._check_resource_status(self.namespace, 'daemonset')
 
-    #         if status in ["not_checked", "running"]:
-    #             self.set_status(annotations, "failing")
+        new_failing_resources = set(deployments + statefulsets + daemonsets)
 
-    #         elif status == "failing" and grace_time < current_time:
-    #             self.set_status(annotations, "failed")
+        annotations["manager.cicd.skao.int/failing_resources"] = ",".join(new_failing_resources)
 
-    #     elif not has_errors and status == "not_checked":
-    #         self.logger.info(
-    #             "No errors detected in namespace: '%s", self.namespace_str
-    #         )
-    #         self.set_status(annotations, "running")
+        if old_failing_resources.intersection(new_failing_resources) and self._is_after_grace_period(annotations):
+            self.set_status(annotations, "failed")
+        elif old_failing_resources.intersection(new_failing_resources) and not self._is_after_grace_period(annotations):
+            self.set_status(annotations, "failing")
+        elif new_failing_resources and not old_failing_resources and not self._is_after_grace_period(annotations):
+            self.set_status(annotations, "failing")
+        elif new_failing_resources and old_failing_resources:
+            self.set_status(annotations, "unstable")
+
+        return bool(new_failing_resources)
+
 
     def check_namespace(self) -> None:
         """
         Check the namespace for staleness and failures.
         """
-        logging.debug("Starting check for namespace '%s'", self.namespace)
+        logging.info("Starting check for namespace '%s'", self.namespace)
         namespace = self.get_namespace(self.namespace)
         if namespace is None:
             logging.error("Failed to get namespace '%s'", self.namespace)
@@ -175,11 +171,14 @@ class NamespaceCollector(Collector):
         if annotations is None:
             annotations = {}
 
-        is_stale = self.check_stale(
+        running = False
+
+        running =  not self.check_stale(
             annotations, namespace.metadata.creation_timestamp
         )
-        # self.check_failure(annotations)
-        if not is_stale:
+        running = not self.check_failure(annotations)
+        
+        if running:
             self.set_status(annotations, "ok")
 
         logging.debug("Completed check for namespace: '%s", self.namespace)

@@ -28,6 +28,7 @@ class KubernetesAPI:
         """
         self.load_kubeconfig(kubeconfig)
         self.v1 = client.CoreV1Api()
+        self.apps_v1 = client.AppsV1Api()
         self.batch_v1 = client.BatchV1Api()
 
     def load_kubeconfig(self, kubeconfig: Optional[str] = None) -> None:
