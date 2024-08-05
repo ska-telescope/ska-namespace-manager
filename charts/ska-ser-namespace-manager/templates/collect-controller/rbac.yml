@@ -8,6 +8,9 @@ kind: Role
 metadata:
   name: {{ printf "%s-collect-ctl-role" (include "ska-ser-namespace-manager.fullname" .) | trunc 63 | trimSuffix "-" }}
 rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch", "delete"]
 - apiGroups: ["batch"]
   resources: ["cronjobs", "jobs"]
   verbs: ["*"]
