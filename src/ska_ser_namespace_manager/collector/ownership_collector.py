@@ -57,6 +57,11 @@ class OwnershipCollector(Collector):
                 "email": annotations.get("cicd.skao.int/authorEmail", ""),
             },
             timeout=10,
+            verify=(
+                self.config.people_api.ca_path
+                if self.config.people_api.ca
+                else (not self.config.people_api.insecure)
+            ),
         )
         if response.status_code != 200:
             logging.error(

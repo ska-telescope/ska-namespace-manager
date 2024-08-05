@@ -4,6 +4,7 @@ for the collect controller component
 """
 
 import datetime
+import tempfile
 from enum import Enum
 from typing import Annotated, Dict, List, Optional
 
@@ -12,6 +13,7 @@ from pydantic import BaseModel, BeforeValidator
 from ska_ser_namespace_manager.controller.leader_controller_config import (
     LeaderControllerConfig,
 )
+from ska_ser_namespace_manager.core.logging import logging
 from ska_ser_namespace_manager.core.namespace import NamespaceMatcher
 from ska_ser_namespace_manager.core.utils import parse_timedelta
 
@@ -85,9 +87,25 @@ class PeopleAPIConfig(BaseModel):
     people api
 
     * url: URL for the people API
+    * ca: CA certificate of the people API
+    * ca_path: Path to the CA certificate file
+    * insecure: True to ignore the SSL certificate
     """
 
     url: Optional[str] = "http://localhost:8080"
+    ca: Optional[str] = None
+    ca_path: Optional[str] = None
+    insecure: Optional[bool] = False
+
+    def model_post_init(self, _):
+        if not self.insecure and self.ca:
+            with tempfile.NamedTemporaryFile(
+                prefix="ca-cert-",
+                delete=False,
+            ) as cafile:
+                cafile.write(self.ca.encode("utf-8"))
+                self.ca_path = cafile.name
+                logging.info("CA Certificate written to '%s'", self.ca_path)
 
 
 class CollectConfig(BaseModel):

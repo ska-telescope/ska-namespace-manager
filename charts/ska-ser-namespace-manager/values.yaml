@@ -185,6 +185,8 @@ collectController:
             schedule: "*/1 * * * *"
     people_api:
       url:
+      ca:
+      insecure: true
 
   image:
     repository:
