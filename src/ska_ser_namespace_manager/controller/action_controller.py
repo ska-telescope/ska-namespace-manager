@@ -21,6 +21,7 @@ from ska_ser_namespace_manager.controller.leader_controller import (
 from ska_ser_namespace_manager.core.logging import logging
 from ska_ser_namespace_manager.core.namespace import match_namespace
 from ska_ser_namespace_manager.core.notifier import Notifier
+from ska_ser_namespace_manager.core.types import NamespaceAnnotations
 from ska_ser_namespace_manager.core.utils import utc
 
 
@@ -59,8 +60,8 @@ class ActionController(Notifier, LeaderController):
             namespace
             for namespace in self.get_namespaces_by(
                 annotations={
-                    "manager.cicd.skao.int/managed": "true",
-                    "manager.cicd.skao.int/status": status,
+                    NamespaceAnnotations.MANAGED.value: "true",
+                    NamespaceAnnotations.STATUS.value: status,
                 }
             )
             if namespace.metadata.name not in self.forbidden_namespaces
@@ -97,12 +98,12 @@ class ActionController(Notifier, LeaderController):
                 if phase_config.notify_on_delete:
                     self.notify_user(
                         address=annotations.get(
-                            "manager.cicd.skao.int/owner", ""
+                            NamespaceAnnotations.OWNER.value, ""
                         ),
                         template="namespace-deleted-notification.j2",
                         status=status,
                         status_timeframe=annotations.get(
-                            "manager.cicd.skao.int/status_timeframe", "??"
+                            NamespaceAnnotations.STATUS_TIMEFRAME.value, "??"
                         ),
                         namespace=namespace.metadata.name,
                     )
@@ -124,23 +125,23 @@ class ActionController(Notifier, LeaderController):
         self.delete_namespaces_with_status("failed")
 
     @controller_task(period=datetime.timedelta(seconds=1))
-    def notify_failing_namespaces(self) -> None:
+    def notify_failing_unstable_namespaces(self) -> None:
         """
-        Looks for namespaces with failing status and notifies their
+        Looks for namespaces with failing or unstable status and notifies their
         owners
         :return:
         """
-        status = "failing"
-        status_notified = f"manager.cicd.skao.int/notified_{status}_timestamp"
         namespaces = [
             namespace
             for namespace in self.get_namespaces_by(
                 annotations={
-                    "manager.cicd.skao.int/managed": "true",
-                    "manager.cicd.skao.int/status": status,
-                    "manager.cicd.skao.int/owner": ".*",
+                    NamespaceAnnotations.MANAGED.value: "true",
+                    NamespaceAnnotations.STATUS.value: "(failing|unstable)",
+                    NamespaceAnnotations.OWNER.value: ".+",
                 },
-                exclude_annotations={status_notified: ".*"},
+                exclude_annotations={
+                    NamespaceAnnotations.NOTIFIED_TS.value: ".+"
+                },
             )
             if namespace.metadata.name not in self.forbidden_namespaces
         ]
@@ -153,19 +154,22 @@ class ActionController(Notifier, LeaderController):
             if ns_config is None:
                 continue
 
+            status = (
+                annotations.get(NamespaceAnnotations.STATUS.value, "failing"),
+            )
             if self.notify_user(
-                address=annotations.get("manager.cicd.skao.int/owner", ""),
+                address=annotations.get(NamespaceAnnotations.OWNER.value, ""),
                 template=f"{status}-namespace-notification.j2",
                 status=status,
                 status_timeframe=annotations.get(
-                    "manager.cicd.skao.int/status_timeframe", "??"
+                    NamespaceAnnotations.STATUS_TIMEFRAME.value, "??"
                 ),
                 namespace=namespace.metadata.name,
                 finalize_at=namespace.metadata.annotations.get(
-                    "manager.cicd.skao.int/status_finalize_at"
+                    NamespaceAnnotations.STATUS_FINALIZE_AT.value
                 ),
             ):
-                annotations[status_notified] = utc()
+                annotations[NamespaceAnnotations.NOTIFIED_TS.value] = utc()
                 self.patch_namespace(
                     namespace.metadata.name, annotations=annotations
                 )

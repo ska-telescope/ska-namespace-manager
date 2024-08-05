@@ -17,6 +17,7 @@ from ska_ser_namespace_manager.controller.collect_controller_config import (
     CollectActions,
 )
 from ska_ser_namespace_manager.core.logging import logging
+from ska_ser_namespace_manager.core.types import NamespaceAnnotations
 from ska_ser_namespace_manager.core.utils import format_utc, utc
 
 
@@ -37,7 +38,10 @@ class NamespaceCollector(Collector):
         return {CollectActions.CHECK_NAMESPACE: cls.check_namespace}
 
     def set_status(
-        self, status: str, status_annotations: Optional[Dict[str, str]] = None
+        self,
+        namespace: V1Namespace,
+        status: str,
+        status_annotations: Optional[Dict[str, str]] = None,
     ) -> None:
         """
         Set the status and status timestamp in the annotations.
@@ -46,13 +50,19 @@ class NamespaceCollector(Collector):
         :param status: The status to set
         """
         annotations = status_annotations or {}
-        annotations["manager.cicd.skao.int/status"] = status
-        annotations["manager.cicd.skao.int/status_timestamp"] = utc()
+        old_status = (namespace.metadata.annotations or {}).get(
+            NamespaceAnnotations.STATUS.value, "ok"
+        )
+        annotations[NamespaceAnnotations.STATUS.value] = status
+        annotations[NamespaceAnnotations.STATUS_TS.value] = utc()
         logging.info(
             "Setting namespace '%s' status: %s",
             self.namespace,
             status,
         )
+        if old_status != status:
+            annotations[NamespaceAnnotations.NOTIFIED_TS.value] = ""
+
         self.patch_namespace(self.namespace, annotations=annotations)
 
     def check_namespace(self) -> None:
@@ -70,7 +80,7 @@ class NamespaceCollector(Collector):
         )
 
         if running:
-            self.set_status("ok")
+            self.set_status(namespace, "ok")
 
         logging.debug("Completed check for namespace: '%s", self.namespace)
 
@@ -91,16 +101,16 @@ class NamespaceCollector(Collector):
             datetime.now(pytz.UTC) - creation_timestamp
             >= self.namespace_config.ttl
         )
+        ttl_timeframe = format_timespan(self.namespace_config.ttl)
         if is_stale:
             self.set_status(
+                namespace,
                 "stale",
                 {
-                    "manager.cicd.skao.int/status_finalize_at": format_utc(
+                    NamespaceAnnotations.STATUS_FINALIZE_AT.value: format_utc(
                         creation_timestamp + self.namespace_config.ttl
                     ),
-                    "manager.cicd.skao.int/status_timeframe": format_timespan(
-                        self.namespace_config.ttl
-                    ),
+                    NamespaceAnnotations.STATUS_TIMEFRAME.value: ttl_timeframe,
                 },
             )
 
@@ -119,7 +129,7 @@ class NamespaceCollector(Collector):
             filter(
                 None,
                 annotations.get(
-                    "manager.cicd.skao.int/failing_resources", ""
+                    NamespaceAnnotations.FAILING_RESOURCES.value, ""
                 ).split(","),
             )
         )
@@ -134,16 +144,16 @@ class NamespaceCollector(Collector):
             deployments + statefulsets + daemonsets + replicasets
         )
         status_timestamp = parse(
-            annotations.get("manager.cicd.skao.int/status_timestamp", utc())
+            annotations.get(NamespaceAnnotations.STATUS_TS.value, utc())
         ).replace(tzinfo=pytz.UTC)
         new_annotations = {
-            "manager.cicd.skao.int/failing_resources": ",".join(
+            NamespaceAnnotations.FAILING_RESOURCES.value: ",".join(
                 new_failing_resources
             ),
-            "manager.cicd.skao.int/status_finalize_at": format_utc(
+            NamespaceAnnotations.STATUS_FINALIZE_AT.value: format_utc(
                 status_timestamp + self.namespace_config.ttl
             ),
-            "manager.cicd.skao.int/status_timeframe": format_timespan(
+            NamespaceAnnotations.STATUS_TIMEFRAME.value: format_timespan(
                 self.namespace_config.grace_period
             ),
         }
@@ -151,25 +161,25 @@ class NamespaceCollector(Collector):
         if old_failing_resources.intersection(
             new_failing_resources
         ) and self._is_after_grace_period(annotations):
-            self.set_status("failed", new_annotations)
+            self.set_status(namespace, "failed", new_annotations)
         elif old_failing_resources.intersection(
             new_failing_resources
         ) and not self._is_after_grace_period(annotations):
-            self.set_status("failing", new_annotations)
+            self.set_status(namespace, "failing", new_annotations)
         elif (
             new_failing_resources
             and not old_failing_resources
             and not self._is_after_grace_period(annotations)
         ):
-            self.set_status("failing", new_annotations)
+            self.set_status(namespace, "failing", new_annotations)
         elif new_failing_resources and old_failing_resources:
-            self.set_status("unstable", annotations)
+            self.set_status(namespace, "unstable", annotations)
 
         return len(new_failing_resources) > 0
 
     def _is_after_grace_period(self, annotations: Dict[str, str]) -> bool:
         status_timestamp = parse(
-            annotations.get("manager.cicd.skao.int/status_timestamp", utc())
+            annotations.get(NamespaceAnnotations.STATUS_TS.value, utc())
         ).replace(tzinfo=None)
         grace_time = status_timestamp + self.namespace_config.grace_period
         logging.debug(

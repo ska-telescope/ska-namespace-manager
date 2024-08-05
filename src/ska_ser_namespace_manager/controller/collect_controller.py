@@ -23,6 +23,7 @@ from ska_ser_namespace_manager.controller.leader_controller import (
 )
 from ska_ser_namespace_manager.core.logging import logging
 from ska_ser_namespace_manager.core.namespace import match_namespace
+from ska_ser_namespace_manager.core.types import NamespaceAnnotations
 
 
 class CollectController(LeaderController):
@@ -59,7 +60,9 @@ class CollectController(LeaderController):
         unmanaged_namespaces = [
             namespace
             for namespace in self.get_namespaces_by(
-                exclude_annotations={"manager.cicd.skao.int/managed": "true"}
+                exclude_annotations={
+                    NamespaceAnnotations.MANAGED.value: "true"
+                }
             )
             if namespace.metadata.name not in self.forbidden_namespaces
         ]
@@ -83,8 +86,8 @@ class CollectController(LeaderController):
                 self.patch_namespace(
                     namespace,
                     annotations={
-                        "manager.cicd.skao.int/managed": "true",
-                        "manager.cicd.skao.int/namespace": namespace,
+                        NamespaceAnnotations.MANAGED: "true",
+                        NamespaceAnnotations.NAMESPACE: namespace,
                     },
                 )
 
@@ -112,8 +115,8 @@ class CollectController(LeaderController):
         existing_cronjobs = self.get_cronjobs_by(
             namespace=self.config.context.namespace,
             annotations={
-                "manager.cicd.skao.int/namespace": namespace,
-                "manager.cicd.skao.int/action": action,
+                NamespaceAnnotations.NAMESPACE: namespace,
+                NamespaceAnnotations.ACTION: action,
             },
         )
 
@@ -146,13 +149,13 @@ class CollectController(LeaderController):
             cronjobs = self.get_cronjobs_by(
                 namespace=self.config.context.namespace,
                 annotations={
-                    "manager.cicd.skao.int/action": action,
+                    NamespaceAnnotations.ACTION: action,
                 },
             )
 
             for cronjob in cronjobs:
                 namespace = cronjob.metadata.annotations.get(
-                    "manager.cicd.skao.int/namespace"
+                    NamespaceAnnotations.NAMESPACE
                 )
                 if namespace is None:
                     continue
@@ -215,8 +218,8 @@ class CollectController(LeaderController):
         existing_jobs = self.get_jobs_by(
             namespace=self.config.context.namespace,
             annotations={
-                "manager.cicd.skao.int/namespace": namespace,
-                "manager.cicd.skao.int/action": action,
+                NamespaceAnnotations.NAMESPACE: namespace,
+                NamespaceAnnotations.ACTION: action,
             },
         )
 
@@ -249,13 +252,13 @@ class CollectController(LeaderController):
             jobs = self.get_jobs_by(
                 namespace=self.config.context.namespace,
                 annotations={
-                    "manager.cicd.skao.int/action": action,
+                    NamespaceAnnotations.ACTION: action,
                 },
             )
 
             for job in jobs:
                 namespace = job.metadata.annotations.get(
-                    "manager.cicd.skao.int/namespace"
+                    NamespaceAnnotations.NAMESPACE
                 )
                 if namespace is None:
                     continue

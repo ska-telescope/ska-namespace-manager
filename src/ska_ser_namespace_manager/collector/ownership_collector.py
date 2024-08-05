@@ -14,6 +14,7 @@ from ska_ser_namespace_manager.controller.collect_controller_config import (
     CollectActions,
 )
 from ska_ser_namespace_manager.core.logging import logging
+from ska_ser_namespace_manager.core.types import NamespaceAnnotations
 from ska_ser_namespace_manager.core.utils import encode_slack_address
 
 
@@ -69,7 +70,7 @@ class OwnershipCollector(Collector):
         self.patch_namespace(
             self.namespace,
             annotations={
-                "manager.cicd.skao.int/owner": encode_slack_address(
+                NamespaceAnnotations.OWNER.value: encode_slack_address(
                     name=user.name, slack_id=user.slack_id
                 )
             },

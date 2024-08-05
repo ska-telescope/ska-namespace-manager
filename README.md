@@ -47,10 +47,10 @@ Given these constraints, we opted for the following design:
 
 Currently, the SKA Namespace Manager provides the following capabilities:
 
-- [ ] Cleanup CI namespaces after their pre-defined or default TTL
-- [ ] Terminate failing CI namespaces
+- [x] Cleanup CI namespaces after their pre-defined or default TTL
+- [x] Terminate failing CI namespaces
 - [ ] Terminate duplicate CI namespaces (same commit or merge request)
-- [ ] Notify namespace owners of their namespaces' status changes
+- [x] Notify namespace owners of their namespaces' status changes
 
 ## Testing
 

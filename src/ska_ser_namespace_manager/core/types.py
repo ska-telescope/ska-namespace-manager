@@ -21,7 +21,7 @@ class NamespaceAnnotations(str, Enum):
     STATUS_FINALIZE_AT = "manager.cicd.skao.int/status_finalize_at"
     OWNER = "manager.cicd.skao.int/owner"
     FAILING_RESOURCES = "manager.cicd.skao.int/failing_resources"
-    NOTIFIED_FAILING_TS = "manager.cicd.skao.int/notified_failing_timestamp"
+    NOTIFIED_TS = "manager.cicd.skao.int/notified_timestamp"
 
     def __str__(self):
         return self.value
