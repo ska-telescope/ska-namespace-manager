@@ -9,7 +9,6 @@ import traceback
 from typing import Dict, List, Optional
 
 from kubernetes import client, config
-from kubernetes.client.exceptions import ApiException
 
 from ska_ser_namespace_manager.core.logging import logging
 from ska_ser_namespace_manager.core.namespace import Namespace
@@ -78,12 +77,6 @@ class KubernetesAPI:
             ns = self.v1.read_namespace(name=namespace)
             logging.debug("Namespace %s fetched successfully", namespace)
             return ns
-        except ApiException as exc:
-            if exc.status != 404:
-                logging.error(
-                    "Failed to read namespace '%s': %s", namespace, exc
-                )
-                traceback.print_exception(exc)
         except Exception as exc:  # pylint: disable=broad-exception-caught
             logging.error("Failed to read namespace '%s': %s", namespace, exc)
             traceback.print_exception(exc)

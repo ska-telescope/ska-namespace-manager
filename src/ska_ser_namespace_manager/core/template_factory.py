@@ -4,30 +4,32 @@ it is simple to render a template anywhere on the code
 """
 
 import os
+from typing import Optional
 
 from jinja2 import Environment, FileSystemLoader, TemplateError
 
 from ska_ser_namespace_manager.core.logging import logging
-from ska_ser_namespace_manager.core.utils import Singleton
 
 
-class TemplateFactory(metaclass=Singleton):
+class TemplateFactory:
     """
-    TemplateFactory is a singleton class responsible for loading
-    templates
+    TemplateFactory is a class responsible for loading
+    templates and has helper methods
     """
 
     jinja_env: Environment
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, search_path: Optional[str] = None):
         self.jinja_env = Environment(
             loader=FileSystemLoader(
-                searchpath=os.path.join(
-                    os.path.dirname(os.path.realpath(__file__)),
-                    "..",
-                    "resources",
-                    "templates",
+                searchpath=search_path
+                or (
+                    os.path.join(
+                        os.path.dirname(os.path.realpath(__file__)),
+                        "..",
+                        "resources",
+                        "templates",
+                    )
                 )
             )
         )

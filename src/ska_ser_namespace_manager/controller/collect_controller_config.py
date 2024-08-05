@@ -87,7 +87,7 @@ class PeopleAPIConfig(BaseModel):
     * url: URL for the people API
     """
 
-    url: Optional[str] = "http://localhost:8080/api/people"
+    url: Optional[str] = "http://localhost:8080"
 
 
 class CollectConfig(BaseModel):

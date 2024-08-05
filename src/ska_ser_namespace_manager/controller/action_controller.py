@@ -37,13 +37,14 @@ class ActionController(Notifier, LeaderController):
         """
         Initialize the CollectController
         """
-        super(LeaderController).__init__(
+        LeaderController.__init__(
+            self,
             ActionControllerConfig,
             [self.delete_stale_namespaces, self.delete_failed_namespaces],
             kubeconfig,
         )
         self.config: ActionControllerConfig
-        super(Notifier).__init__(self.config.notifier.token)
+        Notifier.__init__(self, self.config.notifier.token)
 
         logging.debug(
             "Configuration: \n%s",

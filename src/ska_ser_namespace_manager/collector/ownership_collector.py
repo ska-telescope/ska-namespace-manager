@@ -51,7 +51,7 @@ class OwnershipCollector(Collector):
         labels = namespace.metadata.labels or {}
         annotations = namespace.metadata.annotations or {}
         response = requests.get(
-            self.config.people_api.url,
+            f"{self.config.people_api.url}/api/people",
             params={
                 "gitlab_handle": labels.get("cicd.skao.int/author", ""),
                 "email": annotations.get("cicd.skao.int/authorEmail", ""),

@@ -83,7 +83,7 @@ def format_utc(date: datetime.datetime) -> str:
     :param date: Date to format
     :return: Date in utc
     """
-    return date.isoformat().replace("+00:00", "Z")
+    return date.replace(tzinfo=pytz.UTC).isoformat().replace("+00:00", "Z")
 
 
 def utc(delta: datetime.timedelta = datetime.timedelta(microseconds=0)) -> str:

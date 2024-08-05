@@ -56,7 +56,11 @@ context:
     {{ include "ska-ser-namespace-manager.collect-controller.matchLabels" . | nindent 4 }}
   image: {{ include "ska-ser-namespace-manager.image" (list . .Values.collectController) }}
 people_api:
-  url: {{ include "ska-ser-namespace-manager.api.serviceName" . }}.{{ .Release.Namespace }}.svc
+{{- if .Values.api.service.https.enabled }}
+  url: https://{{ include "ska-ser-namespace-manager.api.serviceName" . }}.{{ .Release.Namespace }}.svc:{{ .Values.api.service.https.port }}
+{{- else }}
+  url: http://{{ include "ska-ser-namespace-manager.api.serviceName" . }}.{{ .Release.Namespace }}.svc:{{ .Values.api.service.http.port }}
+{{- end }}
 {{- end -}}
 
 {{- define "ska-ser-namespace-manager.collect-controller.configPath" -}}

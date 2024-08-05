@@ -7,7 +7,7 @@ taken on their namespaces
 import random
 import traceback
 
-from slack_bolt import App
+from slack_bolt.app import App
 
 from ska_ser_namespace_manager.core.logging import logging
 from ska_ser_namespace_manager.core.template_factory import TemplateFactory
@@ -52,7 +52,7 @@ class Notifier:
             return False
 
         user, slack_id = decode_slack_address(address)
-        if slack_id is None:
+        if slack_id in [None, ""]:
             logging.error("Couldn't find a valid slack id to notify the user")
             return False
 
