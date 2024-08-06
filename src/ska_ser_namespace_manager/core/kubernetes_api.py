@@ -58,7 +58,7 @@ class KubernetesAPI:
         :return: List of namespace names
         """
         try:
-            namespaces = self.v1.list_namespace().items
+            namespaces = self.v1.list_namespace(_request_timeout=10).items
             return [ns.metadata.name for ns in namespaces]
         except Exception as exc:  # pylint: disable=broad-exception-caught
             logging.error("Failed to list namespaces: %s", exc)
@@ -74,7 +74,7 @@ class KubernetesAPI:
         """
         logging.debug("Fetching namespace: %s", namespace)
         try:
-            ns = self.v1.read_namespace(name=namespace)
+            ns = self.v1.read_namespace(name=namespace, _request_timeout=10)
             logging.debug("Namespace %s fetched successfully", namespace)
             return ns
         except Exception as exc:  # pylint: disable=broad-exception-caught
@@ -130,7 +130,7 @@ class KubernetesAPI:
                 )
 
             namespaces: List[client.V1Namespace] = self.v1.list_namespace(
-                label_selector=label_selector
+                label_selector=label_selector, _request_timeout=10
             ).items
             filtered_namespaces = []
 
@@ -169,7 +169,9 @@ class KubernetesAPI:
         :return: List of pods
         """
         try:
-            pods: client.V1PodList = self.v1.list_namespaced_pod(namespace)
+            pods: client.V1PodList = self.v1.list_namespaced_pod(
+                namespace, _request_timeout=10
+            )
             return pods.items
         except Exception as exc:  # pylint: disable=broad-exception-caught
             logging.error("Failed to list pods: %s", exc)
@@ -214,7 +216,9 @@ class KubernetesAPI:
                 )
 
             pods: List[client.V1Pod] = self.v1.list_namespaced_pod(
-                namespace=namespace, label_selector=label_selector
+                namespace=namespace,
+                label_selector=label_selector,
+                _request_timeout=10,
             ).items
             filtered_pods = []
 
@@ -272,7 +276,9 @@ class KubernetesAPI:
             body["metadata"]["annotations"] = annotations
 
         try:
-            self.v1.patch_namespace(name=namespace, body=body)
+            self.v1.patch_namespace(
+                name=namespace, body=body, _request_timeout=10
+            )
             logging.debug("Namespace %s patched successfully", namespace)
         except Exception as exc:  # pylint: disable=broad-exception-caught
             logging.error("Failed to patch namespace '%s': %s", namespace, exc)
@@ -289,7 +295,9 @@ class KubernetesAPI:
         logging.debug("Deleting namespace '%s'", namespace)
         try:
             self.v1.delete_namespace(
-                name=namespace, grace_period_seconds=int(grace_period)
+                name=namespace,
+                grace_period_seconds=int(grace_period),
+                _request_timeout=10,
             )
             logging.debug("Namespace '%s' deleted successfully", namespace)
         except Exception as exc:  # pylint: disable=broad-exception-caught
@@ -337,7 +345,7 @@ class KubernetesAPI:
 
             cronjobs: List[client.V1CronJob] = (
                 self.batch_v1.list_namespaced_cron_job(
-                    namespace=namespace
+                    namespace=namespace, _request_timeout=10
                 ).items
             )
             filtered_cronjobs = []
@@ -402,7 +410,7 @@ class KubernetesAPI:
                 )
 
             jobs: List[client.V1Job] = self.batch_v1.list_namespaced_job(
-                namespace=namespace
+                namespace=namespace, _request_timeout=10
             ).items
             filtered_jobs = []
             for job in jobs:

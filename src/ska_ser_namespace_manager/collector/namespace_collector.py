@@ -202,11 +202,17 @@ class NamespaceCollector(Collector):
 
         try:
             if resource_type == "deployment":
-                res = self.apps_v1.list_namespaced_deployment(namespace)
+                res = self.apps_v1.list_namespaced_deployment(
+                    namespace, _request_timeout=10
+                )
             elif resource_type == "statefulset":
-                res = self.apps_v1.list_namespaced_stateful_set(namespace)
+                res = self.apps_v1.list_namespaced_stateful_set(
+                    namespace, _request_timeout=10
+                )
             elif resource_type == "replicaset":
-                res = self.apps_v1.list_namespaced_replica_set(namespace)
+                res = self.apps_v1.list_namespaced_replica_set(
+                    namespace, _request_timeout=10
+                )
             else:
                 raise ValueError(f"Unsupported resource type: {resource_type}")
 

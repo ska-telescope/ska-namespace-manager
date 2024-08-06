@@ -189,7 +189,9 @@ def test_create_collect_cronjob(collect_controller):
 
     collect_controller.template_factory.render.assert_called_once()
     collect_controller.batch_v1.create_namespaced_cron_job.assert_called_once_with(  # pylint: disable=line-too-long # noqa: E501
-        collect_controller.config.context.namespace, "manifest"
+        collect_controller.config.context.namespace,
+        "manifest",
+        _request_timeout=10,
     )
 
 
@@ -209,7 +211,10 @@ def test_create_collect_cronjob_existing(collect_controller):
 
     collect_controller.template_factory.render.assert_called_once()
     collect_controller.batch_v1.patch_namespaced_cron_job.assert_called_once_with(  # pylint: disable=line-too-long # noqa: E501
-        "test", collect_controller.config.context.namespace, "manifest"
+        "test",
+        collect_controller.config.context.namespace,
+        "manifest",
+        _request_timeout=10,
     )
 
 
@@ -264,10 +269,10 @@ def test_synchronize_jobs_delete_jobs(collect_controller):
 
     collect_controller.get_jobs_by.assert_called_once()
     collect_controller.batch_v1.delete_namespaced_job.assert_called_once_with(
-        "test-job", "default-namespace"
+        "test-job", "default-namespace", _request_timeout=10
     )
     collect_controller.v1.delete_namespaced_pod.assert_any_call(
-        "test", "default-namespace"
+        "test", "default-namespace", _request_timeout=10
     )
     collect_controller.batch_v1.patch_namespaced_job.assert_not_called()
 
@@ -286,7 +291,9 @@ def test_create_collect_job(collect_controller):
 
     collect_controller.template_factory.render.assert_called_once()
     collect_controller.batch_v1.create_namespaced_job.assert_called_once_with(
-        collect_controller.config.context.namespace, "manifest"
+        collect_controller.config.context.namespace,
+        "manifest",
+        _request_timeout=10,
     )
 
 
@@ -306,7 +313,10 @@ def test_create_collect_job_existing(collect_controller):
 
     collect_controller.template_factory.render.assert_called_once()
     collect_controller.batch_v1.patch_namespaced_job.assert_called_once_with(
-        "test", collect_controller.config.context.namespace, "manifest"
+        "test",
+        collect_controller.config.context.namespace,
+        "manifest",
+        _request_timeout=10,
     )
 
 
@@ -323,7 +333,9 @@ def test_delete_cronjob_for_missing_namespace(collect_controller):
     collect_controller.synchronize_cronjobs()
 
     collect_controller.batch_v1.delete_namespaced_cron_job.assert_called_once_with(  # pylint: disable=line-too-long # noqa: E501
-        mock_cronjob.metadata.name, collect_controller.config.context.namespace
+        mock_cronjob.metadata.name,
+        collect_controller.config.context.namespace,
+        _request_timeout=10,
     )
 
 
@@ -341,7 +353,9 @@ def test_delete_job_for_missing_namespace(collect_controller):
     collect_controller.synchronize_jobs()
 
     collect_controller.batch_v1.delete_namespaced_job.assert_called_once_with(
-        mock_job.metadata.name, collect_controller.config.context.namespace
+        mock_job.metadata.name,
+        collect_controller.config.context.namespace,
+        _request_timeout=10,
     )
 
 
@@ -377,6 +391,7 @@ def test_patch_cronjob_for_existing_namespace(collect_controller):
         mock_cronjob.metadata.name,
         collect_controller.config.context.namespace,
         "manifest",
+        _request_timeout=10,
     )
 
 
@@ -412,4 +427,5 @@ def test_patch_job_for_existing_namespace(collect_controller):
         mock_job.metadata.name,
         collect_controller.config.context.namespace,
         "manifest",
+        _request_timeout=10,
     )

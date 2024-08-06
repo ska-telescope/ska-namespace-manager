@@ -85,7 +85,7 @@ def test_get_namespaces_success(mock_kubernetes_api):
     api = KubernetesAPI()
     namespaces = api.get_namespaces()
     assert namespaces == ["test"]
-    mock_v1.list_namespace.assert_called_once()
+    mock_v1.list_namespace.assert_called_once_with(_request_timeout=10)
 
 
 def test_get_namespaces_empty(mock_kubernetes_api):
@@ -96,7 +96,7 @@ def test_get_namespaces_empty(mock_kubernetes_api):
     api = KubernetesAPI()
     namespaces = api.get_namespaces()
     assert namespaces == []
-    mock_v1.list_namespace.assert_called_once()
+    mock_v1.list_namespace.assert_called_once_with(_request_timeout=10)
 
 
 def test_get_namespaces_failure(mock_kubernetes_api):
@@ -109,7 +109,7 @@ def test_get_namespaces_failure(mock_kubernetes_api):
     api = KubernetesAPI()
     namespaces = api.get_namespaces()
     assert namespaces == []
-    mock_v1.list_namespace.assert_called_once()
+    mock_v1.list_namespace.assert_called_once_with(_request_timeout=10)
 
 
 # Test get_namespace
@@ -126,7 +126,9 @@ def test_get_namespace_success(mock_kubernetes_api):
     api = KubernetesAPI()
     namespace = api.get_namespace("test")
     assert namespace.metadata.name == "test"
-    mock_v1.read_namespace.assert_called_once_with(name="test")
+    mock_v1.read_namespace.assert_called_once_with(
+        name="test", _request_timeout=10
+    )
 
 
 def test_get_namespace_not_found(mock_kubernetes_api):
@@ -137,7 +139,9 @@ def test_get_namespace_not_found(mock_kubernetes_api):
     api = KubernetesAPI()
     namespace = api.get_namespace("nonexistent")
     assert namespace is None
-    mock_v1.read_namespace.assert_called_once_with(name="nonexistent")
+    mock_v1.read_namespace.assert_called_once_with(
+        name="nonexistent", _request_timeout=10
+    )
 
 
 def test_get_namespace_failure(mock_kubernetes_api):
@@ -148,7 +152,9 @@ def test_get_namespace_failure(mock_kubernetes_api):
     api = KubernetesAPI()
     namespace = api.get_namespace("test")
     assert namespace is None
-    mock_v1.read_namespace.assert_called_once_with(name="test")
+    mock_v1.read_namespace.assert_called_once_with(
+        name="test", _request_timeout=10
+    )
 
 
 # Test get_namespaces_by
@@ -170,7 +176,9 @@ def test_get_namespaces_by_success(mock_kubernetes_api):
     namespaces = api.get_namespaces_by(labels={"env": "prod"})
     assert len(namespaces) == 1
     assert namespaces[0].metadata.name == "test"
-    mock_v1.list_namespace.assert_called_once_with(label_selector="env=prod")
+    mock_v1.list_namespace.assert_called_once_with(
+        label_selector="env=prod", _request_timeout=10
+    )
 
 
 def test_get_namespaces_by_exclude_labels(mock_kubernetes_api):
@@ -192,7 +200,9 @@ def test_get_namespaces_by_exclude_labels(mock_kubernetes_api):
 
     assert len(namespaces) == 1
     assert namespaces[0].metadata.name == "namespace2"
-    mock_v1.list_namespace.assert_called_once_with(label_selector="env!=prod")
+    mock_v1.list_namespace.assert_called_once_with(
+        label_selector="env!=prod", _request_timeout=10
+    )
 
 
 def test_get_namespaces_by_exclude_annotations(mock_kubernetes_api):
@@ -214,7 +224,9 @@ def test_get_namespaces_by_exclude_annotations(mock_kubernetes_api):
 
     assert len(namespaces) == 1
     assert namespaces[0].metadata.name == "namespace2"
-    mock_v1.list_namespace.assert_called_once_with(label_selector="")
+    mock_v1.list_namespace.assert_called_once_with(
+        label_selector="", _request_timeout=10
+    )
 
 
 def test_get_namespaces_by_exclude_labels_and_annotations(mock_kubernetes_api):
@@ -240,7 +252,9 @@ def test_get_namespaces_by_exclude_labels_and_annotations(mock_kubernetes_api):
 
     assert len(namespaces) == 1
     assert namespaces[0].metadata.name == "namespace2"
-    mock_v1.list_namespace.assert_called_once_with(label_selector="env!=prod")
+    mock_v1.list_namespace.assert_called_once_with(
+        label_selector="env!=prod", _request_timeout=10
+    )
 
 
 def test_get_namespaces_by_no_labels(mock_kubernetes_api):
@@ -255,7 +269,9 @@ def test_get_namespaces_by_no_labels(mock_kubernetes_api):
     namespaces = api.get_namespaces_by()
     assert len(namespaces) == 1
     assert namespaces[0].metadata.name == "test"
-    mock_v1.list_namespace.assert_called_once_with(label_selector="")
+    mock_v1.list_namespace.assert_called_once_with(
+        label_selector="", _request_timeout=10
+    )
 
 
 def test_get_namespaces_by_failure(mock_kubernetes_api):
@@ -269,7 +285,9 @@ def test_get_namespaces_by_failure(mock_kubernetes_api):
     api = KubernetesAPI()
     namespaces = api.get_namespaces_by()
     assert namespaces == []
-    mock_v1.list_namespace.assert_called_once()
+    mock_v1.list_namespace.assert_called_once_with(
+        label_selector="", _request_timeout=10
+    )
 
 
 # Test get_namespace_pods_by
@@ -295,7 +313,7 @@ def test_get_namespace_pods_by_success(mock_kubernetes_api):
     assert len(pods) == 1
     assert pods[0].metadata.name == "pod1"
     mock_v1.list_namespaced_pod.assert_called_once_with(
-        namespace="default", label_selector="env=prod"
+        namespace="default", label_selector="env=prod", _request_timeout=10
     )
 
 
@@ -321,7 +339,7 @@ def test_get_namespace_pods_by_exclude_labels(mock_kubernetes_api):
     assert len(pods) == 1
     assert pods[0].metadata.name == "pod2"
     mock_v1.list_namespaced_pod.assert_called_once_with(
-        namespace="default", label_selector="env!=prod"
+        namespace="default", label_selector="env!=prod", _request_timeout=10
     )
 
 
@@ -347,7 +365,7 @@ def test_get_namespace_pods_by_exclude_annotations(mock_kubernetes_api):
     assert len(pods) == 1
     assert pods[0].metadata.name == "pod2"
     mock_v1.list_namespaced_pod.assert_called_once_with(
-        namespace="default", label_selector=""
+        namespace="default", label_selector="", _request_timeout=10
     )
 
 
@@ -379,7 +397,7 @@ def test_get_namespace_pods_by_exclude_labels_and_annotations(
     assert len(pods) == 1
     assert pods[0].metadata.name == "pod2"
     mock_v1.list_namespaced_pod.assert_called_once_with(
-        namespace="default", label_selector="env!=prod"
+        namespace="default", label_selector="env!=prod", _request_timeout=10
     )
 
 
@@ -394,7 +412,7 @@ def test_get_namespace_pods_by_empty(mock_kubernetes_api):
     )
     assert len(pods) == 0
     mock_v1.list_namespaced_pod.assert_called_once_with(
-        namespace="default", label_selector="env=prod"
+        namespace="default", label_selector="env=prod", _request_timeout=10
     )
 
 
@@ -407,7 +425,9 @@ def test_get_namespace_pods_by_failure(mock_kubernetes_api):
     api = KubernetesAPI()
 
     pods = api.get_namespace_pods("default")
-    mock_v1.list_namespaced_pod.assert_called_once_with("default")
+    mock_v1.list_namespaced_pod.assert_called_once_with(
+        "default", _request_timeout=10
+    )
     assert len(pods) == 0
 
 
@@ -425,7 +445,9 @@ def test_patch_namespace_success(mock_kubernetes_api):
     body = {
         "metadata": {"labels": {"env": "prod"}, "annotations": {"team": "dev"}}
     }
-    mock_v1.patch_namespace.assert_called_once_with(name="default", body=body)
+    mock_v1.patch_namespace.assert_called_once_with(
+        name="default", body=body, _request_timeout=10
+    )
 
 
 def test_patch_namespace_failure(mock_kubernetes_api):
@@ -447,6 +469,7 @@ def test_patch_namespace_failure(mock_kubernetes_api):
                 "annotations": {"team": "dev"},
             }
         },
+        _request_timeout=10,
     )
 
 
@@ -460,7 +483,7 @@ def test_delete_namespace_success(mock_kubernetes_api):
     api = KubernetesAPI()
     api.delete_namespace("default")
     mock_v1.delete_namespace.assert_called_once_with(
-        name="default", grace_period_seconds=0
+        name="default", grace_period_seconds=0, _request_timeout=10
     )
 
 
@@ -474,7 +497,7 @@ def test_delete_namespace_failure(mock_kubernetes_api):
     api = KubernetesAPI()
     api.delete_namespace("default")
     mock_v1.delete_namespace.assert_called_once_with(
-        name="default", grace_period_seconds=0
+        name="default", grace_period_seconds=0, _request_timeout=10
     )
 
 
@@ -500,7 +523,7 @@ def test_get_cronjobs_by_success(mock_kubernetes_api):
     assert len(cronjobs) == 1
     assert cronjobs[0].metadata.annotations["cron-type"] == "daily"
     mock_batch_v1.list_namespaced_cron_job.assert_called_once_with(
-        namespace="default"
+        namespace="default", _request_timeout=10
     )
 
 
@@ -526,7 +549,7 @@ def test_get_cronjobs_by_exclude_labels(mock_kubernetes_api):
     assert len(cronjobs) == 1
     assert cronjobs[0].metadata.name == "cronjob2"
     mock_batch_v1.list_namespaced_cron_job.assert_called_once_with(
-        namespace="default"
+        namespace="default", _request_timeout=10
     )
 
 
@@ -552,7 +575,7 @@ def test_get_cronjobs_by_exclude_annotations(mock_kubernetes_api):
     assert len(cronjobs) == 1
     assert cronjobs[0].metadata.name == "cronjob2"
     mock_batch_v1.list_namespaced_cron_job.assert_called_once_with(
-        namespace="default"
+        namespace="default", _request_timeout=10
     )
 
 
@@ -585,7 +608,7 @@ def test_get_cronjobs_by_exclude_labels_and_annotations(mock_kubernetes_api):
     assert len(cronjobs) == 1
     assert cronjobs[0].metadata.name == "cronjob2"
     mock_batch_v1.list_namespaced_cron_job.assert_called_once_with(
-        namespace="default"
+        namespace="default", _request_timeout=10
     )
 
 
@@ -598,7 +621,7 @@ def test_get_cronjobs_by_empty(mock_kubernetes_api):
     cronjobs = api.get_cronjobs_by("default")
     assert len(cronjobs) == 0
     mock_batch_v1.list_namespaced_cron_job.assert_called_once_with(
-        namespace="default"
+        namespace="default", _request_timeout=10
     )
 
 
@@ -613,7 +636,7 @@ def test_get_cronjobs_by_failure(mock_kubernetes_api):
     cronjobs = api.get_cronjobs_by("default")
     assert len(cronjobs) == 0
     mock_batch_v1.list_namespaced_cron_job.assert_called_once_with(
-        namespace="default"
+        namespace="default", _request_timeout=10
     )
 
 
@@ -640,7 +663,7 @@ def test_get_jobs_by_success(mock_kubernetes_api):
     assert len(jobs) == 1
     assert jobs[0].metadata.name == "job1"
     mock_batch_v1.list_namespaced_job.assert_called_once_with(
-        namespace="default"
+        namespace="default", _request_timeout=10
     )
 
 
@@ -664,7 +687,7 @@ def test_get_jobs_by_exclude_labels(mock_kubernetes_api):
     assert len(jobs) == 1
     assert jobs[0].metadata.name == "job2"
     mock_batch_v1.list_namespaced_job.assert_called_once_with(
-        namespace="default"
+        namespace="default", _request_timeout=10
     )
 
 
@@ -690,7 +713,7 @@ def test_get_jobs_by_exclude_annotations(mock_kubernetes_api):
     assert len(jobs) == 1
     assert jobs[0].metadata.name == "job2"
     mock_batch_v1.list_namespaced_job.assert_called_once_with(
-        namespace="default"
+        namespace="default", _request_timeout=10
     )
 
 
@@ -723,7 +746,7 @@ def test_get_jobs_by_exclude_labels_and_annotations(mock_kubernetes_api):
     assert len(jobs) == 1
     assert jobs[0].metadata.name == "job2"
     mock_batch_v1.list_namespaced_job.assert_called_once_with(
-        namespace="default"
+        namespace="default", _request_timeout=10
     )
 
 
@@ -736,7 +759,7 @@ def test_get_jobs_by_empty(mock_kubernetes_api):
     jobs = api.get_jobs_by(namespace="default", labels={"env": "prod"})
     assert len(jobs) == 0
     mock_batch_v1.list_namespaced_job.assert_called_once_with(
-        namespace="default"
+        namespace="default", _request_timeout=10
     )
 
 
@@ -751,7 +774,7 @@ def test_get_jobs_by_failure(mock_kubernetes_api):
     jobs = api.get_jobs_by(namespace="default")
     assert jobs == []
     mock_batch_v1.list_namespaced_job.assert_called_once_with(
-        namespace="default"
+        namespace="default", _request_timeout=10
     )
 
 

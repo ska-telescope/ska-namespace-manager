@@ -125,13 +125,16 @@ class CollectController(LeaderController):
                 existing_cronjobs[0].metadata.name,
                 self.config.context.namespace,
                 yaml.safe_load(manifest),
+                _request_timeout=10,
             )
             logging.info(
                 "Patched '%s' CronJob for namespace '%s'", action, namespace
             )
         else:
             self.batch_v1.create_namespaced_cron_job(
-                self.config.context.namespace, yaml.safe_load(manifest)
+                self.config.context.namespace,
+                yaml.safe_load(manifest),
+                _request_timeout=10,
             )
             logging.info(
                 "Created '%s' CronJob for namespace '%s'", action, namespace
@@ -163,7 +166,9 @@ class CollectController(LeaderController):
                 ns = self.get_namespace(namespace)
                 if ns is None:
                     self.batch_v1.delete_namespaced_cron_job(
-                        cronjob.metadata.name, self.config.context.namespace
+                        cronjob.metadata.name,
+                        self.config.context.namespace,
+                        _request_timeout=10,
                     )
                     logging.info(
                         "Deleted '%s' CronJob for namespace '%s'",
@@ -187,6 +192,7 @@ class CollectController(LeaderController):
                             context=self.config.context,
                         )
                     ),
+                    _request_timeout=10,
                 )
                 logging.debug(
                     "Patched '%s' CronJob for namespace '%s'",
@@ -228,13 +234,16 @@ class CollectController(LeaderController):
                 existing_jobs[0].metadata.name,
                 self.config.context.namespace,
                 yaml.safe_load(manifest),
+                _request_timeout=10,
             )
             logging.info(
                 "Patched '%s' Job for namespace '%s'", action, namespace
             )
         else:
             self.batch_v1.create_namespaced_job(
-                self.config.context.namespace, yaml.safe_load(manifest)
+                self.config.context.namespace,
+                yaml.safe_load(manifest),
+                _request_timeout=10,
             )
             logging.info(
                 "Created '%s' Job for namespace '%s'", action, namespace
@@ -266,7 +275,9 @@ class CollectController(LeaderController):
                 ns = self.get_namespace(namespace)
                 if ns is None:
                     self.batch_v1.delete_namespaced_job(
-                        job.metadata.name, self.config.context.namespace
+                        job.metadata.name,
+                        self.config.context.namespace,
+                        _request_timeout=10,
                     )
                     logging.info(
                         "Deleted '%s' Job for namespace '%s'",
@@ -283,7 +294,9 @@ class CollectController(LeaderController):
 
                     for pod in job_pods:
                         self.v1.delete_namespaced_pod(
-                            pod.metadata.name, self.config.context.namespace
+                            pod.metadata.name,
+                            self.config.context.namespace,
+                            _request_timeout=10,
                         )
                         logging.info(
                             "Deleted '%s' Pod from Job '%s'"
@@ -310,6 +323,7 @@ class CollectController(LeaderController):
                             context=self.config.context,
                         )
                     ),
+                    _request_timeout=10,
                 )
                 logging.debug(
                     "Patched '%s' Job for namespace '%s'", action, namespace
