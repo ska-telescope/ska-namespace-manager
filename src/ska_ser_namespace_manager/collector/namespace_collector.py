@@ -51,18 +51,19 @@ class NamespaceCollector(Collector):
         """
         annotations = status_annotations or {}
         old_status = (namespace.metadata.annotations or {}).get(
-            NamespaceAnnotations.STATUS.value, "ok"
+            NamespaceAnnotations.STATUS.value
         )
+        if old_status == status:
+            return
+
         annotations[NamespaceAnnotations.STATUS.value] = status
         annotations[NamespaceAnnotations.STATUS_TS.value] = utc()
+        annotations[NamespaceAnnotations.NOTIFIED_TS.value] = None
         logging.info(
             "Setting namespace '%s' status: %s",
             self.namespace,
             status,
         )
-        if old_status != status:
-            annotations[NamespaceAnnotations.NOTIFIED_TS.value] = ""
-
         self.patch_namespace(self.namespace, annotations=annotations)
 
     def check_namespace(self) -> None:
@@ -148,7 +149,7 @@ class NamespaceCollector(Collector):
                 new_failing_resources
             ),
             NamespaceAnnotations.STATUS_FINALIZE_AT.value: format_utc(
-                status_timestamp + self.namespace_config.ttl
+                status_timestamp + self.namespace_config.grace_period
             ),
             NamespaceAnnotations.STATUS_TIMEFRAME.value: format_timespan(
                 self.namespace_config.grace_period

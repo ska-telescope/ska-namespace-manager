@@ -167,7 +167,7 @@ class ActionController(Notifier, LeaderController):
                 template=f"{status}-namespace-notification.j2",
                 status=status,
                 status_timeframe=annotations.get(
-                    NamespaceAnnotations.STATUS_TIMEFRAME.value, "??"
+                    NamespaceAnnotations.STATUS_TIMEFRAME.value
                 ),
                 target_namespace=namespace.metadata.name,
                 finalize_at=namespace.metadata.annotations.get(

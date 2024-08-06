@@ -80,6 +80,12 @@ class OwnershipCollector(Collector):
                 )
             },
         )
+        logging.info(
+            "Namespace '%s' owner: %s[%s]",
+            self.namespace,
+            user.name,
+            user.slack_id,
+        )
         logging.debug(
-            "Completed ownership check for namespace: '%s", self.namespace
+            "Completed ownership check for namespace: '%s'", self.namespace
         )
