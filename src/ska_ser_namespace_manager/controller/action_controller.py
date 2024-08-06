@@ -106,7 +106,7 @@ class ActionController(Notifier, LeaderController):
                         status_timeframe=annotations.get(
                             NamespaceAnnotations.STATUS_TIMEFRAME.value, "??"
                         ),
-                        namespace=namespace.metadata.name,
+                        target_namespace=namespace.metadata.name,
                     )
 
     @controller_task(period=datetime.timedelta(seconds=1))
@@ -165,7 +165,7 @@ class ActionController(Notifier, LeaderController):
                 status_timeframe=annotations.get(
                     NamespaceAnnotations.STATUS_TIMEFRAME.value, "??"
                 ),
-                namespace=namespace.metadata.name,
+                target_namespace=namespace.metadata.name,
                 finalize_at=namespace.metadata.annotations.get(
                     NamespaceAnnotations.STATUS_FINALIZE_AT.value
                 ),

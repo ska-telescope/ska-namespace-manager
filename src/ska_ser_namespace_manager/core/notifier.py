@@ -62,6 +62,7 @@ class Notifier:
                 text=self.template_factory.render(
                     template,
                     user=user,
+                    status=status,
                     quote=self.get_marvin_quote(status),
                     **kwargs
                 ),

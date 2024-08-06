@@ -107,7 +107,7 @@ class CollectController(LeaderController):
         """
         manifest = self.template_factory.render(
             f"{action}-cronjob.j2",
-            namespace=namespace,
+            target_namespace=namespace,
             action=str(action),
             actions=config.actions,
             context=self.config.context,
@@ -181,7 +181,7 @@ class CollectController(LeaderController):
                     yaml.safe_load(
                         self.template_factory.render(
                             f"{action}-cronjob.j2",
-                            namespace=namespace,
+                            target_namespace=namespace,
                             action=str(action),
                             actions=ns_config.actions,
                             context=self.config.context,
@@ -209,7 +209,7 @@ class CollectController(LeaderController):
         """
         manifest = self.template_factory.render(
             f"{action}-job.j2",
-            namespace=namespace,
+            target_namespace=namespace,
             action=str(action),
             actions=config.actions,
             context=self.config.context,
@@ -304,7 +304,7 @@ class CollectController(LeaderController):
                     yaml.safe_load(
                         self.template_factory.render(
                             f"{action}-job.j2",
-                            namespace=namespace,
+                            target_namespace=namespace,
                             action=action,
                             actions=ns_config.actions,
                             context=self.config.context,

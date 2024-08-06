@@ -38,7 +38,7 @@ class CollectTaskConfig(BaseModel):
     """
 
     schedule: Optional[str] = "*/1 * * * *"
-    successful_jobs_history_limit: Optional[int] = None
+    successful_jobs_history_limit: Optional[int] = 1
     failed_jobs_history_limit: Optional[int] = None
     concurrency_policy: Optional[str] = "Forbid"
     active_deadline_seconds: Optional[int] = None

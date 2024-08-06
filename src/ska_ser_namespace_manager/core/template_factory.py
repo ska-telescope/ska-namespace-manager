@@ -3,12 +3,24 @@ template_factory provides a jinja2 based template factory so that
 it is simple to render a template anywhere on the code
 """
 
+import hashlib
 import os
 from typing import Optional
 
 from jinja2 import Environment, FileSystemLoader, TemplateError
 
 from ska_ser_namespace_manager.core.logging import logging
+
+
+def sha256(value: str, length: int = 64) -> str:
+    """
+    Compute sha256 hash
+    :param value: Value to hash
+    :param length: Length of the output hash
+    :return: Hashed value with specified length
+    """
+    output_length = max(min(length, 64), 1)
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()[:output_length]
 
 
 class TemplateFactory:
@@ -33,8 +45,7 @@ class TemplateFactory:
                 )
             )
         )
-        # Add custom jinja filters by
-        # self.jinja_env.filters["<filter name>"] = <filter function>
+        self.jinja_env.filters["sha256"] = sha256
 
     def render(self, template: str, **kwargs) -> str | None:
         """

@@ -1,10 +1,10 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ action }}-{{ namespace }}
+  name: {{ action }}-{{ target_namespace | sha256(length=8) }}
   annotations:
     manager.cicd.skao.int/action: {{ action }}
-    manager.cicd.skao.int/namespace: {{ namespace }}
+    manager.cicd.skao.int/namespace: {{ target_namespace }}
 spec:
   activeDeadlineSeconds: {{ actions[action].active_deadline_seconds or '' }}
   backoffLimit: {{ actions[action].backoff_limit or '' }}
@@ -13,7 +13,7 @@ spec:
     metadata:
       annotations:
         manager.cicd.skao.int/action: {{ action }}
-        manager.cicd.skao.int/namespace: {{ namespace }}
+        manager.cicd.skao.int/namespace: {{ target_namespace }}
     spec:
       serviceAccountName: {{ context.service_account }}
       containers:
@@ -26,7 +26,7 @@ spec:
         - "--action"
         - "{{ action }}"
         - "--namespace"
-        - "{{ namespace }}"
+        - "{{ target_namespace }}"
         env:
         - name: CONFIG_PATH
           value: {{ context.config_path }}/config.yml
