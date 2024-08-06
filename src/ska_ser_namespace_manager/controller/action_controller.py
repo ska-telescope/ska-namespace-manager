@@ -40,7 +40,11 @@ class ActionController(Notifier, LeaderController):
         LeaderController.__init__(
             self,
             ActionControllerConfig,
-            [self.delete_stale_namespaces, self.delete_failed_namespaces],
+            [
+                self.delete_stale_namespaces,
+                self.delete_failed_namespaces,
+                self.notify_failing_unstable_namespaces,
+            ],
             kubeconfig,
         )
         self.config: ActionControllerConfig
@@ -155,8 +159,8 @@ class ActionController(Notifier, LeaderController):
             if ns_config is None:
                 continue
 
-            status = (
-                annotations.get(NamespaceAnnotations.STATUS.value, "failing"),
+            status = annotations.get(
+                NamespaceAnnotations.STATUS.value, "failing"
             )
             if self.notify_user(
                 address=annotations.get(NamespaceAnnotations.OWNER.value, ""),

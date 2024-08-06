@@ -119,7 +119,7 @@ class NamespaceCollector(Collector):
     def check_failure(self, namespace: V1Namespace) -> bool:
         """
         Check if there are failures in Deployment, StatefulSet,
-        DaemonSet or ReplicaSet and manage status annotations.
+        or ReplicaSet and manage status annotations.
 
         :param namespace: Namespace to check
         :return: True if there are failures, False otherwise.
@@ -138,11 +138,8 @@ class NamespaceCollector(Collector):
         statefulsets = self._check_resource_status(
             self.namespace, "statefulset"
         )
-        daemonsets = self._check_resource_status(self.namespace, "daemonset")
         replicasets = self._check_resource_status(self.namespace, "replicaset")
-        new_failing_resources = set(
-            deployments + statefulsets + daemonsets + replicasets
-        )
+        new_failing_resources = set(deployments + statefulsets + replicasets)
         status_timestamp = parse(
             annotations.get(NamespaceAnnotations.STATUS_TS.value, utc())
         ).replace(tzinfo=pytz.UTC)
@@ -198,7 +195,7 @@ class NamespaceCollector(Collector):
 
         :param namespace: The namespace to check.
         :param resource_type: The type of resource to check
-        ('deployment', 'statefulset', 'daemonset', 'replicaset').
+        ('deployment', 'statefulset', 'replicaset').
         :return: List of names of failing resources.
         """
         failing_resources = []
@@ -208,8 +205,6 @@ class NamespaceCollector(Collector):
                 res = self.apps_v1.list_namespaced_deployment(namespace)
             elif resource_type == "statefulset":
                 res = self.apps_v1.list_namespaced_stateful_set(namespace)
-            elif resource_type == "daemonset":
-                res = self.apps_v1.list_namespaced_daemon_set(namespace)
             elif resource_type == "replicaset":
                 res = self.apps_v1.list_namespaced_replica_set(namespace)
             else:
