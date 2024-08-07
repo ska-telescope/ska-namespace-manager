@@ -1,0 +1,14 @@
+{{- $appConfig := fromYaml (include "ska-ser-namespace-manager.collect-controller.config" .) -}}
+{{- if $appConfig.metrics.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "ska-ser-namespace-manager.name" . }}-metrics-registry
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: {{ $appConfig.metrics.pvc.storageClassName }}
+  resources:
+    requests:
+      storage: {{ $appConfig.metrics.pvc.size }}
+{{- end }}

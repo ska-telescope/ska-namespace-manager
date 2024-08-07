@@ -5,9 +5,11 @@ resources
 """
 
 import datetime
-from typing import Optional
+from typing import List, Optional
 
 import yaml
+from kubernetes import client
+from prometheus_client.metrics_core import GaugeMetricFamily
 
 from ska_ser_namespace_manager.controller.collect_controller_config import (
     CollectActions,
@@ -23,10 +25,14 @@ from ska_ser_namespace_manager.controller.leader_controller import (
 )
 from ska_ser_namespace_manager.core.logging import logging
 from ska_ser_namespace_manager.core.namespace import match_namespace
-from ska_ser_namespace_manager.core.types import NamespaceAnnotations
+from ska_ser_namespace_manager.core.types import (
+    NamespaceAnnotations,
+    NamespaceStatus,
+)
+from ska_ser_namespace_manager.metrics.metrics import MetricsManager
 
 
-class CollectController(LeaderController):
+class CollectController(LeaderController, MetricsManager):
     """
     CollectController is responsible for creating tasks to collect
     information on managed resources and manage those tasks
@@ -39,15 +45,26 @@ class CollectController(LeaderController):
         """
         Initialize the CollectController
         """
-        super().__init__(
-            CollectControllerConfig, [self.check_new_namespaces], kubeconfig
+        LeaderController.__init__(
+            self,
+            CollectControllerConfig,
+            [self.check_new_namespaces],
+            kubeconfig,
         )
+        MetricsManager.__init__(self, CollectControllerConfig)
+
         self.config: CollectControllerConfig
         logging.debug(
             "Configuration: \n%s",
             yaml.safe_dump(yaml.safe_load(self.config.model_dump_json())),
         )
-        self.add_tasks([self.synchronize_cronjobs, self.synchronize_jobs])
+        self.add_tasks(
+            [
+                self.synchronize_cronjobs,
+                self.synchronize_jobs,
+                self.list_namespaces_and_export_metrics,
+            ]
+        )
 
         self.namespace_cronjobs = [CollectActions.CHECK_NAMESPACE]
         self.namespace_jobs = [CollectActions.GET_OWNER_INFO]
@@ -322,3 +339,96 @@ class CollectController(LeaderController):
                 logging.debug(
                     "Patched '%s' Job for namespace '%s'", action, namespace
                 )
+
+    def get_existing_gauges(self):
+        """
+        Retrieve existing gauge metrics from Prometheus.
+        """
+        existing_gauges = {}
+        metric_family = GaugeMetricFamily(
+            "namespace_manager_ns_count",
+            "Number of namespaces",
+            labels=[
+                "team",
+                "project",
+                "user",
+                "environment",
+                "status",
+                "namespace",
+            ],
+        )
+        logging.error(metric_family)
+        for sample in metric_family.samples:
+            label_tuple = tuple(sample.labels.items())
+            existing_gauges[label_tuple] = sample.value
+
+        return existing_gauges
+
+    def delete_stale_gauges(self, namespaces: List[client.V1Namespace]):
+        """
+        Delete gauges related to namespaces which are no longer
+        in the given list.
+        """
+        namespaces = {ns.metadata.name for ns in namespaces}
+        stale_metrics = set()
+
+        for label_tuple in self.set_metrics:
+            # Extract the namespace from the label tuple
+            label_dict = dict(label_tuple)
+            namespace = label_dict.get("namespace")
+            if namespace not in namespaces:
+                stale_metrics.add(label_tuple)
+
+        # Now reset all stale metrics
+        for label_tuple in stale_metrics:
+            label_dict = dict(label_tuple)
+            self.namespace_manager_ns_count.labels(**label_dict).set(-1)
+            # Remove from set_metrics since it's now stale
+            self.set_metrics.remove(label_tuple)
+
+    @conditional_controller_task(
+        period=datetime.timedelta(seconds=5),
+        run_if=lambda instance: LeaderController.is_leader(instance)
+        and instance.config.metrics.enabled,
+    )
+    def list_namespaces_and_export_metrics(self) -> None:
+        """
+        List namespaces in the Kubernetes cluster and export Prometheus
+        metrics based on their labels and annotations.
+        """
+        namespaces = self.v1.list_namespace().items
+
+        self.delete_stale_gauges(namespaces)
+
+        for ns in namespaces:
+            labels = ns.metadata.labels or {}
+            annotations = ns.metadata.annotations or {}
+
+            author = labels.get("cicd.skao.int/author", "unknown")
+            team = labels.get("cicd.skao.int/team", "unknown")
+            project = labels.get("cicd.skao.int/project", "unknown")
+            environment = labels.get(
+                "cicd.skao.int/environmentTier", "unknown"
+            )
+            status = annotations.get("manager.cicd.skao.int/status", "unknown")
+            status_numeric = NamespaceStatus.from_string(status).value_numeric
+
+            logging.debug(
+                f"Namespace '{ns.metadata.name}' fetched with "
+                f"labels: {labels} and annotations: {annotations}"
+            )
+            self.namespace_manager_ns_count.labels(
+                team=team,
+                project=project,
+                user=author,
+                environment=environment,
+                namespace=ns.metadata.name,
+            ).set(status_numeric)
+
+            logging.debug(
+                f"Updated metrics for namespace '{ns.metadata.name}' - "
+                f"Team: {team}, Project: {project}, User: {author}, "
+                f"Environment: {environment}, Status: {status}"
+            )
+
+        self.save_metrics()

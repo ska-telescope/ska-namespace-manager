@@ -33,10 +33,10 @@ class ConfigLoader(metaclass=Singleton):
     def load(self, clazz: T, config: str | dict | io.IOBase = None) -> T:
         """
         Loads a configuration and stores it in a "singleton"
-        list
+        list.
 
         :param clazz: Class of the configuration
-        :param config: Config data or source
+        :param config: Config data or source.
         """
         if clazz in self.configs:
             return self.configs[clazz]
@@ -58,14 +58,24 @@ class ConfigLoader(metaclass=Singleton):
                 clazz.__qualname__,
                 config_path,
             )
-            with open(config_path, encoding="utf-8") as cf:
-                config_data = yaml.safe_load(cf)
+            try:
+                with open(config_path, encoding="utf-8") as cf:
+                    config_data = yaml.safe_load(cf)
+            except Exception:  # pylint: disable=broad-exception-caught
+                logging.warning(
+                    "Failed to load config from file. Loading default config."
+                )
+                return clazz()
         elif isinstance(config_source, io.IOBase):
             config_data = yaml.safe_load(config_source)
 
         if config_data is None:
             raise ValueError("Unable to load a valid configuration")
 
+        # Debug output to check what is being loaded
+        logging.error(f"Loaded config data: {config_data}")
+
+        # Initialize the configuration class
         self.configs[clazz] = clazz(**config_data)
         return self.configs[clazz]
 

@@ -11,6 +11,7 @@ from slack_bolt.app import App
 
 from ska_ser_namespace_manager.core.logging import logging
 from ska_ser_namespace_manager.core.template_factory import TemplateFactory
+from ska_ser_namespace_manager.core.types import NamespaceStatus
 from ska_ser_namespace_manager.core.utils import decode_slack_address
 
 
@@ -81,7 +82,10 @@ class Notifier:
         :param status: Status of the namespace
         :return: Marvin quote on the status
         """
-        if status in ["failed", "stale"]:
+        if status in [
+            NamespaceStatus.FAILED.value,
+            NamespaceStatus.STALE.value,
+        ]:
             return random.choice(
                 [
                     "The old namespace has been obliterated. A forgotten relic of a bygone era, now lost to the infinite void of irrelevance.",  # pylint: disable=line-too-long  # noqa: E501
@@ -97,7 +101,7 @@ class Notifier:
                 ]
             )
 
-        if status in ["failing"]:
+        if status in [NamespaceStatus.FAILING.value]:
             return random.choice(
                 [
                     "Oh joy, another namespace on the verge of oblivion. It’s like a small, insignificant planet, destined to be forgotten. Unless fixed, it’ll just be another speck in the universe’s grand collection of failures.",  # pylint: disable=line-too-long  # noqa: E501
