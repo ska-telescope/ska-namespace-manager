@@ -37,3 +37,45 @@ class NamespaceAnnotations(str, Enum):
 
     def __str__(self):
         return self.value
+
+
+class NamespaceStatus(Enum):
+    """
+    NamespaceStatus lists all namespace statuses
+    """
+
+    OK = "ok"
+    STALE = "stale"
+    FAILING = "failing"
+    FAILED = "failed"
+    UNSTABLE = "unstable"
+    UNKNOWN = "unknown"
+
+    @property
+    def value_numeric(self):
+        """
+        Property that holds the integer value of a status
+        """
+        status_values = {
+            NamespaceStatus.OK: 0,
+            NamespaceStatus.STALE: 1,
+            NamespaceStatus.FAILING: 2,
+            NamespaceStatus.FAILED: 3,
+            NamespaceStatus.UNSTABLE: 4,
+            NamespaceStatus.UNKNOWN: 5,
+        }
+        return status_values[self]
+
+    @classmethod
+    def from_string(cls, status_str: str):
+        """
+        Get the enum member corresponding to the given string.
+
+        :param status_str: The string representation of the status.
+        :return: The corresponding NamespaceStatus enum member.
+        :raises ValueError: If the string does not match any enum member.
+        """
+        for status in cls:
+            if status.value == status_str:
+                return status
+        raise ValueError(f"'{status_str}' is not a valid {cls.__name__}")

@@ -1,5 +1,4 @@
 import datetime
-import signal
 import threading
 import time
 from unittest.mock import MagicMock, patch
@@ -64,12 +63,6 @@ def test_terminate(controller):
     assert controller.shutdown_event.is_set()
 
 
-@patch("ska_ser_namespace_manager.controller.controller.logging.info")
-def test_shutdown_signal(mock_logging_info, controller):
-    controller._Controller__shutdown(signal.SIGTERM, None)
-    assert controller.shutdown_event.is_set()
-
-
 @patch("ska_ser_namespace_manager.controller.controller.logging.debug")
 def test_run_controller(mock_logging_debug, controller):
     def dummy_task():
@@ -78,14 +71,12 @@ def test_run_controller(mock_logging_debug, controller):
     controller.add_tasks([dummy_task])
 
     with patch(
-        "ska_ser_namespace_manager.controller.controller.threading.Thread.start"  # pylint: disable=line-too-long # noqa: E501
+        "ska_ser_namespace_manager.core.thread_manager.threading.Thread.start"  # pylint: disable=line-too-long # noqa: E501
     ) as mock_thread_start:
-        with patch(
-            "ska_ser_namespace_manager.controller.controller.threading.Thread.join"  # pylint: disable=line-too-long # noqa: E501
-        ) as mock_thread_join:
-            controller.run()
-            assert mock_thread_start.call_count == 1
-            assert mock_thread_join.call_count == 1
+        controller.cleanup = MagicMock()
+        controller.run()
+        assert mock_thread_start.call_count == 1
+        controller.cleanup.assert_called_once()
 
 
 def test_controller_task_decorator(controller):

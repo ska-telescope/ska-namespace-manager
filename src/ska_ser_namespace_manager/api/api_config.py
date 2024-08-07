@@ -8,6 +8,8 @@ from typing import Optional
 
 from pydantic import BaseModel
 
+from ska_ser_namespace_manager.metrics.metrics_config import MetricsConfig
+
 
 class GoogleServiceAccount(BaseModel):
     """
@@ -56,7 +58,8 @@ class APIConfig(BaseModel):
     ca_path: Optional[str] = None
     cert_path: Optional[str] = None
     key_path: Optional[str] = None
-    people_database: PeopleDatabaseConfig
+    people_database: PeopleDatabaseConfig = None
+    metrics: Optional[MetricsConfig] = MetricsConfig()
 
     def model_post_init(self, _):
         if self.https_enabled:

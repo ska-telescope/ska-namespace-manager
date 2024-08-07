@@ -110,13 +110,17 @@ spec:
             {{- tpl (toYaml .) $ | nindent 12 }}
           {{- end }}
           volumeMounts:
-          - name: config
-            mountPath: {{ template "ska-ser-namespace-manager.collect-controller.configPath" . }}
-            readOnly: true
-          {{- if gt (int .Values.collectController.replicas) 1 }}
-          - name: leader-election
-            mountPath: {{ .Values.collectController.config.leader_election.path }}
-          {{- end }}
+            - name: config
+              mountPath: {{ template "ska-ser-namespace-manager.collect-controller.configPath" . }}
+              readOnly: true
+            {{- if gt (int .Values.collectController.replicas) 1 }}
+            - name: leader-election
+              mountPath: {{ .Values.collectController.config.leader_election.path }}
+            {{- end }}
+            {{- if $appConfig.metrics.enabled }}
+            - name: metrics-volume
+              mountPath: {{ $appConfig.metrics.metrics_path }}
+            {{- end }}
       volumes:
       - name: config
         secret:
@@ -125,4 +129,9 @@ spec:
       - name: leader-election
         persistentVolumeClaim:
           claimName: {{ template "ska-ser-namespace-manager.collect-controller.leaderElectionVol" . }}
+      {{- end }}
+      {{- if $appConfig.metrics.enabled }}
+      - name: metrics-volume
+        persistentVolumeClaim:
+          claimName: {{ include "ska-ser-namespace-manager.name" . }}-metrics-registry
       {{- end }}

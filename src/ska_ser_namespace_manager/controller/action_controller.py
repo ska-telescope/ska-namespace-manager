@@ -24,6 +24,7 @@ from ska_ser_namespace_manager.core.notifier import Notifier
 from ska_ser_namespace_manager.core.types import (
     CicdAnnotations,
     NamespaceAnnotations,
+    NamespaceStatus,
 )
 from ska_ser_namespace_manager.core.utils import utc
 
@@ -132,7 +133,7 @@ class ActionController(Notifier, LeaderController):
         Looks for namespaces with stale status and deletes them
         :return:
         """
-        self.delete_namespaces_with_status("stale")
+        self.delete_namespaces_with_status(NamespaceStatus.STALE.value)
 
     @controller_task(period=datetime.timedelta(seconds=1))
     def delete_failed_namespaces(self) -> None:
@@ -140,7 +141,7 @@ class ActionController(Notifier, LeaderController):
         Looks for namespaces with failed status and deletes them
         :return:
         """
-        self.delete_namespaces_with_status("failed")
+        self.delete_namespaces_with_status(NamespaceStatus.FAILED.value)
 
     @controller_task(period=datetime.timedelta(seconds=1))
     def notify_failing_unstable_namespaces(self) -> None:

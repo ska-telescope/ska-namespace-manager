@@ -15,7 +15,13 @@ image:
   tag:
 
 configPath: /etc/config
-config: {}
+config:
+  metrics:
+    enabled: true
+    metrics_path: "/opt/ska_ser_namespace_manager/metrics"
+    pvc:
+      storageClassName:
+      size: 1Gi
 
 api:
   config:
@@ -373,3 +379,4 @@ actionController:
   extraArgs: []
 
   extraEnvVars: []
+
