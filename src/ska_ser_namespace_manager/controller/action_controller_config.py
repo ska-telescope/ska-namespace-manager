@@ -20,10 +20,12 @@ class ActionNamespacePhaseConfig(BaseModel):
 
     * delete: Delete when in phase
     * notify_on_delete: Notify the owner when namespace is deleted on
+    * notify_on_status: Notify the owner when namespace enters a status
     """
 
     delete: bool = True
     notify_on_delete: bool = True
+    notify_on_status: bool = False
 
 
 class ActionNamespaceConfig(NamespaceMatcher):
@@ -32,11 +34,19 @@ class ActionNamespaceConfig(NamespaceMatcher):
     being acted on.
 
     * stale: Configuration on how to act on stale namespaces
-    * failed: Configuration on how to act on stale namespaces
+    * failed: Configuration on how to act on failed namespaces
+    * failing: Configuration on how to act on failing namespaces
+    * unstable: Configuration on how to act on unstable namespaces
     """
 
     stale: ActionNamespacePhaseConfig = ActionNamespacePhaseConfig()
     failed: ActionNamespacePhaseConfig = ActionNamespacePhaseConfig()
+    failing: ActionNamespacePhaseConfig = ActionNamespacePhaseConfig(
+        delete=False, notify_on_delete=False, notify_on_status=True
+    )
+    unstable: ActionNamespacePhaseConfig = ActionNamespacePhaseConfig(
+        delete=False, notify_on_delete=False, notify_on_status=True
+    )
 
 
 class NotifierConfig(BaseModel):

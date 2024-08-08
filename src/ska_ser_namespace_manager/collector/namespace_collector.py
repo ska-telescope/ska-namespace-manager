@@ -59,6 +59,7 @@ class NamespaceCollector(Collector):
         annotations[NamespaceAnnotations.STATUS.value] = status
         annotations[NamespaceAnnotations.STATUS_TS.value] = utc()
         annotations[NamespaceAnnotations.NOTIFIED_TS.value] = None
+        annotations[NamespaceAnnotations.NOTIFIED_STATUS.value] = None
         logging.info(
             "Setting namespace '%s' status: %s",
             self.namespace,

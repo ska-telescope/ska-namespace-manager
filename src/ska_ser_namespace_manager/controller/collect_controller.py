@@ -160,9 +160,6 @@ class CollectController(LeaderController):
                 namespace = cronjob.metadata.annotations.get(
                     NamespaceAnnotations.NAMESPACE
                 )
-                if namespace is None:
-                    continue
-
                 ns = self.get_namespace(namespace)
                 if ns is None:
                     self.batch_v1.delete_namespaced_cron_job(
@@ -269,9 +266,6 @@ class CollectController(LeaderController):
                 namespace = job.metadata.annotations.get(
                     NamespaceAnnotations.NAMESPACE
                 )
-                if namespace is None:
-                    continue
-
                 ns = self.get_namespace(namespace)
                 if ns is None:
                     self.batch_v1.delete_namespaced_job(

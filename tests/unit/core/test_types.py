@@ -1,6 +1,9 @@
 import pytest
 
-from ska_ser_namespace_manager.core.types import NamespaceAnnotations
+from ska_ser_namespace_manager.core.types import (
+    CicdAnnotations,
+    NamespaceAnnotations,
+)
 
 
 @pytest.mark.parametrize(
@@ -31,7 +34,19 @@ from ska_ser_namespace_manager.core.types import NamespaceAnnotations
             NamespaceAnnotations.NOTIFIED_TS,
             "manager.cicd.skao.int/notified_timestamp",
         ),
+        (
+            NamespaceAnnotations.NOTIFIED_STATUS,
+            "manager.cicd.skao.int/notified_status",
+        ),
     ],
 )
 def test_namespace_annotations_values(member, expected):
+    assert str(member) == expected, "Enum value does not match expected string"
+
+
+@pytest.mark.parametrize(
+    "member, expected",
+    [(CicdAnnotations.JOB_URL, "cicd.skao.int/jobUrl")],
+)
+def test_cicd_annotations_values(member, expected):
     assert str(member) == expected, "Enum value does not match expected string"

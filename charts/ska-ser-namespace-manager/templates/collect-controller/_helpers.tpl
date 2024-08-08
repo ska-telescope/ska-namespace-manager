@@ -52,8 +52,6 @@ context:
   service_account: {{ template "ska-ser-namespace-manager.collect-controller.serviceAccount" . }}
   config_secret: {{ template "ska-ser-namespace-manager.collect-controller.configName" . }}
   config_path: {{ template "ska-ser-namespace-manager.collect-controller.configPath" . }}
-  matchLabels:
-    {{ include "ska-ser-namespace-manager.collect-controller.matchLabels" . | nindent 4 }}
   image: {{ include "ska-ser-namespace-manager.image" (list . .Values.collectController) }}
 people_api:
 {{- if .Values.api.service.https.enabled }}

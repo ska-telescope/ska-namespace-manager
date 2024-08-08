@@ -12,7 +12,6 @@ class KubernetesContext(BaseModel):
     context
     """
 
-    matchLabels: dict[str, str]
     namespace: str
     service_account: str
     image: str

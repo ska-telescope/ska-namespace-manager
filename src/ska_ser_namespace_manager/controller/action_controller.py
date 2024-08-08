@@ -21,7 +21,10 @@ from ska_ser_namespace_manager.controller.leader_controller import (
 from ska_ser_namespace_manager.core.logging import logging
 from ska_ser_namespace_manager.core.namespace import match_namespace
 from ska_ser_namespace_manager.core.notifier import Notifier
-from ska_ser_namespace_manager.core.types import NamespaceAnnotations
+from ska_ser_namespace_manager.core.types import (
+    CicdAnnotations,
+    NamespaceAnnotations,
+)
 from ska_ser_namespace_manager.core.utils import utc
 
 
@@ -82,36 +85,46 @@ class ActionController(Notifier, LeaderController):
             phase_config: ActionNamespacePhaseConfig = getattr(
                 ns_config, status
             )
-            if phase_config.delete:
-                if namespace.status.phase == "Terminating":
-                    logging.debug(
-                        "Namespace '%s' is already terminating",
-                        namespace.metadata.name,
-                    )
-                    continue
-
-                logging.info(
-                    "Deleting %s namespace '%s'",
+            if not phase_config.delete:
+                logging.debug(
+                    "Namespace '%s' is %s but won't be deleted",
+                    namespace.metadata.name,
                     status,
-                    namespace.metadata.name,
                 )
-                self.delete_namespace(
-                    namespace.metadata.name,
-                )
+                continue
 
-                annotations = namespace.metadata.annotations or {}
-                if phase_config.notify_on_delete:
-                    self.notify_user(
-                        address=annotations.get(
-                            NamespaceAnnotations.OWNER.value, ""
-                        ),
-                        template="namespace-deleted-notification.j2",
-                        status=status,
-                        status_timeframe=annotations.get(
-                            NamespaceAnnotations.STATUS_TIMEFRAME.value, "??"
-                        ),
-                        target_namespace=namespace.metadata.name,
-                    )
+            if namespace.status.phase == "Terminating":
+                logging.debug(
+                    "Namespace '%s' is already terminating",
+                    namespace.metadata.name,
+                )
+                continue
+
+            logging.info(
+                "Deleting %s namespace '%s'",
+                status,
+                namespace.metadata.name,
+            )
+            self.delete_namespace(
+                namespace.metadata.name,
+            )
+
+            annotations = namespace.metadata.annotations or {}
+            if phase_config.notify_on_delete:
+                self.notify_user(
+                    address=annotations.get(
+                        NamespaceAnnotations.OWNER.value, ""
+                    ),
+                    template="namespace-deleted-notification.j2",
+                    status=status,
+                    target_namespace=namespace.metadata.name,
+                    status_timeframe=annotations.get(
+                        NamespaceAnnotations.STATUS_TIMEFRAME.value,
+                    ),
+                    job_url=namespace.metadata.annotations.get(
+                        CicdAnnotations.JOB_URL.value
+                    ),
+                )
 
     @controller_task(period=datetime.timedelta(seconds=1))
     def delete_stale_namespaces(self) -> None:
@@ -159,22 +172,32 @@ class ActionController(Notifier, LeaderController):
             if ns_config is None:
                 continue
 
-            status = annotations.get(
-                NamespaceAnnotations.STATUS.value, "failing"
+            status = annotations.get(NamespaceAnnotations.STATUS.value)
+            phase_config: ActionNamespacePhaseConfig = getattr(
+                ns_config, status
             )
+            if not phase_config.notify_on_status:
+                continue
+
             if self.notify_user(
                 address=annotations.get(NamespaceAnnotations.OWNER.value, ""),
                 template=f"{status}-namespace-notification.j2",
                 status=status,
+                target_namespace=namespace.metadata.name,
                 status_timeframe=annotations.get(
                     NamespaceAnnotations.STATUS_TIMEFRAME.value
                 ),
-                target_namespace=namespace.metadata.name,
                 finalize_at=namespace.metadata.annotations.get(
                     NamespaceAnnotations.STATUS_FINALIZE_AT.value
                 ),
+                job_url=namespace.metadata.annotations.get(
+                    CicdAnnotations.JOB_URL.value
+                ),
             ):
                 annotations[NamespaceAnnotations.NOTIFIED_TS.value] = utc()
+                annotations[NamespaceAnnotations.NOTIFIED_STATUS.value] = (
+                    status
+                )
                 self.patch_namespace(
                     namespace.metadata.name, annotations=annotations
                 )

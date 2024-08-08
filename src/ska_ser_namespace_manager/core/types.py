@@ -6,6 +6,17 @@ as DTOs in database operations
 from enum import Enum
 
 
+class CicdAnnotations(str, Enum):
+    """
+    CicdAnnotations describes the used cicd annotations
+    """
+
+    JOB_URL = "cicd.skao.int/jobUrl"
+
+    def __str__(self):
+        return self.value
+
+
 class NamespaceAnnotations(str, Enum):
     """
     NamespaceAnnotations describes all known annotations
@@ -22,6 +33,7 @@ class NamespaceAnnotations(str, Enum):
     OWNER = "manager.cicd.skao.int/owner"
     FAILING_RESOURCES = "manager.cicd.skao.int/failing_resources"
     NOTIFIED_TS = "manager.cicd.skao.int/notified_timestamp"
+    NOTIFIED_STATUS = "manager.cicd.skao.int/notified_status"
 
     def __str__(self):
         return self.value
