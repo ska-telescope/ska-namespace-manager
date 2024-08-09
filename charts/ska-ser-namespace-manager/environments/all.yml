@@ -1,2 +1,2 @@
 labels:
-  app: ${PROJECT}
+  app: ska-ser-namespace-manager

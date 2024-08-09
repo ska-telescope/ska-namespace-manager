@@ -11,10 +11,6 @@ include .make/helm.mk
 
 CHART_ENVIRONMENTS_DIR = ./charts/$(K8S_CHART)/environments
 
-K8S_CHART_VARS = export \
-	VERSION=$(VERSION) \
-	TAG=$(VERSION)-dev.c$(CI_COMMIT_SHORT_SHA);
-
 ALL_VALUES_EXISTS := $(shell if [ -f "$(CHART_ENVIRONMENTS_DIR)/all.yml" ]; then echo true; else echo false; fi)
 ifeq ($(ALL_VALUES_EXISTS),true)
 K8S_CHART_PARAMS += -f <(envsubst < $(CHART_ENVIRONMENTS_DIR)/all.yml)
@@ -25,6 +21,10 @@ ENVIRONMENT ?= # environment to deploy to, matching files under charts/ska-ser-n
 ENVIRONMENT_VALUES_EXISTS := $(shell if [ -f "$(CHART_ENVIRONMENTS_DIR)/$(ENVIRONMENT).yml" ]; then echo true; else echo false; fi)
 ifeq ($(ENVIRONMENT_VALUES_EXISTS),true)
 K8S_CHART_PARAMS += -f <(envsubst < $(CHART_ENVIRONMENTS_DIR)/$(ENVIRONMENT).yml)
+endif
+
+ifeq ($(ENVIRONMENT),ci)
+K8S_CHART_PARAMS += --set image.tag=$(VERSION)-dev.c$(CI_COMMIT_SHORT_SHA)
 endif
 
 PYTHON_SWITCHES_FOR_PYLINT = \
