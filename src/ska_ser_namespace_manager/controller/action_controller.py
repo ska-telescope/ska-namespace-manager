@@ -118,8 +118,8 @@ class ActionController(Notifier, LeaderController):
                     template="namespace-deleted-notification.j2",
                     status=status,
                     target_namespace=namespace.metadata.name,
-                    status_timeframe=annotations.get(
-                        NamespaceAnnotations.STATUS_TIMEFRAME.value,
+                    status_detail=annotations.get(
+                        NamespaceAnnotations.STATUS_DETAIL.value,
                     ),
                     job_url=namespace.metadata.annotations.get(
                         CicdAnnotations.JOB_URL.value
@@ -184,8 +184,8 @@ class ActionController(Notifier, LeaderController):
                 template=f"{status}-namespace-notification.j2",
                 status=status,
                 target_namespace=namespace.metadata.name,
-                status_timeframe=annotations.get(
-                    NamespaceAnnotations.STATUS_TIMEFRAME.value
+                status_detail=annotations.get(
+                    NamespaceAnnotations.STATUS_DETAIL.value
                 ),
                 finalize_at=namespace.metadata.annotations.get(
                     NamespaceAnnotations.STATUS_FINALIZE_AT.value

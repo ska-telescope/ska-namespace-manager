@@ -99,11 +99,43 @@ class NamespaceCollector(Collector):
         creation_timestamp = namespace.metadata.creation_timestamp.replace(
             tzinfo=timezone.utc
         )
-        is_stale = (
+        is_stale_ttl = (
             datetime.now(pytz.UTC) - creation_timestamp
             >= self.namespace_config.ttl
         )
-        ttl_timeframe = format_timespan(self.namespace_config.ttl)
+        stale_detail = format_timespan(self.namespace_config.ttl)
+        is_stale_duplicate: False
+        if self.namespace_config.duplicate:
+            # TODO: search for duplicates
+            # match the labels and annotations
+            # it has been created afterwards
+            ns_labels = namespace.metadata.labels or {}
+            ns_annotations = namespace.metadata.annotations or {}
+            ns_matches = self.get_namespaces_by(
+                labels={
+                    label: ns_labels.get(label, "unknown")
+                    for label in (self.namespace_config.duplicate.labels or {})
+                },
+                annotations={
+                    annotation: ns_annotations.get(annotation, "unknown")
+                    for annotation in (
+                        self.namespace_config.duplicate.annotations or {}
+                    )
+                },
+            )
+
+            for ns_match in ns_matches:
+                ns_creation_timestamp = (
+                    ns_match.metadata.creation_timestamp.replace(
+                        tzinfo=timezone.utc
+                    )
+                )
+                if ns_creation_timestamp > creation_timestamp:
+                    is_stale_duplicate = True
+                    stale_detail = f"duplicate of {ns_match.metadata.name}"
+                    break
+
+        is_stale = is_stale_ttl or is_stale_duplicate
         if is_stale:
             self.set_status(
                 namespace,
@@ -112,7 +144,7 @@ class NamespaceCollector(Collector):
                     NamespaceAnnotations.STATUS_FINALIZE_AT.value: format_utc(
                         creation_timestamp + self.namespace_config.ttl
                     ),
-                    NamespaceAnnotations.STATUS_TIMEFRAME.value: ttl_timeframe,
+                    NamespaceAnnotations.STATUS_DETAIL.value: stale_detail,
                 },
             )
 
@@ -152,7 +184,7 @@ class NamespaceCollector(Collector):
             NamespaceAnnotations.STATUS_FINALIZE_AT.value: format_utc(
                 status_timestamp + self.namespace_config.grace_period
             ),
-            NamespaceAnnotations.STATUS_TIMEFRAME.value: format_timespan(
+            NamespaceAnnotations.STATUS_DETAIL.value: format_timespan(
                 self.namespace_config.grace_period
             ),
         }

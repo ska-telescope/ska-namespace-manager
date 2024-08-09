@@ -28,7 +28,7 @@ class NamespaceAnnotations(str, Enum):
     ACTION = "manager.cicd.skao.int/action"
     STATUS = "manager.cicd.skao.int/status"
     STATUS_TS = "manager.cicd.skao.int/status_timestamp"
-    STATUS_TIMEFRAME = "manager.cicd.skao.int/status_timeframe"
+    STATUS_DETAIL = "manager.cicd.skao.int/status_detail"
     STATUS_FINALIZE_AT = "manager.cicd.skao.int/status_finalize_at"
     OWNER = "manager.cicd.skao.int/owner"
     FAILING_RESOURCES = "manager.cicd.skao.int/failing_resources"

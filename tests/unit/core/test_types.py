@@ -18,8 +18,8 @@ from ska_ser_namespace_manager.core.types import (
             "manager.cicd.skao.int/status_timestamp",
         ),
         (
-            NamespaceAnnotations.STATUS_TIMEFRAME,
-            "manager.cicd.skao.int/status_timeframe",
+            NamespaceAnnotations.STATUS_DETAIL,
+            "manager.cicd.skao.int/status_detail",
         ),
         (
             NamespaceAnnotations.STATUS_FINALIZE_AT,

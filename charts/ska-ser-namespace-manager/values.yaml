@@ -178,11 +178,16 @@ collectController:
     namespaces:
       - names:
           - ci-*
-        ttl: 5m
-        grace_period: 2m
-        tasks:
-          check-namespace:
-            schedule: "*/1 * * * *"
+        ttl: 2h
+        grace_period: 30m
+        duplicate:
+          labels:
+            - cicd.skao.int/job
+            - cicd.skao.int/mrId
+      - names:
+          - staging-*
+          - integration-*
+        grace_period: 6h
     people_api:
       url:
       ca:
@@ -284,6 +289,9 @@ actionController:
     namespaces:
       - names:
           - ci-*
+      - names:
+          - staging-*
+          - integration-*
     notifier:
       token:
 

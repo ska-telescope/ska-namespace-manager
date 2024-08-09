@@ -30,9 +30,9 @@ class CollectActions(str, Enum):
         return self.value
 
 
-class CollectTaskConfig(BaseModel):
+class CollectActionConfig(BaseModel):
     """
-    CollectTaskConfig holds the configurations for the collect controller
+    CollectActionConfig holds the configurations for the collect controller
     tasks. Properties below are the ones we can set for cronjobs or jobs in
     the Kubernetes API
     """
@@ -46,6 +46,16 @@ class CollectTaskConfig(BaseModel):
     parallelism: Optional[int] = None
 
 
+class CollectNamespaceDuplicateConfig(BaseModel):
+    """
+    CollectNamespaceDuplicateConfig allows to specify labels and annotations
+    that if matched (all) means a given namespace if a duplicate
+    """
+
+    annotations: Optional[Dict[str, str]] = None
+    labels: Optional[Dict[str, str]] = None
+
+
 class CollectNamespaceConfig(NamespaceMatcher):
     """
     CollectNamespaceConfig holds the configurations indicating how to
@@ -53,6 +63,9 @@ class CollectNamespaceConfig(NamespaceMatcher):
 
     * ttl: Namespace ttl to become stale
     * grace_period: Grace period to mark a failing namespace as failed
+    * action: Collect action configuration
+    * duplicate: Match labels and annotations to tell if a namespace is
+    a duplicate of another
     """
 
     ttl: (
@@ -61,21 +74,22 @@ class CollectNamespaceConfig(NamespaceMatcher):
     grace_period: (
         Annotated[datetime.timedelta, BeforeValidator(parse_timedelta)] | None
     ) = datetime.timedelta(minutes=1)
-    actions: Optional[Dict[CollectActions, CollectTaskConfig]] = None
+    actions: Optional[Dict[CollectActions, CollectActionConfig]] = None
+    duplicate: Optional[CollectNamespaceDuplicateConfig] = None
 
     def model_post_init(self, _):
         default_actions = {
-            action: CollectTaskConfig() for action in CollectActions
+            action: CollectActionConfig() for action in CollectActions
         }
         if self.actions is None:
             self.actions = default_actions
         else:
             for action in CollectActions:
-                self.actions[action] = CollectTaskConfig(
+                self.actions[action] = CollectActionConfig(
                     **{
-                        **CollectTaskConfig().model_dump(),
+                        **CollectActionConfig().model_dump(),
                         **self.actions.get(
-                            action, CollectTaskConfig()
+                            action, CollectActionConfig()
                         ).model_dump(),
                     }
                 )
