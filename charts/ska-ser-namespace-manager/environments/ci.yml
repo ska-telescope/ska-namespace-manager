@@ -4,12 +4,12 @@ image:
 api:
   config:
     people_database:
+      enabled: false
       spreadsheet_id: "dummy"
       credentials:
         client_email: "dummy"
         client_id: "dummy"
         client_x509_cert_url: "dummy"
-        # This is some template private key
         private_key: |
           -----BEGIN RSA PRIVATE KEY-----
           MIIBOgIBAAJBAKj34GkxFhD90vcNLYLInFEX6Ppy1tPf9Cnzj4p4WGeKLs1Pt8Qu
@@ -22,3 +22,19 @@ api:
           -----END RSA PRIVATE KEY-----
         private_key_id: "dummy"
         project_id: "dummy"
+
+actionController:
+  config:
+    namespaces:
+      - names:
+          - dummy-*
+    notifier:
+      token: null
+
+collectController:
+  config:
+    namespaces:
+      - names:
+          - dummy-*
+    people_api:
+      insecure: true

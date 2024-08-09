@@ -40,6 +40,7 @@ class PeopleDatabaseConfig(BaseModel):
     spreadsheet_id: str
     spreadsheet_range: str = "System Team API!A2:Z1001"
     cache_ttl: int = 3600
+    enabled: bool = True
 
 
 class APIConfig(BaseModel):
