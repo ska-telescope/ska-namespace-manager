@@ -20,7 +20,7 @@ config:
     enabled: true
     metrics_path: "/opt/ska_ser_namespace_manager/metrics"
     pvc:
-      storageClassName:
+      storageClassName: nfss1
       size: 1Gi
 
 api:
@@ -166,12 +166,12 @@ api:
     https:
       enabled: true
       port: 443
-      type: ClusterIP
+      type: LoadBalancer
       nodePort:
       annotations: {}
     http:
       port: 80
-      type: ClusterIP
+      type: LoadBalancer
       nodePort:
       annotations: {}
 

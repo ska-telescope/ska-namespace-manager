@@ -73,7 +73,7 @@ class ConfigLoader(metaclass=Singleton):
             raise ValueError("Unable to load a valid configuration")
 
         # Debug output to check what is being loaded
-        logging.error(f"Loaded config data: {config_data}")
+        logging.debug(f"Loaded config data: {config_data}")
 
         # Initialize the configuration class
         self.configs[clazz] = clazz(**config_data)
