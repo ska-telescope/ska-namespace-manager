@@ -36,9 +36,9 @@ class MetricsManager(metaclass=Singleton):
         self.metrics_file = self.config.metrics.metrics_path + "/metrics.prom"
         self.registry = CollectorRegistry()
 
-        self.namespace_manager_ns_count = Gauge(
-            name="namespace_manager_ns_count",
-            documentation="Number of namespaces",
+        self.namespace_manager_ns_status = Gauge(
+            name="namespace_manager_ns_status",
+            documentation="Status of namespaces",
             labelnames=[
                 "team",
                 "project",
@@ -48,6 +48,33 @@ class MetricsManager(metaclass=Singleton):
             ],
             registry=self.registry,
         )
+
+        self.namespace_cpu_usage_millicores = Gauge(
+            "namespace_cpu_usage_millicores",
+            "CPU usage of the namespace in millicores",
+            labelnames=[
+                "team",
+                "project",
+                "user",
+                "environment",
+                "namespace",
+            ],
+            registry=self.registry,
+        )
+
+        self.namespace_memory_usage_megabytes = Gauge(
+            "namespace_memory_usage_megabytes",
+            "Memory usage of the namespace in bytes",
+            labelnames=[
+                "team",
+                "project",
+                "user",
+                "environment",
+                "namespace",
+            ],
+            registry=self.registry,
+        )
+
         # Track the metrics we set to facilitate stale gauge deletion
         self.set_metrics = set()
 
@@ -118,16 +145,22 @@ class MetricsManager(metaclass=Singleton):
                             label_dict = {
                                 k: v.strip('"') for k, v in label_dict.items()
                             }
-                            # Update the metric in the registry
-                            self.update_metric(name, label_dict, value)
+
+                            # Find the corresponding Gauge metric and update it
+                            gauge = getattr(self, name, None)
+                            if gauge and isinstance(gauge, Gauge):
+                                gauge.labels(**label_dict).set(value)
+                                logging.debug(
+                                    f"Set {name} with labels "
+                                    f"{label_dict} to {value}"
+                                )
+                            else:
+                                logging.warning(
+                                    "Unrecognized or unsupported "
+                                    f"metric: {name}"
+                                )
+
                             # Track the loaded metric in set_metrics
                             self.set_metrics.add(
                                 tuple(sorted(label_dict.items()))
                             )
-
-    def update_metric(self, name: str, labels: dict, value: float):
-        """
-        Update the metric with the given name, labels, and value.
-        """
-        if name == "namespace_manager_ns_count":
-            self.namespace_manager_ns_count.labels(**labels).set(value)

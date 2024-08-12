@@ -7,9 +7,9 @@ resources
 import datetime
 from typing import List, Optional
 
+import prometheus_client
 import yaml
 from kubernetes import client
-from prometheus_client.metrics_core import GaugeMetricFamily
 
 from ska_ser_namespace_manager.controller.collect_controller_config import (
     CollectActions,
@@ -340,51 +340,19 @@ class CollectController(LeaderController, MetricsManager):
                     "Patched '%s' Job for namespace '%s'", action, namespace
                 )
 
-    def get_existing_gauges(self):
+    def delete_stale_gauge(
+        self,
+        gauge: prometheus_client.Metric,
+        namespaces: List[client.V1Namespace],
+        value: int = -1,
+    ):
         """
-        Retrieve existing gauge metrics from Prometheus.
+        Delete gauge if the corresponding namespace is not longer active
         """
-        existing_gauges = {}
-        metric_family = GaugeMetricFamily(
-            "namespace_manager_ns_count",
-            "Number of namespaces",
-            labels=[
-                "team",
-                "project",
-                "user",
-                "environment",
-                "status",
-                "namespace",
-            ],
-        )
-        logging.error(metric_family)
-        for sample in metric_family.samples:
-            label_tuple = tuple(sample.labels.items())
-            existing_gauges[label_tuple] = sample.value
-
-        return existing_gauges
-
-    def delete_stale_gauges(self, namespaces: List[client.V1Namespace]):
-        """
-        Delete gauges related to namespaces which are no longer
-        in the given list.
-        """
-        namespaces = {ns.metadata.name for ns in namespaces}
-        stale_metrics = set()
-
-        for label_tuple in self.set_metrics:
-            # Extract the namespace from the label tuple
-            label_dict = dict(label_tuple)
-            namespace = label_dict.get("namespace")
-            if namespace not in namespaces:
-                stale_metrics.add(label_tuple)
-
-        # Now reset all stale metrics
-        for label_tuple in stale_metrics:
-            label_dict = dict(label_tuple)
-            self.namespace_manager_ns_count.labels(**label_dict).set(-1)
-            # Remove from set_metrics since it's now stale
-            self.set_metrics.remove(label_tuple)
+        active_namespaces = {ns.metadata.name for ns in namespaces}
+        for sample in gauge._samples():  # pylint: disable=protected-access
+            if sample.labels.get("namespace") not in active_namespaces:
+                gauge.labels(**sample.labels).set(value)
 
     @conditional_controller_task(
         period=datetime.timedelta(seconds=5),
@@ -398,7 +366,13 @@ class CollectController(LeaderController, MetricsManager):
         """
         namespaces = self.v1.list_namespace().items
 
-        self.delete_stale_gauges(namespaces)
+        self.delete_stale_gauge(self.namespace_manager_ns_status, namespaces)
+        self.delete_stale_gauge(
+            self.namespace_cpu_usage_millicores, namespaces, value=0
+        )
+        self.delete_stale_gauge(
+            self.namespace_memory_usage_megabytes, namespaces, value=0
+        )
 
         for ns in namespaces:
             labels = ns.metadata.labels or {}
@@ -417,7 +391,7 @@ class CollectController(LeaderController, MetricsManager):
                 f"Namespace '{ns.metadata.name}' fetched with "
                 f"labels: {labels} and annotations: {annotations}"
             )
-            self.namespace_manager_ns_count.labels(
+            self.namespace_manager_ns_status.labels(
                 team=team,
                 project=project,
                 user=author,
@@ -429,6 +403,41 @@ class CollectController(LeaderController, MetricsManager):
                 f"Updated metrics for namespace '{ns.metadata.name}' - "
                 f"Team: {team}, Project: {project}, User: {author}, "
                 f"Environment: {environment}, Status: {status}"
+            )
+
+            resource_usage = self.get_namespace_resource_usage(
+                ns.metadata.name
+            )
+
+            cpu_usage_millicores = resource_usage.get("cpu")
+            memory_usage_megabytes = resource_usage.get("memory")
+
+            self.namespace_cpu_usage_millicores.labels(
+                team=team,
+                project=project,
+                user=author,
+                environment=environment,
+                namespace=ns.metadata.name,
+            ).set(cpu_usage_millicores)
+
+            logging.debug(
+                f"Updated CPU usage for namespace '{ns.metadata.name}' - "
+                f"Environment: {environment}, "
+                f"CPU Usage (millicores): {cpu_usage_millicores}"
+            )
+
+            self.namespace_memory_usage_megabytes.labels(
+                team=team,
+                project=project,
+                user=author,
+                environment=environment,
+                namespace=ns.metadata.name,
+            ).set(memory_usage_megabytes)
+
+            logging.debug(
+                f"Updated Memory usage for namespace '{ns.metadata.name}' - "
+                f"Environment: {environment}, "
+                f"Memory Usage (MB): {memory_usage_megabytes}"
             )
 
         self.save_metrics()

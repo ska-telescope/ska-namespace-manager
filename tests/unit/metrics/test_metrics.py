@@ -55,7 +55,7 @@ def parse_metrics_output(metrics_output):
 def test_set_gauge(metrics_manager):
     """Test setting a gauge metric."""
     metrics_manager.set_gauge(
-        metrics_manager.namespace_manager_ns_count,
+        metrics_manager.namespace_manager_ns_status,
         amount=2,
         team="team1",
         project="project1",
@@ -75,16 +75,16 @@ def test_set_gauge(metrics_manager):
         "namespace": "ns1",
     }
     assert (
-        parsed_metrics["namespace_manager_ns_count"]["labels"]
+        parsed_metrics["namespace_manager_ns_status"]["labels"]
         == expected_labels
     )
-    assert parsed_metrics["namespace_manager_ns_count"]["value"] == 2.0
+    assert parsed_metrics["namespace_manager_ns_status"]["value"] == 2.0
 
 
 def test_save_metrics(metrics_manager, temp_metrics_path):
     """Test saving metrics to a file."""
     metrics_manager.set_gauge(
-        metrics_manager.namespace_manager_ns_count,
+        metrics_manager.namespace_manager_ns_status,
         amount=2,
         team="team1",
         project="project1",
@@ -108,10 +108,10 @@ def test_save_metrics(metrics_manager, temp_metrics_path):
         "namespace": "ns1",
     }
     assert (
-        parsed_metrics["namespace_manager_ns_count"]["labels"]
+        parsed_metrics["namespace_manager_ns_status"]["labels"]
         == expected_labels
     )
-    assert parsed_metrics["namespace_manager_ns_count"]["value"] == 2.0
+    assert parsed_metrics["namespace_manager_ns_status"]["value"] == 2.0
 
 
 def test_load_metrics(metrics_manager, temp_metrics_path):
@@ -119,9 +119,9 @@ def test_load_metrics(metrics_manager, temp_metrics_path):
     # Prepare the metrics file content
 
     metrics_content = (
-        "# HELP namespace_manager_ns_count Number of namespaces"
-        "# TYPE namespace_manager_ns_count gauge"
-        'namespace_manager_ns_count{team="team1",project="project1",user="user1",environment="dev",status="ok",namespace="ns1"} 2.0'  # pylint: disable=line-too-long # noqa: E501
+        "# HELP namespace_manager_ns_status Number of namespaces"
+        "# TYPE namespace_manager_ns_status gauge"
+        'namespace_manager_ns_status{team="team1",project="project1",user="user1",environment="dev",status="ok",namespace="ns1"} 2.0'  # pylint: disable=line-too-long # noqa: E501
     )
 
     metrics_file = os.path.join(temp_metrics_path, "metrics.prom")
@@ -141,27 +141,7 @@ def test_load_metrics(metrics_manager, temp_metrics_path):
         "namespace": "ns1",
     }
     assert (
-        parsed_metrics["namespace_manager_ns_count"]["labels"]
+        parsed_metrics["namespace_manager_ns_status"]["labels"]
         == expected_labels
     )
-    assert parsed_metrics["namespace_manager_ns_count"]["value"] == 2.0
-
-
-def test_update_metric(metrics_manager):
-    """Test updating a metric."""
-    labels = {
-        "team": "team1",
-        "project": "project1",
-        "user": "user1",
-        "environment": "dev",
-        "namespace": "ns1",
-    }
-    metrics_manager.update_metric(
-        name="namespace_manager_ns_count", labels=labels, value=5.0
-    )
-
-    metrics = generate_latest(metrics_manager.registry).decode("utf-8")
-    parsed_metrics = parse_metrics_output(metrics)
-
-    assert parsed_metrics["namespace_manager_ns_count"]["labels"] == labels
-    assert parsed_metrics["namespace_manager_ns_count"]["value"] == 5.0
+    assert parsed_metrics["namespace_manager_ns_status"]["value"] == 2.0
