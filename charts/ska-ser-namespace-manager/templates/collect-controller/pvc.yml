@@ -1,0 +1,13 @@
+{{- if gt (int .Values.collectController.replicas) 1 }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ template "ska-ser-namespace-manager.collect-controller.leaderElectionVol" . }}
+spec:
+  storageClassName: {{ .Values.collectController.pvc.leaderElection.storageClassName }}
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Mi
+{{- end }}

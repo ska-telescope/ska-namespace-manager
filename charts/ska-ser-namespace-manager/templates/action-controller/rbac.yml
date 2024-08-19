@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "ska-ser-namespace-manager.action-controller.serviceAccount" . }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ printf "%s-action-ctl-role" (include "ska-ser-namespace-manager.fullname" .) | trunc 63 | trimSuffix "-" }}
+rules:
+- apiGroups: ["batch"]
+  resources: ["cronjobs", "jobs"]
+  verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ printf "%s-action-ctl-rb" (include "ska-ser-namespace-manager.fullname" .) | trunc 63 | trimSuffix "-" }}
+subjects:
+- kind: ServiceAccount
+  name: {{ include "ska-ser-namespace-manager.action-controller.serviceAccount" . }}
+roleRef:
+  kind: Role
+  name: {{ printf "%s-action-ctl-role" (include "ska-ser-namespace-manager.fullname" .) | trunc 63 | trimSuffix "-" }}
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "ska-ser-namespace-manager.action-controller.clusterWidePrefix" . }}-cr
+rules:
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get", "list", "watch", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "ska-ser-namespace-manager.action-controller.clusterWidePrefix" . }}-crb
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "ska-ser-namespace-manager.action-controller.serviceAccount" . }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: ClusterRole
+  name: {{ include "ska-ser-namespace-manager.action-controller.clusterWidePrefix" . }}-cr
+  apiGroup: rbac.authorization.k8s.io

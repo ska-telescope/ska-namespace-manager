@@ -1,0 +1,128 @@
+{{- $appConfig := fromYaml (include "ska-ser-namespace-manager.collect-controller.config" .) -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "ska-ser-namespace-manager.collect-controller.name" . }}
+  namespace: {{ template "ska-ser-namespace-manager.namespace" . }}
+  labels:
+    {{- include "ska-ser-namespace-manager.collect-controller.labels" . | nindent 4 }}
+  annotations:
+    skao.int/configVersion: {{ include "ska-ser-namespace-manager.collect-controller.configVersion" . }}
+spec:
+  replicas: {{ .Values.collectController.replicas }}
+  {{- with .Values.collectController.updateStrategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "ska-ser-namespace-manager.collect-controller.matchLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ska-ser-namespace-manager.collect-controller.labels" . | nindent 8 }}
+        {{- with .Values.collectController.labels }}
+        {{- tpl (toYaml .) $ | nindent 8 }}
+        {{- end }}
+      annotations: 
+        skao.int/configVersion: {{ include "ska-ser-namespace-manager.collect-controller.configVersion" . }}
+        {{- with .Values.collectController.annotations }}
+        {{- tpl (toYaml .) $ | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "ska-ser-namespace-manager.collect-controller.serviceAccount" . }}
+      {{- with .Values.collectController.imagePullSecrets }}
+      imagePullSecrets:
+        {{- tpl (toYaml .) $ | nindent 8 }}
+      {{- end }}
+      {{- with .Values.collectController.podSecurityContext }}
+      securityContext:
+        {{- tpl (toYaml .) $ | nindent 8 }}
+      {{- end }}
+      {{- with .Values.collectController.nodeSelector | default .Values.nodeSelector }}
+      nodeSelector:
+        {{- tpl (toYaml .) $ | nindent 8 }}
+      {{- end }}
+      {{- with .Values.collectController.tolerations | default .Values.tolerations}}
+      tolerations:
+        {{- tpl (toYaml .) $ | nindent 8 }}
+      {{- end }}
+      {{- with .Values.collectController.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- tpl (toYaml .) $ | nindent 8 }}
+      {{- end }}
+      {{- with .Values.collectController.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      {{- with .Values.collectController.dnsPolicy }}
+      dnsPolicy: {{ . }}
+      {{- end }}
+      {{- if or .Values.collectController.antiAffinity.enabled .Values.collectController.podAffinity .Values.collectController.nodeAffinity }}
+      affinity:
+        {{- if .Values.collectController.antiAffinity.enabled }}
+        {{- with .Values.collectController.podAntiAffinity }}
+        podAntiAffinity:
+          {{- tpl (toYaml .) $ | nindent 10 }}
+        {{- end }}
+        {{- end }}
+        {{- with .Values.collectController.podAffinity }}
+        podAffinity:
+          {{- tpl (toYaml .) $ | nindent 10 }}
+        {{- end }}
+        {{- with .Values.collectController.nodeAffinity }}
+        nodeAffinity:
+          {{- tpl (toYaml .) $ | nindent 10 }}
+        {{- end }}
+      {{- end }}
+      containers:
+        - name: controller
+          image: {{ include "ska-ser-namespace-manager.image" (list . .Values.collectController) }}
+          imagePullPolicy: {{ default .Values.collectController.image.pullPolicy .Values.image.pullPolicy }}
+          args:
+            - "/opt/ska_ser_namespace_manager/collect_controller.py"
+          {{- range $arg := .Values.collectController.extraArgs }}
+            - {{ $arg }}
+          {{- end }}
+          {{- with .Values.collectController.resources }}
+          resources:
+            {{- tpl (toYaml .) $ | nindent 12 }}
+          {{- end }}
+          {{- with .Values.collectController.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+          - name: CONFIG_PATH
+            value: {{ template "ska-ser-namespace-manager.collect-controller.configPath" . }}/config.yml
+          {{- with (concat .Values.extraEnvVars .Values.collectController.extraEnvVars) }}
+          {{- toYaml . | nindent 10 }}
+          {{- end }}
+          {{- with .Values.collectController.startupProbe }}
+          startupProbe:
+            {{- tpl (toYaml .) $ | nindent 12 }}
+          {{- end }}
+          {{- with .Values.collectController.livenessProbe }}
+          livenessProbe:
+            {{- tpl (toYaml .) $ | nindent 12 }}
+          {{- end }}
+          {{- with .Values.collectController.readinessProbe }}
+          readinessProbe:
+            {{- tpl (toYaml .) $ | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+          - name: config
+            mountPath: {{ template "ska-ser-namespace-manager.collect-controller.configPath" . }}
+            readOnly: true
+          {{- if gt (int .Values.collectController.replicas) 1 }}
+          - name: leader-election
+            mountPath: {{ .Values.collectController.config.leader_election.path }}
+          {{- end }}
+      volumes:
+      - name: config
+        secret:
+          secretName: {{ template "ska-ser-namespace-manager.collect-controller.configName" . }}
+      {{- if gt (int .Values.collectController.replicas) 1 }}
+      - name: leader-election
+        persistentVolumeClaim:
+          claimName: {{ template "ska-ser-namespace-manager.collect-controller.leaderElectionVol" . }}
+      {{- end }}

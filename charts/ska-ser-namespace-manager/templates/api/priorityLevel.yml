@@ -1,0 +1,12 @@
+{{- if .Values.api.apiPriorityAndFairness }}
+apiVersion: v1
+kind: PriorityLevelConfiguration
+metadata:
+  name: {{ template "ska-ser-namespace-manager.api.name" . }}
+  labels:
+    {{- include "ska-ser-namespace-manager.api.labels" . | nindent 4 }}
+{{- with .Values.api.priorityLevelConfigurationSpec }}
+spec:
+  {{- tpl (toYaml .) $ | nindent 2 }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,129 @@
+{{- $appConfig := fromYaml (include "ska-ser-namespace-manager.action-controller.config" .) -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "ska-ser-namespace-manager.action-controller.name" . }}
+  namespace: {{ template "ska-ser-namespace-manager.namespace" . }}
+  labels:
+    {{- include "ska-ser-namespace-manager.action-controller.labels" . | nindent 4 }}
+  annotations:
+    skao.int/configVersion: {{ include "ska-ser-namespace-manager.action-controller.configVersion" . }}
+spec:
+  replicas: {{ .Values.actionController.replicas }}
+  {{- with .Values.actionController.updateStrategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "ska-ser-namespace-manager.action-controller.matchLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ska-ser-namespace-manager.action-controller.labels" . | nindent 8 }}
+        {{- with .Values.actionController.labels }}
+        {{- tpl (toYaml .) $ | nindent 8 }}
+        {{- end }}
+      annotations:
+        skao.int/configVersion: {{ include "ska-ser-namespace-manager.action-controller.configVersion" . }}
+        {{- with .Values.actionController.annotations }}
+        {{- tpl (toYaml .) $ | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "ska-ser-namespace-manager.action-controller.serviceAccount" . }}
+      {{- with .Values.actionController.imagePullSecrets }}
+      imagePullSecrets:
+        {{- tpl (toYaml .) $ | nindent 8 }}
+      {{- end }}
+      {{- with .Values.actionController.podSecurityContext }}
+      securityContext:
+        {{- tpl (toYaml .) $ | nindent 8 }}
+      {{- end }}
+      {{- with .Values.actionController.nodeSelector | default .Values.nodeSelector }}
+      nodeSelector:
+        {{- tpl (toYaml .) $ | nindent 8 }}
+      {{- end }}
+      {{- with .Values.actionController.tolerations | default .Values.tolerations}}
+      tolerations:
+        {{- tpl (toYaml .) $ | nindent 8 }}
+      {{- end }}
+      {{- with .Values.actionController.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- tpl (toYaml .) $ | nindent 8 }}
+      {{- end }}
+      {{- with .Values.actionController.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      {{- with .Values.actionController.dnsPolicy }}
+      dnsPolicy: {{ . }}
+      {{- end }}
+      {{- if or .Values.actionController.antiAffinity.enabled .Values.actionController.podAffinity .Values.actionController.nodeAffinity }}
+      affinity:
+        {{- if .Values.actionController.antiAffinity.enabled }}
+        {{- with .Values.actionController.podAntiAffinity }}
+        podAntiAffinity:
+          {{- tpl (toYaml .) $ | nindent 10 }}
+        {{- end }}
+        {{- end }}
+        {{- with .Values.actionController.podAffinity }}
+        podAffinity:
+          {{- tpl (toYaml .) $ | nindent 10 }}
+        {{- end }}
+        {{- with .Values.actionController.nodeAffinity }}
+        nodeAffinity:
+          {{- tpl (toYaml .) $ | nindent 10 }}
+        {{- end }}
+      {{- end }}
+      containers:
+        - name: controller
+          image: {{ include "ska-ser-namespace-manager.image" (list . .Values.actionController) }}
+          imagePullPolicy: {{ default .Values.actionController.image.pullPolicy .Values.image.pullPolicy }}
+          args:
+            - "/opt/ska_ser_namespace_manager/action_controller.py"
+          {{- range $arg := .Values.actionController.extraArgs }}
+            - {{ $arg }}
+          {{- end }}
+          {{- with .Values.actionController.resources }}
+          resources:
+            {{- tpl (toYaml .) $ | nindent 12 }}
+          {{- end }}
+          {{- with .Values.actionController.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+          - name: CONFIG_PATH
+            value: {{ template "ska-ser-namespace-manager.action-controller.configPath" . }}/config.yml
+          {{- with (concat .Values.extraEnvVars .Values.actionController.extraEnvVars) }}
+          {{- toYaml . | nindent 10 }}
+          {{- end }}
+          {{- with .Values.actionController.startupProbe }}
+          startupProbe:
+            {{- tpl (toYaml .) $ | nindent 12 }}
+          {{- end }}
+          {{- with .Values.actionController.livenessProbe }}
+          livenessProbe:
+            {{- tpl (toYaml .) $ | nindent 12 }}
+          {{- end }}
+          {{- with .Values.actionController.readinessProbe }}
+          readinessProbe:
+            {{- tpl (toYaml .) $ | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: {{ template "ska-ser-namespace-manager.action-controller.configPath" . }}
+              readOnly: true
+          {{- if gt (int .Values.actionController.replicas) 1 }}
+            - name: leader-election
+              mountPath: {{ .Values.actionController.config.leader_election.path }}
+              readOnly: true
+          {{- end }}
+      volumes:
+        - name: config
+          secret:
+            secretName: {{ template "ska-ser-namespace-manager.action-controller.configName" . }}
+      {{- if gt (int .Values.actionController.replicas) 1 }}
+        - name: leader-election
+          persistentVolumeClaim:
+            claimName: {{ template "ska-ser-namespace-manager.action-controller.leaderElectionVol" . }}
+      {{- end }}

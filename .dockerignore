@@ -1,0 +1,6 @@
+.venv
+build
+charts
+docs
+tests
+.make

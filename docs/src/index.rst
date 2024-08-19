@@ -15,7 +15,7 @@ What's on the roadmap for SKA Namespace Manager:
   * Notify namespace owners of their namespaces' status changes
 
 The `SKA Namespace Manager
-<https://gitlab.com/ska-telescope/ska-namespace-manager.git>`_ aims at providing efficient and fair usage of the resources of the CICD Kubernetes cluster.
+<https://gitlab.com/ska-telescope/ska-ser-namespace-manager.git>`_ aims at providing efficient and fair usage of the resources of the CICD Kubernetes cluster.
 
 .. toctree::
   :maxdepth: 1
