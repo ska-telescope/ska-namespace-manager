@@ -32,4 +32,4 @@ local_*config.y*ml
 pytest.stdout
 
 # Testing
-tests/metrics
+metrics.prom

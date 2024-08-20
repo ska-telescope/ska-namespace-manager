@@ -5,11 +5,9 @@ resources
 """
 
 import datetime
-from typing import List, Optional
+from typing import Optional
 
-import prometheus_client
 import yaml
-from kubernetes import client
 
 from ska_ser_namespace_manager.controller.collect_controller_config import (
     CollectActions,
@@ -25,14 +23,11 @@ from ska_ser_namespace_manager.controller.leader_controller import (
 )
 from ska_ser_namespace_manager.core.logging import logging
 from ska_ser_namespace_manager.core.namespace import match_namespace
-from ska_ser_namespace_manager.core.types import (
-    NamespaceAnnotations,
-    NamespaceStatus,
-)
+from ska_ser_namespace_manager.core.types import NamespaceAnnotations
 from ska_ser_namespace_manager.metrics.metrics import MetricsManager
 
 
-class CollectController(LeaderController, MetricsManager):
+class CollectController(LeaderController):
     """
     CollectController is responsible for creating tasks to collect
     information on managed resources and manage those tasks
@@ -40,6 +35,7 @@ class CollectController(LeaderController, MetricsManager):
 
     namespace_cronjobs: list[CollectActions]
     namespace_jobs: list[CollectActions]
+    metrics_manager: MetricsManager
 
     def __init__(self, kubeconfig: Optional[str] = None) -> None:
         """
@@ -51,9 +47,9 @@ class CollectController(LeaderController, MetricsManager):
             [self.check_new_namespaces],
             kubeconfig,
         )
-        MetricsManager.__init__(self, CollectControllerConfig)
 
         self.config: CollectControllerConfig
+        self.metrics_manager = MetricsManager(self.config.metrics)
         logging.debug(
             "Configuration: \n%s",
             yaml.safe_dump(yaml.safe_load(self.config.model_dump_json())),
@@ -62,12 +58,18 @@ class CollectController(LeaderController, MetricsManager):
             [
                 self.synchronize_cronjobs,
                 self.synchronize_jobs,
-                self.list_namespaces_and_export_metrics,
+                self.generate_metrics,
             ]
         )
 
         self.namespace_cronjobs = [CollectActions.CHECK_NAMESPACE]
         self.namespace_jobs = [CollectActions.GET_OWNER_INFO]
+
+    def is_metrics_enabled(self) -> bool:
+        """
+        Check if metrics are enabled
+        """
+        return self.config.metrics.enabled
 
     @controller_task(period=datetime.timedelta(seconds=1))
     def check_new_namespaces(self) -> None:
@@ -340,104 +342,27 @@ class CollectController(LeaderController, MetricsManager):
                     "Patched '%s' Job for namespace '%s'", action, namespace
                 )
 
-    def delete_stale_gauge(
-        self,
-        gauge: prometheus_client.Metric,
-        namespaces: List[client.V1Namespace],
-        value: int = -1,
-    ):
-        """
-        Delete gauge if the corresponding namespace is not longer active
-        """
-        active_namespaces = {ns.metadata.name for ns in namespaces}
-        for sample in gauge._samples():  # pylint: disable=protected-access
-            if sample.labels.get("namespace") not in active_namespaces:
-                gauge.labels(**sample.labels).set(value)
-
     @conditional_controller_task(
         period=datetime.timedelta(seconds=5),
         run_if=lambda instance: LeaderController.is_leader(instance)
-        and instance.config.metrics.enabled,
+        and instance.is_metrics_enabled(),
     )
-    def list_namespaces_and_export_metrics(self) -> None:
+    def generate_metrics(self) -> None:
         """
-        List namespaces in the Kubernetes cluster and export Prometheus
-        metrics based on their labels and annotations.
+        Generates metrics on the managed namespaces
         """
-        namespaces = self.v1.list_namespace().items
-
-        self.delete_stale_gauge(self.namespace_manager_ns_status, namespaces)
-        self.delete_stale_gauge(
-            self.namespace_cpu_usage_millicores, namespaces, value=0
+        managed_namespaces = [
+            namespace
+            for namespace in self.get_namespaces_by(
+                annotations={NamespaceAnnotations.MANAGED.value: "true"}
+            )
+            if namespace.metadata.name not in self.forbidden_namespaces
+        ]
+        self.metrics_manager.delete_stale_metrics(
+            [ns.metadata.name for ns in managed_namespaces]
         )
-        self.delete_stale_gauge(
-            self.namespace_memory_usage_megabytes, namespaces, value=0
-        )
 
-        for ns in namespaces:
-            labels = ns.metadata.labels or {}
-            annotations = ns.metadata.annotations or {}
+        for ns in managed_namespaces:
+            self.metrics_manager.update_namespace_metrics(ns)
 
-            author = labels.get("cicd.skao.int/author", "unknown")
-            team = labels.get("cicd.skao.int/team", "unknown")
-            project = labels.get("cicd.skao.int/project", "unknown")
-            environment = labels.get(
-                "cicd.skao.int/environmentTier", "unknown"
-            )
-            status = annotations.get("manager.cicd.skao.int/status", "unknown")
-            status_numeric = NamespaceStatus.from_string(status).value_numeric
-
-            logging.debug(
-                f"Namespace '{ns.metadata.name}' fetched with "
-                f"labels: {labels} and annotations: {annotations}"
-            )
-            self.namespace_manager_ns_status.labels(
-                team=team,
-                project=project,
-                user=author,
-                environment=environment,
-                namespace=ns.metadata.name,
-            ).set(status_numeric)
-
-            logging.debug(
-                f"Updated metrics for namespace '{ns.metadata.name}' - "
-                f"Team: {team}, Project: {project}, User: {author}, "
-                f"Environment: {environment}, Status: {status}"
-            )
-
-            resource_usage = self.get_namespace_resource_usage(
-                ns.metadata.name
-            )
-
-            cpu_usage_millicores = resource_usage.get("cpu")
-            memory_usage_megabytes = resource_usage.get("memory")
-
-            self.namespace_cpu_usage_millicores.labels(
-                team=team,
-                project=project,
-                user=author,
-                environment=environment,
-                namespace=ns.metadata.name,
-            ).set(cpu_usage_millicores)
-
-            logging.debug(
-                f"Updated CPU usage for namespace '{ns.metadata.name}' - "
-                f"Environment: {environment}, "
-                f"CPU Usage (millicores): {cpu_usage_millicores}"
-            )
-
-            self.namespace_memory_usage_megabytes.labels(
-                team=team,
-                project=project,
-                user=author,
-                environment=environment,
-                namespace=ns.metadata.name,
-            ).set(memory_usage_megabytes)
-
-            logging.debug(
-                f"Updated Memory usage for namespace '{ns.metadata.name}' - "
-                f"Environment: {environment}, "
-                f"Memory Usage (MB): {memory_usage_megabytes}"
-            )
-
-        self.save_metrics()
+        self.metrics_manager.save_metrics()

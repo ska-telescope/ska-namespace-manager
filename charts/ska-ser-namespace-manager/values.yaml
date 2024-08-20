@@ -18,7 +18,7 @@ configPath: /etc/config
 config:
   metrics:
     enabled: true
-    metrics_path: "/opt/ska_ser_namespace_manager/metrics"
+    registry_path: /etc/metrics
     pvc:
       storageClassName: nfss1
       size: 1Gi

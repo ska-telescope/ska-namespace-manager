@@ -129,4 +129,4 @@ class CollectControllerConfig(CollectConfig, LeaderControllerConfig):
     controller
     """
 
-    metrics: Optional[MetricsConfig] = None
+    metrics: Optional[MetricsConfig] = MetricsConfig()

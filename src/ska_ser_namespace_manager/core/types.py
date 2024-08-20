@@ -12,6 +12,12 @@ class CicdAnnotations(str, Enum):
     """
 
     JOB_URL = "cicd.skao.int/jobUrl"
+    ENV_TIER = "cicd.skao.int/environmentTier"
+    PROJECT = "cicd.skao.int/project"
+    TEAM = "cicd.skao.int/team"
+    AUTHOR = "cicd.skao.int/author"
+    PIPELINE_ID = "cicd.skao.int/pipelineId"
+    PROJECT_ID = "cicd.skao.int/projectId"
 
     def __str__(self):
         return self.value
@@ -62,7 +68,7 @@ class NamespaceStatus(Enum):
             NamespaceStatus.FAILING: 2,
             NamespaceStatus.FAILED: 3,
             NamespaceStatus.UNSTABLE: 4,
-            NamespaceStatus.UNKNOWN: 5,
+            NamespaceStatus.UNKNOWN: -1,
         }
         return status_values[self]
 

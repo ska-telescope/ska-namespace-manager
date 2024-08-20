@@ -42,6 +42,7 @@ def mock_collect_controller_config():
         mock_config_instance.leader_election.lease_path = "/mock/lease/path"
         mock_config_instance.leader_election.lease_ttl = timedelta(seconds=30)
         mock_config_instance.namespaces = []
+        mock_config_instance.metrics = MagicMock()
         yield mock_config_instance
 
 
@@ -429,3 +430,25 @@ def test_patch_job_for_existing_namespace(collect_controller):
         "manifest",
         _request_timeout=10,
     )
+
+
+def test_generate_metrics(collect_controller):
+    mock_namespace = MagicMock()
+    mock_namespace.metadata.name = "test-namespace"
+    mock_namespace.metadata.annotations = {}
+
+    collect_controller.get_namespaces_by = MagicMock(
+        return_value=[mock_namespace]
+    )
+
+    collect_controller.metrics_manager = MagicMock()
+    collect_controller.metrics_manager.delete_stale_metrics = MagicMock()
+    collect_controller.metrics_manager.update_namespace_metrics = MagicMock()
+    collect_controller.metrics_manager.save_metrics = MagicMock()
+
+    collect_controller.generate_metrics()
+
+    collect_controller.metrics_manager.delete_stale_metrics.assert_called_once_with(  # pylint: disable=line-too-long  # noqa: E501
+        [mock_namespace.metadata.name]
+    )
+    collect_controller.metrics_manager.save_metrics.assert_called_once()

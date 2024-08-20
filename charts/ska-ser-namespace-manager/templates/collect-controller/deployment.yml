@@ -119,7 +119,7 @@ spec:
             {{- end }}
             {{- if $appConfig.metrics.enabled }}
             - name: metrics-volume
-              mountPath: {{ $appConfig.metrics.metrics_path }}
+              mountPath: {{ $appConfig.metrics.registry_path }}
             {{- end }}
       volumes:
       - name: config

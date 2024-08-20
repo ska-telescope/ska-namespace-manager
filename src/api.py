@@ -8,13 +8,13 @@ import http
 import traceback
 
 import uvicorn
-from fastapi import APIRouter, FastAPI, Response
+from fastapi import APIRouter, FastAPI
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from prometheus_client import CONTENT_TYPE_LATEST
 
 from ska_ser_namespace_manager.api.api_config import APIConfig
+from ska_ser_namespace_manager.api.metrics_api import api as metrics_api
 from ska_ser_namespace_manager.api.people_api import api as people_api
 from ska_ser_namespace_manager.api.people_api import (
     is_ready as people_api_ready,
@@ -22,11 +22,9 @@ from ska_ser_namespace_manager.api.people_api import (
 from ska_ser_namespace_manager.core.config import ConfigLoader
 from ska_ser_namespace_manager.core.logging import logging
 from ska_ser_namespace_manager.core.utils import deserialize_request
-from ska_ser_namespace_manager.metrics.metrics import MetricsManager
 
 app = FastAPI(title="SKA Namespace Manager REST API")
 api = APIRouter()
-metrics = MetricsManager(APIConfig)
 
 
 async def apis_ready() -> bool:
@@ -95,15 +93,8 @@ async def readiness():
     )
 
 
-@app.get("/metrics")
-async def metrics_update():
-    """
-    Serve Prometheus metrics
-    """
-    return Response(metrics.get_metrics(), media_type=CONTENT_TYPE_LATEST)
-
-
 api.include_router(people_api, prefix="/people")
+api.include_router(metrics_api, prefix="/metrics")
 app.include_router(api, prefix="/api")
 
 

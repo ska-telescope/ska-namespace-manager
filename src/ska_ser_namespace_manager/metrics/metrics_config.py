@@ -9,9 +9,9 @@ class MetricsConfig(BaseModel):
     """
     MetricsConfig holds configuration for the metrics module
 
-    * metrics_path: path to the folder holding the metrics
-    * update_period: number of seconds between each metric update
+    * registry_path: Path to the folder holding the metrics registry
+    * enabled: True to enable metrics, False to disable
     """
 
-    metrics_path: str = "./metrics"
+    registry_path: str = "metrics"
     enabled: bool = True
