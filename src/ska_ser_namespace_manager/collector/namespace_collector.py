@@ -17,7 +17,10 @@ from ska_ser_namespace_manager.controller.collect_controller_config import (
     CollectActions,
 )
 from ska_ser_namespace_manager.core.logging import logging
-from ska_ser_namespace_manager.core.types import NamespaceAnnotations
+from ska_ser_namespace_manager.core.types import (
+    NamespaceAnnotations,
+    NamespaceStatus,
+)
 from ska_ser_namespace_manager.core.utils import format_utc, utc
 
 
@@ -82,7 +85,7 @@ class NamespaceCollector(Collector):
         )
 
         if running:
-            self.set_status(namespace, "ok")
+            self.set_status(namespace, NamespaceStatus.OK.value)
 
         logging.debug("Completed check for namespace: '%s", self.namespace)
 
@@ -160,19 +163,27 @@ class NamespaceCollector(Collector):
         if old_failing_resources.intersection(
             new_failing_resources
         ) and self._is_after_grace_period(annotations):
-            self.set_status(namespace, "failed", new_annotations)
+            self.set_status(
+                namespace, NamespaceStatus.FAILED.value, new_annotations
+            )
         elif old_failing_resources.intersection(
             new_failing_resources
         ) and not self._is_after_grace_period(annotations):
-            self.set_status(namespace, "failing", new_annotations)
+            self.set_status(
+                namespace, NamespaceStatus.FAILING.value, new_annotations
+            )
         elif (
             new_failing_resources
             and not old_failing_resources
             and not self._is_after_grace_period(annotations)
         ):
-            self.set_status(namespace, "failing", new_annotations)
+            self.set_status(
+                namespace, NamespaceStatus.FAILING.value, new_annotations
+            )
         elif new_failing_resources and old_failing_resources:
-            self.set_status(namespace, "unstable", annotations)
+            self.set_status(
+                namespace, NamespaceStatus.UNSTABLE.value, annotations
+            )
 
         return len(new_failing_resources) > 0
 

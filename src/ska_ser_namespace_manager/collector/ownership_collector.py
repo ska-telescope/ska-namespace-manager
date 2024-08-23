@@ -68,7 +68,7 @@ class OwnershipCollector(Collector):
                 "Failed to retrieve information from People API: %s",
                 response.status_code,
             )
-            sys.exit(1)
+            sys.exit(0 if response.status_code == 404 else 1)
         else:
             user = PeopleDatabaseUser(**response.json())
 

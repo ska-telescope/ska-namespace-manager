@@ -14,7 +14,10 @@ from ska_ser_namespace_manager.controller.leader_controller import (
 )
 from ska_ser_namespace_manager.core.namespace import Namespace
 from ska_ser_namespace_manager.core.notifier import Notifier
-from ska_ser_namespace_manager.core.types import NamespaceAnnotations
+from ska_ser_namespace_manager.core.types import (
+    NamespaceAnnotations,
+    NamespaceStatus,
+)
 
 
 @pytest.fixture
@@ -181,7 +184,7 @@ def test_delete_namespaces_with_status_no_match(action_controller):
     action_controller.get_namespaces_by.assert_called_once_with(
         annotations={
             NamespaceAnnotations.MANAGED.value: "true",
-            NamespaceAnnotations.STATUS.value: "stale",
+            NamespaceAnnotations.STATUS.value: NamespaceStatus.STALE.value,
         }
     )
 
@@ -190,7 +193,7 @@ def test_delete_namespaces_with_status_match(action_controller):
     mock_namespace = MagicMock()
     mock_namespace.metadata.name = "test-namespace"
     mock_namespace.metadata.annotations = {
-        NamespaceAnnotations.STATUS.value: "stale"
+        NamespaceAnnotations.STATUS.value: NamespaceStatus.STALE.value
     }
     mock_namespace.status.phase = "Active"
 
@@ -201,7 +204,9 @@ def test_delete_namespaces_with_status_match(action_controller):
         return_value=Namespace(
             name="test-namespace",
             labels={},
-            annotations={NamespaceAnnotations.STATUS.value: "stale"},
+            annotations={
+                NamespaceAnnotations.STATUS.value: NamespaceStatus.STALE.value
+            },
         )
     )
     action_controller.delete_namespace = MagicMock()
@@ -218,7 +223,9 @@ def test_delete_namespaces_with_status_match(action_controller):
         "ska_ser_namespace_manager.controller.action_controller.getattr",
         return_value=phase_config,
     ):
-        action_controller.delete_namespaces_with_status("stale")
+        action_controller.delete_namespaces_with_status(
+            NamespaceStatus.STALE.value
+        )
 
     action_controller.delete_namespace.assert_called_once_with(
         "test-namespace"
@@ -308,7 +315,7 @@ def test_delete_namespaces_with_status_terminating(action_controller):
     mock_namespace = MagicMock()
     mock_namespace.metadata.name = "test-namespace"
     mock_namespace.metadata.annotations = {
-        NamespaceAnnotations.STATUS.value: "stale"
+        NamespaceAnnotations.STATUS.value: NamespaceStatus.STALE.value
     }
     mock_namespace.status.phase = "Terminating"
 
@@ -319,7 +326,9 @@ def test_delete_namespaces_with_status_terminating(action_controller):
         return_value=Namespace(
             name="test-namespace",
             labels={},
-            annotations={NamespaceAnnotations.STATUS.value: "stale"},
+            annotations={
+                NamespaceAnnotations.STATUS.value: NamespaceStatus.STALE.value
+            },
         )
     )
     action_controller.delete_namespace = MagicMock()
@@ -336,7 +345,9 @@ def test_delete_namespaces_with_status_terminating(action_controller):
         "ska_ser_namespace_manager.controller.action_controller.getattr",
         return_value=phase_config,
     ):
-        action_controller.delete_namespaces_with_status("stale")
+        action_controller.delete_namespaces_with_status(
+            NamespaceStatus.STALE.value
+        )
 
     action_controller.delete_namespace.assert_not_called()
     action_controller.notify_user.assert_not_called()
@@ -346,7 +357,7 @@ def test_delete_stale_namespaces(action_controller):
     action_controller.delete_namespaces_with_status = MagicMock()
     action_controller.delete_stale_namespaces()
     action_controller.delete_namespaces_with_status.assert_called_once_with(
-        "stale"
+        NamespaceStatus.STALE.value
     )
 
 
@@ -354,7 +365,7 @@ def test_delete_failed_namespaces(action_controller):
     action_controller.delete_namespaces_with_status = MagicMock()
     action_controller.delete_failed_namespaces()
     action_controller.delete_namespaces_with_status.assert_called_once_with(
-        "failed"
+        NamespaceStatus.FAILED.value
     )
 
 
@@ -375,7 +386,7 @@ def test_notify_failing_unstable_namespaces_match(action_controller):
     mock_namespace = MagicMock()
     mock_namespace.metadata.name = "test-namespace"
     mock_namespace.metadata.annotations = {
-        NamespaceAnnotations.STATUS.value: "failing",
+        NamespaceAnnotations.STATUS.value: NamespaceStatus.FAILING.value,
         NamespaceAnnotations.OWNER.value: "test-owner",
     }
     action_controller.get_namespaces_by = MagicMock(
@@ -386,7 +397,7 @@ def test_notify_failing_unstable_namespaces_match(action_controller):
             name="test-namespace",
             labels={},
             annotations={
-                NamespaceAnnotations.STATUS.value: "failing",
+                NamespaceAnnotations.STATUS.value: NamespaceStatus.FAILING.value,  # pylint: disable=line-too-long # noqa: E501
                 NamespaceAnnotations.OWNER.value: "test-owner",
             },
         )

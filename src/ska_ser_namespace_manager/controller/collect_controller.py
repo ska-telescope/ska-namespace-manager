@@ -24,6 +24,7 @@ from ska_ser_namespace_manager.controller.leader_controller import (
 from ska_ser_namespace_manager.core.logging import logging
 from ska_ser_namespace_manager.core.namespace import match_namespace
 from ska_ser_namespace_manager.core.types import NamespaceAnnotations
+from ska_ser_namespace_manager.metrics.metrics import MetricsManager
 
 
 class CollectController(LeaderController):
@@ -34,23 +35,41 @@ class CollectController(LeaderController):
 
     namespace_cronjobs: list[CollectActions]
     namespace_jobs: list[CollectActions]
+    metrics_manager: MetricsManager
 
     def __init__(self, kubeconfig: Optional[str] = None) -> None:
         """
         Initialize the CollectController
         """
-        super().__init__(
-            CollectControllerConfig, [self.check_new_namespaces], kubeconfig
+        LeaderController.__init__(
+            self,
+            CollectControllerConfig,
+            [self.check_new_namespaces],
+            kubeconfig,
         )
+
         self.config: CollectControllerConfig
+        self.metrics_manager = MetricsManager(self.config.metrics)
         logging.debug(
             "Configuration: \n%s",
             yaml.safe_dump(yaml.safe_load(self.config.model_dump_json())),
         )
-        self.add_tasks([self.synchronize_cronjobs, self.synchronize_jobs])
+        self.add_tasks(
+            [
+                self.synchronize_cronjobs,
+                self.synchronize_jobs,
+                self.generate_metrics,
+            ]
+        )
 
         self.namespace_cronjobs = [CollectActions.CHECK_NAMESPACE]
         self.namespace_jobs = [CollectActions.GET_OWNER_INFO]
+
+    def is_metrics_enabled(self) -> bool:
+        """
+        Check if metrics are enabled
+        """
+        return self.config.metrics.enabled
 
     @controller_task(period=datetime.timedelta(seconds=1))
     def check_new_namespaces(self) -> None:
@@ -322,3 +341,28 @@ class CollectController(LeaderController):
                 logging.debug(
                     "Patched '%s' Job for namespace '%s'", action, namespace
                 )
+
+    @conditional_controller_task(
+        period=datetime.timedelta(seconds=5),
+        run_if=lambda instance: LeaderController.is_leader(instance)
+        and instance.is_metrics_enabled(),
+    )
+    def generate_metrics(self) -> None:
+        """
+        Generates metrics on the managed namespaces
+        """
+        managed_namespaces = [
+            namespace
+            for namespace in self.get_namespaces_by(
+                annotations={NamespaceAnnotations.MANAGED.value: "true"}
+            )
+            if namespace.metadata.name not in self.forbidden_namespaces
+        ]
+        self.metrics_manager.delete_stale_metrics(
+            [ns.metadata.name for ns in managed_namespaces]
+        )
+
+        for ns in managed_namespaces:
+            self.metrics_manager.update_namespace_metrics(ns)
+
+        self.metrics_manager.save_metrics()

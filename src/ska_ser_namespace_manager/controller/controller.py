@@ -5,10 +5,7 @@ other controllers
 
 import datetime
 import functools
-import signal
-import threading
 import traceback
-from collections import defaultdict
 from typing import Callable, List, Optional, TypeVar
 
 import wrapt
@@ -22,19 +19,18 @@ from ska_ser_namespace_manager.core.kubernetes_api import KubernetesAPI
 from ska_ser_namespace_manager.core.logging import logging
 from ska_ser_namespace_manager.core.namespace import FORBIDDEN_NAMESPACES
 from ska_ser_namespace_manager.core.template_factory import TemplateFactory
+from ska_ser_namespace_manager.core.thread_manager import ThreadManager
 
 T = TypeVar("T", bound=ControllerConfig)
 
 
-class Controller(KubernetesAPI):
+class Controller(KubernetesAPI, ThreadManager):
     """
     A generic controller class to implement simple process
     management tasks
     """
 
-    shutdown_event: threading.Event
     config: BaseModel
-    threads: dict[str, threading.Thread]
     forbidden_namespaces: list[str]
 
     def __init__(
@@ -50,65 +46,14 @@ class Controller(KubernetesAPI):
         :param tasks: List of tasks to manage
         :param kubeconfig: Kubeconfig to use
         """
-        super().__init__(kubeconfig)
-        self.shutdown_event = threading.Event()
+        KubernetesAPI.__init__(self, kubeconfig)
+        ThreadManager.__init__(self)
         self.config: T = ConfigLoader().load(config_class)
-        self.threads = defaultdict(threading.Thread)
         self.template_factory = TemplateFactory()
         self.forbidden_namespaces = FORBIDDEN_NAMESPACES + [
             self.config.context.namespace
         ]
         self.add_tasks(tasks)
-        signal.signal(signal.SIGINT, self.__shutdown)
-        signal.signal(signal.SIGTERM, self.__shutdown)
-
-    def add_tasks(self, tasks: List[Callable]) -> None:
-        """
-        Add tasks to the task manager
-        """
-        for task in tasks:
-            logging.info("Managing task '%s'", task.__name__)
-            self.threads[task.__name__] = threading.Thread(target=task)
-
-    def terminate(self):
-        """
-        Signal the controller to terminate
-        :return:
-        """
-        self.shutdown_event.set()
-
-    def __shutdown(
-        self, signum: int, frame  # pylint: disable=unused-argument
-    ) -> None:
-        """
-        Handle the shutdown signal.
-
-        :param signum: Signal number
-        :param frame: Current stack frame
-        :return:
-        """
-        logging.info("Received shutdown signal: %s [%s]", signum, frame)
-        self.shutdown_event.set()
-
-    def cleanup(self) -> None:
-        """
-        Cleanup resources
-
-        :return:
-        """
-
-    def run(self) -> None:
-        """
-        Run the Controller.
-        """
-        for _, thread in self.threads.items():
-            thread.start()
-
-        for task, thread in self.threads.items():
-            thread.join()
-            logging.debug("Thread for task '%s' completed", task)
-
-        self.cleanup()
 
 
 def controller_task(
@@ -131,6 +76,7 @@ def controller_task(
     def wrapper(wrapped, instance: Controller, args, kwargs):
         while not instance.shutdown_event.is_set():
             try:
+                logging.debug(f"Starting task {wrapped.__name__}")
                 wrapped(*args, **kwargs)
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 logging.error(
@@ -145,6 +91,7 @@ def controller_task(
                     else period(instance)
                 )
             ):
+                logging.debug(f"Terminating task {wrapped.__name__}")
                 break
 
     return wrapper(wrapped)  # pylint: disable=no-value-for-parameter
@@ -182,6 +129,9 @@ def conditional_controller_task(
 
             if run:
                 try:
+                    logging.debug(
+                        f"Starting conditional task {wrapped.__name__}"
+                    )
                     wrapped(*args, **kwargs)
                 except (
                     Exception  # pylint: disable=broad-exception-caught
@@ -198,6 +148,9 @@ def conditional_controller_task(
                     else period(instance)
                 )
             ):
+                logging.debug(
+                    f"Terminating conditional task {wrapped.__name__}"
+                )
                 break
 
     return wrapper(wrapped)  # pylint: disable=no-value-for-parameter

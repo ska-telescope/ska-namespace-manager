@@ -15,7 +15,13 @@ image:
   tag:
 
 configPath: /etc/config
-config: {}
+config:
+  metrics:
+    enabled: true
+    registry_path: /etc/metrics
+    pvc:
+      storageClassName: nfss1
+      size: 1Gi
 
 api:
   config:
@@ -160,12 +166,12 @@ api:
     https:
       enabled: true
       port: 443
-      type: ClusterIP
+      type: LoadBalancer
       nodePort:
       annotations: {}
     http:
       port: 80
-      type: ClusterIP
+      type: LoadBalancer
       nodePort:
       annotations: {}
 
@@ -373,3 +379,4 @@ actionController:
   extraArgs: []
 
   extraEnvVars: []
+

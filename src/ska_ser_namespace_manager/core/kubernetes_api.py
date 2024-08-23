@@ -412,6 +412,7 @@ class KubernetesAPI:
             jobs: List[client.V1Job] = self.batch_v1.list_namespaced_job(
                 namespace=namespace, _request_timeout=10
             ).items
+
             filtered_jobs = []
             for job in jobs:
                 job_annotations = job.metadata.annotations or {}

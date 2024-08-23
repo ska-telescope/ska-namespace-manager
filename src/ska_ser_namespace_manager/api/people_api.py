@@ -1,5 +1,5 @@
 """
-teams_api
+people_api exposes SKAO People Database as an API
 """
 
 import http

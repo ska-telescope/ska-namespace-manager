@@ -14,6 +14,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from ska_ser_namespace_manager.api.api_config import APIConfig
+from ska_ser_namespace_manager.api.metrics_api import api as metrics_api
 from ska_ser_namespace_manager.api.people_api import api as people_api
 from ska_ser_namespace_manager.api.people_api import (
     is_ready as people_api_ready,
@@ -93,6 +94,7 @@ async def readiness():
 
 
 api.include_router(people_api, prefix="/people")
+api.include_router(metrics_api, prefix="/metrics")
 app.include_router(api, prefix="/api")
 
 

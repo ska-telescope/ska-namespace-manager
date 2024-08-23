@@ -16,6 +16,7 @@ from ska_ser_namespace_manager.controller.leader_controller_config import (
 from ska_ser_namespace_manager.core.logging import logging
 from ska_ser_namespace_manager.core.namespace import NamespaceMatcher
 from ska_ser_namespace_manager.core.utils import parse_timedelta
+from ska_ser_namespace_manager.metrics.metrics_config import MetricsConfig
 
 
 class CollectActions(str, Enum):
@@ -127,3 +128,5 @@ class CollectControllerConfig(CollectConfig, LeaderControllerConfig):
     CollectControllerConfig provides the configurations for the collect
     controller
     """
+
+    metrics: Optional[MetricsConfig] = MetricsConfig()

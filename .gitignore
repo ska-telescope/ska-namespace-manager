@@ -30,3 +30,6 @@ local.y*ml
 manifests.yaml
 local_*config.y*ml
 pytest.stdout
+
+# Testing
+metrics.prom

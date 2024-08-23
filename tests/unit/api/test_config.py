@@ -8,6 +8,7 @@ from ska_ser_namespace_manager.core.config import ConfigLoader
 
 @pytest.fixture()
 def config_https_enabled():
+    ConfigLoader().dispose(APIConfig)
     yield {
         "https_enabled": True,
         "pki_path": "https-enabled",
@@ -23,11 +24,11 @@ def config_https_enabled():
             "spreadsheet_id": "dummy",
         },
     }
-    ConfigLoader().dispose(APIConfig)
 
 
 @pytest.fixture()
 def config_https_disabled():
+    ConfigLoader().dispose(APIConfig)
     yield {
         "https_enabled": False,
         "pki_path": "https-disabled",
@@ -43,14 +44,12 @@ def config_https_disabled():
             "spreadsheet_id": "dummy",
         },
     }
-    ConfigLoader().dispose(APIConfig)
 
 
 class TestAPIConfig:
     def test_config_https_enabled(self, config_https_enabled):
         config: APIConfig
         config = ConfigLoader().load(APIConfig, config_https_enabled)
-
         assert config.https_enabled
         assert config.pki_path == "https-enabled"
         assert config.ca_path == "https-enabled/ca.crt"
