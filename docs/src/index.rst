@@ -5,14 +5,13 @@ SKA Namespace Manager is a tool designed to efficiently manage namespaces in a K
 
 What the SKA Namespace Manager can do now:
 
-  * Nothing
-
-What's on the roadmap for SKA Namespace Manager:
-
   * Cleanup CI namespaces after their pre-defined or default TTL
   * Terminate failing CI namespaces
-  * Terminate duplicate CI namespaces (same commit or merge request)
   * Notify namespace owners of their namespaces' status changes
+
+What's on the roadmap for SKA Namespace Manager:
+  * Terminate duplicate CI namespaces (same commit or merge request)
+
 
 The `SKA Namespace Manager
 <https://gitlab.com/ska-telescope/ska-ser-namespace-manager.git>`_ aims at providing efficient and fair usage of the resources of the CICD Kubernetes cluster.
