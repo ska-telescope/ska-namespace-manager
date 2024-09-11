@@ -185,6 +185,7 @@ collectController:
       - names:
           - ci-*
         ttl: 5m
+        settling_period: 5m
         grace_period: 2m
         tasks:
           check-namespace:

@@ -170,6 +170,7 @@ def test_check_new_namespaces(collect_controller):
     collect_controller.patch_namespace.assert_called_once_with(
         "test-namespace",
         annotations={
+            NamespaceAnnotations.STATUS: "unknown",
             NamespaceAnnotations.MANAGED: "true",
             NamespaceAnnotations.NAMESPACE: "test-namespace",
         },

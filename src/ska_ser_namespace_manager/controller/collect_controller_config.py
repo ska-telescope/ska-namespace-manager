@@ -59,6 +59,9 @@ class CollectNamespaceConfig(NamespaceMatcher):
     ttl: (
         Annotated[datetime.timedelta, BeforeValidator(parse_timedelta)] | None
     ) = None
+    settling_period: (
+        Annotated[datetime.timedelta, BeforeValidator(parse_timedelta)] | None
+    ) = datetime.timedelta(minutes=5)
     grace_period: (
         Annotated[datetime.timedelta, BeforeValidator(parse_timedelta)] | None
     ) = datetime.timedelta(minutes=1)

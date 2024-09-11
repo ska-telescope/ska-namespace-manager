@@ -52,9 +52,16 @@ Currently, the SKA Namespace Manager provides the following capabilities:
 - [ ] Terminate duplicate CI namespaces (same commit or merge request)
 - [x] Notify namespace owners of their namespaces' status changes
 
-## Testing
+#### Namespace Status
+There are two parallel processes checking for `Failure` and `Staleness` of namespaces.
+Notification os status change happen when reaching the `FAILING`, `FAILED` and `STALE` statuses.
+Once a namespace's status is set to `FAILED` or `STALE` it is deleted by a periodic task.
+The status changes follow the state diagram:
+<div align="center">
+<img src="./docs/src/_static/images/state_diagram.png" align="center">
+</div>
+</br>
 
-Currently there are no unit or integration tests.
 
 ## Contribute
 

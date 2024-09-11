@@ -23,7 +23,10 @@ from ska_ser_namespace_manager.controller.leader_controller import (
 )
 from ska_ser_namespace_manager.core.logging import logging
 from ska_ser_namespace_manager.core.namespace import match_namespace
-from ska_ser_namespace_manager.core.types import NamespaceAnnotations
+from ska_ser_namespace_manager.core.types import (
+    NamespaceAnnotations,
+    NamespaceStatus,
+)
 from ska_ser_namespace_manager.metrics.metrics import MetricsManager
 
 
@@ -105,6 +108,7 @@ class CollectController(LeaderController):
                 self.patch_namespace(
                     namespace,
                     annotations={
+                        NamespaceAnnotations.STATUS: NamespaceStatus.UNKNOWN.value,  # pylint: disable=line-too-long  # noqa: E501
                         NamespaceAnnotations.MANAGED: "true",
                         NamespaceAnnotations.NAMESPACE: namespace,
                     },

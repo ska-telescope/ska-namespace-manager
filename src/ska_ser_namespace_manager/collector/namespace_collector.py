@@ -57,6 +57,11 @@ class NamespaceCollector(Collector):
             NamespaceAnnotations.STATUS.value
         )
         if old_status == status:
+            logging.info(
+                "Namespace '%s' status is already set to: %s",
+                self.namespace,
+                status,
+            )
             return
 
         annotations[NamespaceAnnotations.STATUS.value] = status
@@ -110,7 +115,7 @@ class NamespaceCollector(Collector):
         if is_stale:
             self.set_status(
                 namespace,
-                "stale",
+                NamespaceStatus.STALE.value,
                 {
                     NamespaceAnnotations.STATUS_FINALIZE_AT.value: format_utc(
                         creation_timestamp + self.namespace_config.ttl
@@ -130,27 +135,25 @@ class NamespaceCollector(Collector):
         :return: True if there are failures, False otherwise.
         """
         annotations = namespace.metadata.annotations or {}
-        old_failing_resources = set(
-            filter(
-                None,
-                annotations.get(
-                    NamespaceAnnotations.FAILING_RESOURCES.value, ""
-                ).split(","),
+
+        resource_types = ["deployment", "statefulset", "replicaset"]
+        failing_resources = set(
+            resource
+            for resource_type in resource_types
+            for resource in self._check_resource_status(
+                self.namespace, resource_type
             )
         )
 
-        deployments = self._check_resource_status(self.namespace, "deployment")
-        statefulsets = self._check_resource_status(
-            self.namespace, "statefulset"
-        )
-        replicasets = self._check_resource_status(self.namespace, "replicaset")
-        new_failing_resources = set(deployments + statefulsets + replicasets)
         status_timestamp = parse(
             annotations.get(NamespaceAnnotations.STATUS_TS.value, utc())
         ).replace(tzinfo=pytz.UTC)
+
+        current_status = annotations.get(NamespaceAnnotations.STATUS.value)
+
         new_annotations = {
             NamespaceAnnotations.FAILING_RESOURCES.value: ",".join(
-                new_failing_resources
+                failing_resources
             ),
             NamespaceAnnotations.STATUS_FINALIZE_AT.value: format_utc(
                 status_timestamp + self.namespace_config.grace_period
@@ -160,44 +163,55 @@ class NamespaceCollector(Collector):
             ),
         }
 
-        if old_failing_resources.intersection(
-            new_failing_resources
-        ) and self._is_after_grace_period(annotations):
+        if not failing_resources:
+            return False
+
+        if current_status == NamespaceStatus.UNKNOWN.value:
             self.set_status(
-                namespace, NamespaceStatus.FAILED.value, new_annotations
+                namespace, NamespaceStatus.UNSTABLE.value, new_annotations
             )
-        elif old_failing_resources.intersection(
-            new_failing_resources
-        ) and not self._is_after_grace_period(annotations):
-            self.set_status(
-                namespace, NamespaceStatus.FAILING.value, new_annotations
-            )
-        elif (
-            new_failing_resources
-            and not old_failing_resources
-            and not self._is_after_grace_period(annotations)
+
+        if (
+            current_status == NamespaceStatus.UNSTABLE.value
+            and self._is_after_period("settling_period", annotations)
         ):
             self.set_status(
                 namespace, NamespaceStatus.FAILING.value, new_annotations
             )
-        elif new_failing_resources and old_failing_resources:
+
+        if (
+            current_status == NamespaceStatus.FAILING.value
+            and self._is_after_period("grace_period", annotations)
+        ):
             self.set_status(
-                namespace, NamespaceStatus.UNSTABLE.value, annotations
+                namespace, NamespaceStatus.FAILED.value, new_annotations
             )
 
-        return len(new_failing_resources) > 0
+        return True
 
-    def _is_after_grace_period(self, annotations: Dict[str, str]) -> bool:
+    def _is_after_period(
+        self, period_type: str, annotations: Dict[str, str]
+    ) -> bool:
         status_timestamp = parse(
             annotations.get(NamespaceAnnotations.STATUS_TS.value, utc())
         ).replace(tzinfo=None)
-        grace_time = status_timestamp + self.namespace_config.grace_period
+
+        try:
+            period = getattr(self.namespace_config, period_type)
+        except AttributeError as e:
+            logging.error(
+                "Namespace configuration has no %s attribute.", period_type
+            )
+            raise AttributeError from e
+
+        time_instant = status_timestamp + period
         logging.debug(
-            "Status Timestamp: %s; Grace Timestamp: %s",
+            "Status Timestamp: %s; %s Timestamp: %s",
             status_timestamp,
-            grace_time,
+            period_type,
+            time_instant,
         )
-        return datetime.now() > grace_time
+        return datetime.now() > time_instant
 
     def _check_resource_status(
         self, namespace: str, resource_type: str
