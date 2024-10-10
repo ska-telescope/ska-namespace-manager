@@ -81,3 +81,36 @@ make oci-build-all CAR_OCI_REGISTRY_HOST=localhost:5000
 ```
 
 Afterwards, you can set the registry to `<local ip>:5000` where relevant in your `values.yaml`.
+
+You will need to populate secrets locally, to do that create a `local.yml` file inside `charts/ska-ser-namespace-manager/environments` with the followin template:
+
+```
+image:
+  repository: registry.gitlab.com/ska-telescope/ska-ser-namespace-manager/ska-ser-namespace-manager
+  pullPolicy: IfNotPresent
+  tag: 0.0.2-dev.c8c7da315
+
+api:
+  pki:
+    createSelfSignedCert: true
+  config:
+    people_database:
+      spreadsheet_id: 1WekvYFWkPRiWoB2yzp1BrMRwwu0fRqf20d7XbqO6OJg
+      spreadsheet_range: "System Team API!A2:Z1001"
+      credentials: <base64 decoded value of "people_database_credentials" in https://vault.skao.int/ui/vault/secrets/local/kv/dev%2Fska-ser-namespace-manager/details?version=1>
+
+collectController:
+  config:
+    namespaces:
+      - names:
+          - ci-*
+        ttl: 2m
+
+actionController:
+  config:
+    namespaces:
+      - names:
+          - ci-*
+```
+
+To populate the variables inside `api.config.people_database.credentials` you need to access `secrets/local/dev/ska-ser-namespace-manager` and pull the secret named `people_database_credentials` which is base64 encoded.

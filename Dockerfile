@@ -1,4 +1,4 @@
-FROM python:3.10-alpine as requirements
+FROM artefact.skao.int/ska-build-python:0.1.1 as requirements
 
 ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
@@ -15,7 +15,9 @@ COPY pyproject.toml /opt/ska_ser_namespace_manager
 
 RUN poetry export --without-hashes -o requirements.txt
 
-FROM python:3.10-alpine
+RUN pip install -r /opt/ska_ser_namespace_manager/requirements.txt
+
+FROM artefact.skao.int/ska-python:0.1.1
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONHASHSEED=random
@@ -27,10 +29,9 @@ RUN mkdir -p /opt/ska_ser_namespace_manager
 WORKDIR /opt/ska_ser_namespace_manager
 ENV PATH="${PATH}:/opt/ska_ser_namespace_manager"
 
-COPY --from=requirements /opt/ska_ser_namespace_manager/requirements.txt /opt/ska_ser_namespace_manager
-RUN pip install -r /opt/ska_ser_namespace_manager/requirements.txt
+COPY --from=requirements /usr/local/lib/python3.10 /usr/local/lib/python3.10
 
-RUN apk add bash curl jq
+RUN apt-get install curl jq -y
 
 COPY src/ /opt/ska_ser_namespace_manager
 
