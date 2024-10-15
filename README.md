@@ -113,4 +113,8 @@ actionController:
           - ci-*
 ```
 
-To populate the variables inside `api.config.people_database.credentials` you need to access `secrets/local/dev/ska-ser-namespace-manager` and pull the secret named `people_database_credentials` which is base64 encoded.
+To populate the variables inside `api.config.people_database.credentials` you need to access `secrets/local/dev/ska-ser-namespace-manager` and pull the secret named `people_database_credentials` which is base64 encoded. To deploy with the local environment variables you should use:
+
+```
+make k8s-install-chart ENVIRONMENT=local
+```
