@@ -3,8 +3,7 @@ FROM artefact.skao.int/ska-build-python:0.1.1 as requirements
 RUN mkdir -p /opt/ska_ser_namespace_manager
 WORKDIR /opt/ska_ser_namespace_manager
 
-COPY poetry.lock /opt/ska_ser_namespace_manager
-COPY pyproject.toml /opt/ska_ser_namespace_manager
+COPY poetry.lock pyproject.toml /opt/ska_ser_namespace_manager/
 
 ENV POETRY_NO_INTERACTION=1
 ENV POETRY_VIRTUALENVS_IN_PROJECT=1
@@ -15,8 +14,9 @@ ENV POETRY_VIRTUALENVS_CREATE=1
 #not the code under development
 RUN poetry install --no-root
 
-FROM artefact.skao.int/ska-python:0.1.1
+FROM artefact.skao.int/ska-python:0.1.2
 
+WORKDIR /opt/ska_ser_namespace_manager
 #Adding the virtualenv binaries
 #to the PATH so there is no need
 #to activate the venv
@@ -24,8 +24,6 @@ ENV VIRTUAL_ENV=/opt/ska_ser_namespace_manager/.venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 COPY --from=requirements ${VIRTUAL_ENV} ${VIRTUAL_ENV}
-
-RUN apt-get install curl jq -y
 
 COPY src/ /opt/ska_ser_namespace_manager
 
