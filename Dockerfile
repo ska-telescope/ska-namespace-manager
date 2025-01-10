@@ -1,40 +1,36 @@
-FROM python:3.10-alpine as requirements
-
-ENV LANG=C.UTF-8
-ENV LC_ALL=C.UTF-8
-ENV POETRY_VERSION="1.8.2"
+FROM artefact.skao.int/ska-build-python:0.1.1 as requirements
 
 RUN mkdir -p /opt/ska_ser_namespace_manager
 WORKDIR /opt/ska_ser_namespace_manager
 
-RUN pip install --upgrade pip && \
-    pip install "poetry==${POETRY_VERSION}"
+COPY poetry.lock pyproject.toml /opt/ska_ser_namespace_manager/
 
-COPY poetry.lock /opt/ska_ser_namespace_manager
-COPY pyproject.toml /opt/ska_ser_namespace_manager
+ENV POETRY_NO_INTERACTION=1
+ENV POETRY_VIRTUALENVS_IN_PROJECT=1
+ENV POETRY_VIRTUALENVS_CREATE=1
 
-RUN poetry export --without-hashes -o requirements.txt
+#no-root is required because in the build
+#step we only want to install dependencies
+#not the code under development
+RUN poetry install --no-root
 
-FROM python:3.10-alpine
+FROM artefact.skao.int/ska-python:0.1.2
 
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONHASHSEED=random
-ENV PIP_NO_CACHE_DIR=off
-ENV PIP_DISABLE_PIP_VERSION_CHECK=on
-ENV PIP_DEFAULT_TIMEOUT=100
-
-RUN mkdir -p /opt/ska_ser_namespace_manager
 WORKDIR /opt/ska_ser_namespace_manager
-ENV PATH="${PATH}:/opt/ska_ser_namespace_manager"
+#Adding the virtualenv binaries
+#to the PATH so there is no need
+#to activate the venv
+ENV VIRTUAL_ENV=/opt/ska_ser_namespace_manager/.venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-COPY --from=requirements /opt/ska_ser_namespace_manager/requirements.txt /opt/ska_ser_namespace_manager
-RUN pip install -r /opt/ska_ser_namespace_manager/requirements.txt
-
-RUN apk add bash curl jq
+COPY --from=requirements ${VIRTUAL_ENV} ${VIRTUAL_ENV}
 
 COPY src/ /opt/ska_ser_namespace_manager
 
-ENV PYTHONPATH="/opt/ska_ser_namespace_manager"
+#Add source code to the PYTHONPATH
+#so python is able to find our package
+#when we use it on imports
+ENV PYTHONPATH="${PYTHONPATH}:/opt/ska_ser_namespace_manager"
 
 ENTRYPOINT ["python3", "-u"]
 CMD ["/opt/ska_ser_namespace_manager/api.py"]
