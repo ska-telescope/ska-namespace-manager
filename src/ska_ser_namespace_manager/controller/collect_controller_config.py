@@ -120,6 +120,7 @@ class CollectConfig(BaseModel):
 
     namespaces: Optional[List[CollectNamespaceConfig]] = None
     people_api: PeopleAPIConfig = PeopleAPIConfig()
+    prometheus_url: Optional[str] = None
 
     def model_post_init(self, _):
         if self.namespaces is None:

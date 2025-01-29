@@ -194,6 +194,7 @@ collectController:
       url:
       ca:
       insecure: true
+    prometheus_url:
 
   image:
     repository:
@@ -380,4 +381,8 @@ actionController:
   extraArgs: []
 
   extraEnvVars: []
+
+global:
+  env:
+    prometheus_url: "mandatory"
 

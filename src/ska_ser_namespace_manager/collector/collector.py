@@ -35,6 +35,7 @@ class Collector(KubernetesAPI):
     namespace: str
     config: T
     namespace_config: CollectNamespaceConfig
+    prometheus_url: str
 
     def __init__(
         self, namespace: str, config_class: T, kubeconfig: Optional[str] = None
@@ -49,6 +50,8 @@ class Collector(KubernetesAPI):
         super().__init__(kubeconfig=kubeconfig)
         self.namespace = namespace
         self.config: T = ConfigLoader().load(config_class)
+
+        self.prometheus_url = self.config.prometheus_url
 
         namespace_resource = self.get_namespace(self.namespace)
         if namespace_resource is None:

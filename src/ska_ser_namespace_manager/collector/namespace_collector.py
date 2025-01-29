@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Callable, Dict, List, Optional
 
 import pytz
+import requests
 from dateutil.parser import parse
 from humanfriendly import format_timespan
 from kubernetes.client import V1Namespace
@@ -77,7 +78,8 @@ class NamespaceCollector(Collector):
 
     def check_namespace(self) -> None:
         """
-        Check the namespace for staleness and failures.
+        Check the namespace for staleness and failures throught Promehteus
+        alerts or kubernetes api has a failback.
         """
         logging.info("Starting check for namespace '%s'", self.namespace)
         namespace = self.get_namespace(self.namespace)
@@ -85,9 +87,31 @@ class NamespaceCollector(Collector):
             logging.error("Failed to get namespace '%s'", self.namespace)
             return
 
-        running = not (
-            self.check_stale(namespace) or self.check_failure(namespace)
-        )
+        try:
+            url = f"{self.prometheus_url}/api/v1/alerts"
+            # Make the GET request to Prometheus' /api/v1/alerts endpoint
+            response = requests.get(url, timeout=15)
+            response.raise_for_status()  # Raise an exception for HTTP errors
+
+            # The response is a JSON object with the alert data
+            alerts = response.json()["data"]["alerts"]
+
+            matching_alerts = [
+                alert
+                for alert in alerts
+                if alert["labels"].get("namespace") == self.namespace
+            ]
+
+            running = not (
+                self.check_stale(namespace)
+                or self.check_failure(namespace, matching_alerts)
+            )
+
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Error fetching alerts from Prometheus: {e}")
+            running = not (
+                self.check_stale(namespace) or self.check_failure(namespace)
+            )
 
         if running:
             self.set_status(namespace, NamespaceStatus.OK.value)
@@ -126,24 +150,40 @@ class NamespaceCollector(Collector):
 
         return is_stale
 
-    def check_failure(self, namespace: V1Namespace) -> bool:
+    def check_failure(
+        self, namespace: V1Namespace, alerts: Optional[list] = None
+    ) -> bool:
         """
-        Check if there are failures in Deployment, StatefulSet,
+        Check for failures in the namespace using the alerts from Prometheus,
+        as a failback kubernetes API is used to check Deployment, StatefulSet,
         or ReplicaSet and manage status annotations.
 
         :param namespace: Namespace to check
+        :param alerts: List of alerts from Prometheus (default is None)
         :return: True if there are failures, False otherwise.
         """
         annotations = namespace.metadata.annotations or {}
 
-        resource_types = ["deployment", "statefulset", "replicaset"]
-        failing_resources = set(
-            resource
-            for resource_type in resource_types
-            for resource in self._check_resource_status(
-                self.namespace, resource_type
+        if alerts is None:
+            resource_types = ["deployment", "statefulset", "replicaset"]
+            failing_resources = set(
+                resource
+                for resource_type in resource_types
+                for resource in self._check_resource_status(
+                    self.namespace, resource_type
+                )
             )
-        )
+        else:
+            failing_resources = []
+            for alert in alerts:
+                failing_resources.append(
+                    alert["labels"]["alertname"]
+                )  # Add the alert name for context
+                logging.warning(
+                    "Alert '%s' is firing in namespace '%s'",
+                    alert["labels"]["alertname"],
+                    self.namespace,
+                )
 
         status_timestamp = parse(
             annotations.get(NamespaceAnnotations.STATUS_TS.value, utc())
