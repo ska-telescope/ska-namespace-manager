@@ -194,7 +194,12 @@ collectController:
       url:
       ca:
       insecure: true
-    prometheus_url:
+    prometheus:
+      url:
+      ca:
+      enabled: true
+      cronjob_delay: 20
+      insecure: true
 
   image:
     repository:
@@ -381,8 +386,4 @@ actionController:
   extraArgs: []
 
   extraEnvVars: []
-
-global:
-  env:
-    prometheus_url: "mandatory"
 

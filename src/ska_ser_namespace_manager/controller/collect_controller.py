@@ -5,6 +5,7 @@ resources
 """
 
 import datetime
+import time
 from typing import Optional
 
 import yaml
@@ -154,6 +155,9 @@ class CollectController(LeaderController):
                 "Patched '%s' CronJob for namespace '%s'", action, namespace
             )
         else:
+            if self.config.prometheus.enabled:
+                # Delay for Prometheus to scrape the namespace on first run
+                time.sleep(self.config.prometheus.cronjob_delay)
             self.batch_v1.create_namespaced_cron_job(
                 self.config.context.namespace,
                 yaml.safe_load(manifest),

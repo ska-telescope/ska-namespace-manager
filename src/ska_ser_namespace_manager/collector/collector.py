@@ -14,6 +14,7 @@ from ska_ser_namespace_manager.collector.collector_config import (
 from ska_ser_namespace_manager.controller.collect_controller_config import (
     CollectActions,
     CollectNamespaceConfig,
+    PrometheusConfig,
 )
 from ska_ser_namespace_manager.core.config import ConfigLoader
 from ska_ser_namespace_manager.core.kubernetes_api import KubernetesAPI
@@ -35,7 +36,7 @@ class Collector(KubernetesAPI):
     namespace: str
     config: T
     namespace_config: CollectNamespaceConfig
-    prometheus_url: str
+    prometheus_config: PrometheusConfig
 
     def __init__(
         self, namespace: str, config_class: T, kubeconfig: Optional[str] = None
@@ -51,7 +52,7 @@ class Collector(KubernetesAPI):
         self.namespace = namespace
         self.config: T = ConfigLoader().load(config_class)
 
-        self.prometheus_url = self.config.prometheus_url
+        self.prometheus_config = self.config.prometheus
 
         namespace_resource = self.get_namespace(self.namespace)
         if namespace_resource is None:
