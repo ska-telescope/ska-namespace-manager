@@ -185,9 +185,12 @@ def test_create_collect_cronjob(collect_controller):
     collect_controller.get_cronjobs_by = MagicMock(return_value=[])
     collect_controller.batch_v1 = MagicMock()
 
-    collect_controller.create_collect_cronjob(
-        CollectActions.CHECK_NAMESPACE, "test-namespace", MagicMock()
-    )
+    collect_controller.config.prometheus = MagicMock()
+
+    with patch.object(collect_controller.config.prometheus, "enabled", False):
+        collect_controller.create_collect_cronjob(
+            CollectActions.CHECK_NAMESPACE, "test-namespace", MagicMock()
+        )
 
     collect_controller.template_factory.render.assert_called_once()
     collect_controller.batch_v1.create_namespaced_cron_job.assert_called_once_with(  # pylint: disable=line-too-long # noqa: E501

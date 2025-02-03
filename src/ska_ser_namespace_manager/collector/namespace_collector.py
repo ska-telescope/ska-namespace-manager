@@ -124,7 +124,9 @@ class NamespaceCollector(Collector):
             logging.error(f"Error fetching alerts from Prometheus: {e}")
             return []
 
-    def evaluate_namespace_health(self, namespace, alerts) -> bool:
+    def evaluate_namespace_health(
+        self, namespace: V1Namespace, alerts
+    ) -> bool:
         """
         Evaluate namespace health based on Prometheus alerts or
         Kubernetes API fallback.
@@ -202,18 +204,14 @@ class NamespaceCollector(Collector):
                 ",".join(failing_resources)
             )
         else:
-            failing_resources = self.process_alerts(alerts)
+            failing_resources = set()
             for alert in alerts:
                 alert_identifier = alert["labels"].get("alertname")
                 if alert_identifier:
-                    resource_str = ", ".join(
-                        [
-                            f"{label}={value}"
-                            for label, value in self.extract_resources(
-                                alert
-                            ).items()
-                        ]
+                    resource_str = self.process_alert_resource(
+                        alert, alert_identifier
                     )
+                    failing_resources.add(resource_str)
                     new_annotations[
                         NamespaceAnnotations.FAILING_RESOURCES.value
                         + "_"
@@ -237,23 +235,21 @@ class NamespaceCollector(Collector):
             )
         )
 
-    def process_alerts(self, alerts: list) -> set:
-        """Helper to process alerts and extract failing resources."""
-        failing_resources = set()
-        for alert in alerts:
-            alert_identifier = alert["labels"].get("alertname")
-            if alert_identifier:
-                resources = self.extract_resources(alert)
-                resource_str = ", ".join(
-                    [f"{label}={value}" for label, value in resources.items()]
-                )
-                failing_resources.add(resource_str)
-                logging.warning(
-                    "Alert '%s' is firing in namespace '%s'",
-                    resource_str,
-                    self.namespace,
-                )
-        return failing_resources
+    def process_alert_resource(
+        self, alert: dict, alert_identifier: str
+    ) -> str:
+        """Helper method to process individual alert resources."""
+        resources = self.extract_resources(alert)
+        resource_str = ", ".join(
+            [f"{label}={value}" for label, value in resources.items()]
+        )
+        logging.warning(
+            "Alert '%s', in resource: '%s' is firing in namespace '%s'",
+            alert_identifier,
+            resource_str,
+            self.namespace,
+        )
+        return resource_str
 
     def extract_resources(self, alert: dict) -> dict:
         """Helper to extract resources from the alert."""
