@@ -198,8 +198,9 @@ collectController:
       url:
       ca:
       enabled: true
-      cronjob_delay: 20
+      cronjob_delay:
       insecure: true
+      whitelisted_alerts:
 
   image:
     repository:

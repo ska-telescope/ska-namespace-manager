@@ -130,6 +130,7 @@ class PrometheusConfig(BaseModel):
     insecure: Optional[bool] = False
     enabled: Optional[bool] = True
     cronjob_delay: Optional[int] = 0
+    whitelisted_alerts: Optional[list] = []
 
     def model_post_init(self, _):
         if not self.insecure and self.ca:

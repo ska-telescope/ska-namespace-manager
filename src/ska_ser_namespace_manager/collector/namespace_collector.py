@@ -114,7 +114,7 @@ class NamespaceCollector(Collector):
                 else not self.prometheus_config.insecure
             )
 
-            response = requests.get(url, timeout=15, verify=verify)
+            response = requests.get(url, timeout=20, verify=verify)
             response.raise_for_status()
 
             alerts = response.json().get("data", {}).get("alerts", [])
@@ -125,7 +125,7 @@ class NamespaceCollector(Collector):
             return []
 
     def evaluate_namespace_health(
-        self, namespace: V1Namespace, alerts
+        self, namespace: V1Namespace, alerts: Optional[list] = None
     ) -> bool:
         """
         Evaluate namespace health based on Prometheus alerts or
@@ -134,13 +134,12 @@ class NamespaceCollector(Collector):
         Returns:
             bool: True if the namespace is healthy, False if there are issues.
         """
-        # Check for staleness or failure
+
         if not alerts:
             return not (
                 self.check_stale(namespace) or self.check_failure(namespace)
             )
 
-        # If alerts exist, evaluate based on alerts
         matching_alerts = [
             alert
             for alert in alerts
@@ -207,16 +206,38 @@ class NamespaceCollector(Collector):
             failing_resources = set()
             for alert in alerts:
                 alert_identifier = alert["labels"].get("alertname")
-                if alert_identifier:
-                    resource_str = self.process_alert_resource(
-                        alert, alert_identifier
+                if not alert_identifier:
+                    logging.warning("Alert missing 'alertname', skipping it.")
+                    continue
+                if self.process_alert(alert):
+                    alert_resources = self.format_labels_resources(
+                        alert["labels"]
                     )
-                    failing_resources.add(resource_str)
-                    new_annotations[
+                    alert_runbook_url = alert["annotations"].get(
+                        "runbook_url", "No runbook available"
+                    )
+
+                    failing_resources.add(alert_resources)
+
+                    failing_resources_key = (
                         NamespaceAnnotations.FAILING_RESOURCES.value
                         + "_"
                         + alert_identifier
-                    ] = resource_str
+                    )
+                    if failing_resources_key in new_annotations:
+                        new_annotations[
+                            failing_resources_key
+                        ] += f"; {alert_resources}"
+                    else:
+                        new_annotations[failing_resources_key] = (
+                            alert_resources
+                        )
+
+                    new_annotations[
+                        NamespaceAnnotations.RUNBOOK_URL.value
+                        + "_"
+                        + alert_identifier
+                    ] = alert_runbook_url
 
         self.update_common_annotations(new_annotations, annotations)
 
@@ -235,26 +256,31 @@ class NamespaceCollector(Collector):
             )
         )
 
-    def process_alert_resource(
-        self, alert: dict, alert_identifier: str
-    ) -> str:
+    def process_alert(self, alert: dict) -> bool:
         """Helper method to process individual alert resources."""
-        resources = self.extract_resources(alert)
-        resource_str = ", ".join(
-            [f"{label}={value}" for label, value in resources.items()]
-        )
-        logging.warning(
-            "Alert '%s', in resource: '%s' is firing in namespace '%s'",
-            alert_identifier,
-            resource_str,
-            self.namespace,
-        )
-        return resource_str
 
-    def extract_resources(self, alert: dict) -> dict:
-        """Helper to extract resources from the alert."""
-        return {
-            label: alert["labels"].get(label)
+        alert_identifier = alert["labels"].get("alertname")
+        if alert_identifier in self.prometheus_config.whitelisted_alerts:
+            severity = alert["labels"].get("severity", "unknown")
+
+            if severity != "critical":
+                logging.warning(
+                    "Alert '%s' is whitelisted with severity '%s', skipping.",
+                    alert_identifier,
+                    severity,
+                )
+                return False
+        else:
+            logging.warning("Alert '%s' is firing.", alert_identifier)
+        return True
+
+    def format_labels_resources(self, labels: dict) -> str:
+        """
+        Formats string based on the labels.
+        Returns a string of resources in the format 'label=value'.
+        """
+        resources = {
+            label: labels.get(label)
             for label in [
                 "pod",
                 "deployment",
@@ -264,8 +290,14 @@ class NamespaceCollector(Collector):
                 "container",
                 "persistentvolumeclaim",
             ]
-            if alert["labels"].get(label)
+            if labels.get(label)
         }
+
+        failing_resources = ", ".join(
+            [f"{label}={value}" for label, value in resources.items()]
+        )
+
+        return failing_resources
 
     def update_common_annotations(
         self, new_annotations: dict, annotations: dict

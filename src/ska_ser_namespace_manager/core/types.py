@@ -38,6 +38,7 @@ class NamespaceAnnotations(str, Enum):
     STATUS_FINALIZE_AT = "manager.cicd.skao.int/status_finalize_at"
     OWNER = "manager.cicd.skao.int/owner"
     FAILING_RESOURCES = "manager.cicd.skao.int/failing_resources"
+    RUNBOOK_URL = "manager.cicd.skao.int/runbook_url"
     NOTIFIED_TS = "manager.cicd.skao.int/notified_timestamp"
     NOTIFIED_STATUS = "manager.cicd.skao.int/notified_status"
 
