@@ -5,6 +5,7 @@ resources
 """
 
 import datetime
+import json
 from typing import Optional
 
 import yaml
@@ -26,7 +27,7 @@ from ska_ser_namespace_manager.core.types import (
     NamespaceAnnotations,
     NamespaceStatus,
 )
-from ska_ser_namespace_manager.core.utils import utc
+from ska_ser_namespace_manager.core.utils import alert_suggestions, utc
 
 
 class ActionController(Notifier, LeaderController):
@@ -174,6 +175,9 @@ class ActionController(Notifier, LeaderController):
                 continue
 
             status = annotations.get(NamespaceAnnotations.STATUS.value)
+            failing_resources = annotations.get(
+                NamespaceAnnotations.FAILING_RESOURCES.value
+            )
             phase_config: ActionNamespacePhaseConfig = getattr(
                 ns_config, status
             )
@@ -194,6 +198,8 @@ class ActionController(Notifier, LeaderController):
                 job_url=namespace.metadata.annotations.get(
                     CicdAnnotations.JOB_URL.value
                 ),
+                alerts=self.process_failing_resources(failing_resources),
+                alert_suggestions=alert_suggestions,
             ):
                 annotations[NamespaceAnnotations.NOTIFIED_TS.value] = utc()
                 annotations[NamespaceAnnotations.NOTIFIED_STATUS.value] = (
@@ -202,3 +208,65 @@ class ActionController(Notifier, LeaderController):
                 self.patch_namespace(
                     namespace.metadata.name, annotations=annotations
                 )
+
+    def process_failing_resources(self, resources_json=json) -> dict:
+        """
+        Processes and combines alert annotations from the given JSON string.
+
+        :param resources_json: JSON string containing the alerts.
+        :return: Dictionary of combined alert annotations.
+        """
+        if not resources_json:
+            return {}
+        try:
+            alerts = json.loads(resources_json)
+        except json.JSONDecodeError:
+            return {}
+
+        processed_alerts = {}
+
+        for alert in alerts:
+            alertname = alert["labels"].get("alertname")
+            if alertname not in processed_alerts:
+                processed_alerts[alertname] = {
+                    "failing_resources": [],
+                    "runbook_url": None,
+                }
+            resource_str = self.format_labels_resources(alert["labels"])
+            if resource_str:
+                processed_alerts[alertname]["failing_resources"].append(
+                    resource_str
+                )
+            runbook_url = alert["annotations"].get("runbook_url")
+            if runbook_url:
+                processed_alerts[alertname]["runbook_url"] = runbook_url
+
+        for alert_data in processed_alerts.values():
+            alert_data["failing_resources"] = "; ".join(
+                alert_data["failing_resources"]
+            )
+
+        return processed_alerts
+
+    def format_labels_resources(self, labels: dict) -> str:
+        """
+        Formats string based on the labels.
+        Returns a string of resources in the format 'label=value'.
+        """
+        resources = {
+            label: labels.get(label)
+            for label in [
+                "pod",
+                "deployment",
+                "statefulset",
+                "job",
+                "daemonset",
+                "container",
+                "persistentvolumeclaim",
+            ]
+            if labels.get(label)
+        }
+        failing_resources = ", ".join(
+            [f"{label}={value}" for label, value in resources.items()]
+        )
+        return failing_resources

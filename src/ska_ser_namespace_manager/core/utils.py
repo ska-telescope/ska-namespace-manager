@@ -20,6 +20,25 @@ UNITS = {
 }
 
 
+alert_suggestions = {
+    "KubePodNotReady": "The pod in the deployment or StatefulSet is in a 'NotReady' state. This could be due to issues like failing health checks or problems with the containers within the pod. Investigate the pod's logs in Kibana and health status in Headlamp to understand why it isn't ready.",  # pylint: disable=line-too-long  # noqa: E501
+    "KubePodCrashLooping": "The pod is repeatedly crashing. This may be caused by configuration issues, missing dependencies, or failing health checks. Check the pod's logs in Kibana and monitor the container's health in Headlamp to identify the root cause.",  # pylint: disable=line-too-long  # noqa: E501
+    "KubeDeploymentReplicasMismatch": "The number of replicas in the deployment does not match the desired replica count. This could be due to failed pod creation or issues with the deployment's configuration. Review the deployment configuration to ensure that the replica count is correctly set. Check if there are any errors in the deployment logs or pod status that could explain why some replicas are not being created.",  # pylint: disable=line-too-long  # noqa: E501
+    "KubeStatefulSetReplicasMismatch": "The number of replicas in the StatefulSet does not match the desired replica count. Check the StatefulSet's configuration and ensure that the correct number of replicas is set. Investigate whether there are any issues with pod creation that could prevent the StatefulSet from scaling properly.",  # pylint: disable=line-too-long  # noqa: E501
+    "KubeHpaReplicasMismatch": "The number of replicas managed by the Horizontal Pod Autoscaler (HPA) does not match the target value. This could be caused by HPA misconfiguration or resource constraints.",  # pylint: disable=line-too-long  # noqa: E501
+    "KubeJobNotCompleted": "The job has not completed successfully within the expected time. This could be due to issues with the job's execution. Check the status of the job and review the logs in Kibana. Ensure that the job is not stuck in a pending state and that there are no resource bottlenecks.",  # pylint: disable=line-too-long  # noqa: E501
+    "CPUThrottlingHigh": "High CPU throttling is occurring.",  # pylint: disable=line-too-long  # noqa: E501
+    "KubeDeploymentGenerationMismatch": "Deployment generation mismatch.",  # pylint: disable=line-too-long  # noqa: E501
+    "KubeDeploymentRolloutStuck": "The deployment's rollout is stuck. A stuck deployment means that the expected number of replicas cannot be created or updated, which could be caused by various issues such as resource constraints, invalid configuration, or failure to pull images. Check the status of the deployment in Kibana or Grafana. Review the deployment's configuration for potential issues.",  # pylint: disable=line-too-long  # noqa: E501
+    "KubeStatefulSetUpdateNotRolledOut": "StatefulSet update failed to roll out.",  # pylint: disable=line-too-long  # noqa: E501
+    "KubeContainerWaiting": "The container in the pod is stuck in the 'waiting' state for too long. This could indicate issues such as a missing image or dependencies that are not available. Investigate the reason why the container is waiting by checking the pod's logs in Kibana. Ensure that the container image is accessible and the required resources are available.",  # pylint: disable=line-too-long  # noqa: E501
+    "KubeJobFailed": "Investigate the job logs in Kibana and check the job configuration for errors.",  # pylint: disable=line-too-long  # noqa: E501
+    "KubePersistentVolumeInodesFillingUp": "The Persistent Volume is running low on inodes. Create an STS ticket stating this situation.",  # pylint: disable=line-too-long  # noqa: E501
+    "KubePersistentVolumeFillingUp": "The Persistent Volume (PV) is running very low on available space. Create an STS ticket stating this situation.",  # pylint: disable=line-too-long  # noqa: E501
+    "KubeQuotaExceeded": "The namespace exceeded its resource quota. Create an STS ticket stating this situation.",  # pylint: disable=line-too-long  # noqa: E501
+}
+
+
 class Singleton(type):
     """
     Singleton implements the singleton pattern to be used as a
