@@ -129,7 +129,6 @@ class PrometheusConfig(BaseModel):
     ca_path: Optional[str] = None
     insecure: Optional[bool] = False
     enabled: Optional[bool] = True
-    cronjob_delay: Optional[int] = 0
     whitelisted_alerts: Optional[list] = []
 
     def model_post_init(self, _):

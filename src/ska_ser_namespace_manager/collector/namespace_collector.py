@@ -3,6 +3,7 @@ namespace_collector checks Kubernetes namespaces
 for staleness and failures
 """
 
+import json
 import traceback
 from datetime import datetime, timezone
 from typing import Callable, Dict, List, Optional
@@ -203,41 +204,10 @@ class NamespaceCollector(Collector):
                 ",".join(failing_resources)
             )
         else:
-            failing_resources = set()
-            for alert in alerts:
-                alert_identifier = alert["labels"].get("alertname")
-                if not alert_identifier:
-                    logging.warning("Alert missing 'alertname', skipping it.")
-                    continue
-                if self.process_alert(alert):
-                    alert_resources = self.format_labels_resources(
-                        alert["labels"]
-                    )
-                    alert_runbook_url = alert["annotations"].get(
-                        "runbook_url", "No runbook available"
-                    )
-
-                    failing_resources.add(alert_resources)
-
-                    failing_resources_key = (
-                        NamespaceAnnotations.FAILING_RESOURCES.value
-                        + "_"
-                        + alert_identifier
-                    )
-                    if failing_resources_key in new_annotations:
-                        new_annotations[
-                            failing_resources_key
-                        ] += f"; {alert_resources}"
-                    else:
-                        new_annotations[failing_resources_key] = (
-                            alert_resources
-                        )
-
-                    new_annotations[
-                        NamespaceAnnotations.RUNBOOK_URL.value
-                        + "_"
-                        + alert_identifier
-                    ] = alert_runbook_url
+            failing_resources = self.process_alerts(alerts)
+            new_annotations[NamespaceAnnotations.FAILING_RESOURCES.value] = (
+                failing_resources
+            )
 
         self.update_common_annotations(new_annotations, annotations)
 
@@ -256,7 +226,30 @@ class NamespaceCollector(Collector):
             )
         )
 
-    def process_alert(self, alert: dict) -> bool:
+    def process_alerts(self, alerts: list) -> json:
+        """Helper method to process alerts."""
+        alerts_processed = []
+
+        for alert in alerts:
+            alert_identifier = alert["labels"].get("alertname")
+            if not alert_identifier:
+                logging.warning("Alert missing 'alertname', skipping it.")
+                continue
+
+            if self.validate_alert(alert):
+                alert_data = {
+                    "labels": alert["labels"],
+                    "annotations": {
+                        "runbook_url": alert["annotations"].get(
+                            "runbook_url", ""
+                        ),
+                    },
+                }
+                alerts_processed.append(dict(alert_data))
+
+        return json.dumps(alerts_processed)
+
+    def validate_alert(self, alert: dict) -> bool:
         """Helper method to process individual alert resources."""
 
         alert_identifier = alert["labels"].get("alertname")
@@ -273,31 +266,6 @@ class NamespaceCollector(Collector):
         else:
             logging.warning("Alert '%s' is firing.", alert_identifier)
         return True
-
-    def format_labels_resources(self, labels: dict) -> str:
-        """
-        Formats string based on the labels.
-        Returns a string of resources in the format 'label=value'.
-        """
-        resources = {
-            label: labels.get(label)
-            for label in [
-                "pod",
-                "deployment",
-                "statefulset",
-                "job_name",
-                "daemonset",
-                "container",
-                "persistentvolumeclaim",
-            ]
-            if labels.get(label)
-        }
-
-        failing_resources = ", ".join(
-            [f"{label}={value}" for label, value in resources.items()]
-        )
-
-        return failing_resources
 
     def update_common_annotations(
         self, new_annotations: dict, annotations: dict
