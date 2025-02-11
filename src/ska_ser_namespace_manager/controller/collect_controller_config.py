@@ -104,12 +104,43 @@ class PeopleAPIConfig(BaseModel):
     def model_post_init(self, _):
         if not self.insecure and self.ca:
             with tempfile.NamedTemporaryFile(
-                prefix="ca-cert-",
+                prefix="people-api-ca-cert-",
                 delete=False,
             ) as cafile:
                 cafile.write(self.ca.encode("utf-8"))
                 self.ca_path = cafile.name
-                logging.info("CA Certificate written to '%s'", self.ca_path)
+                logging.info(
+                    "People API CA Certificate written to '%s'", self.ca_path
+                )
+
+
+class PrometheusConfig(BaseModel):
+    """
+    Holds configurations for Prometheus and certificate handling.
+
+    * url: URL for Prometheus
+    * ca: CA certificate of Prometheus
+    * ca_path: Path to the CA certificate file
+    * insecure: True to ignore the SSL certificate
+    """
+
+    url: Optional[str] = None
+    ca: Optional[str] = None
+    ca_path: Optional[str] = None
+    insecure: Optional[bool] = False
+    enabled: Optional[bool] = True
+    whitelisted_alerts: Optional[list] = []
+
+    def model_post_init(self, _):
+        if not self.insecure and self.ca:
+            with tempfile.NamedTemporaryFile(
+                prefix="prometheus-ca-cert-", delete=False
+            ) as cafile:
+                cafile.write(self.ca.encode("utf-8"))
+                self.ca_path = cafile.name
+                logging.info(
+                    "Prometheus CA Certificate written to '%s'", self.ca_path
+                )
 
 
 class CollectConfig(BaseModel):
@@ -120,6 +151,7 @@ class CollectConfig(BaseModel):
 
     namespaces: Optional[List[CollectNamespaceConfig]] = None
     people_api: PeopleAPIConfig = PeopleAPIConfig()
+    prometheus: PrometheusConfig = PrometheusConfig()
 
     def model_post_init(self, _):
         if self.namespaces is None:

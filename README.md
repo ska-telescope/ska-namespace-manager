@@ -12,6 +12,8 @@ In a production cluster, administrators/operators have good knowledge on what na
 
 Kubernetes doesn't provide an out-of-the-box solution for these challenges, so a custom implementation is provided here. The goal of SKA Namespace Manager is to be able to optimize the usage of the cluster resources and provide fair share to every user. In the spirit of visibility and predictability, it is expected that it communicates to the affected users any operations done to their environments. This will allow developers to be more aware of what is going on in the background for their CI/CD.
 
+In the spirit of visibility and predictability, SKA Namespace Manager now integrates with Prometheus alerts to dynamically monitor namespaces and react to failures proactively. This ensures that affected users are notified of critical namespace issues before they escalate.
+
 ## Design
 
 An initial [investigation](https://confluence.skatelescope.org/display/SE/Resource+management+-+ST-2017) was done to propose a design for the namespace manager. The manager requires some components:
@@ -43,6 +45,24 @@ Given these constraints, we opted for the following design:
 </div>
 </br>
 
+**Enhancements in Namespace Status Handling**
+
+With the integration of Prometheus alerts, namespace statuses are now determined more dynamically. The following changes have been introduced:
+
+**Prometheus Alert Integration:**
+* Namespace statuses are now updated based on alerts fetched from Prometheus.
+* Alerts are parsed and their related resources (pods, deployments, containers, etc) are included in the FAILED_RESOURCES annotation for further processing.
+
+**Improved Namespace State Transitions:**
+* Previously, once a namespace was marked OK, it could not transition to UNSTABLE or FAILED, even if new alerts were detected.
+* Now, namespaces can transition from OK → UNSTABLE → FAILED as alerts evolve.
+
+**Kubernetes API Fallback:**
+* If Prometheus alert fetching fails, a fallback mechanism checks Kubernetes resources (Deployments, StatefulSets, ReplicaSets) for failures.
+
+**Enhanced Annotations Management:**
+* A detailed JSON annotation (FAILED_RESOURCES) is added to namespaces, containing every alert and the affected resources.
+
 ## Capabilities
 
 Currently, the SKA Namespace Manager provides the following capabilities:
@@ -50,7 +70,7 @@ Currently, the SKA Namespace Manager provides the following capabilities:
 - [x] Cleanup CI namespaces after their pre-defined or default TTL
 - [x] Terminate failing CI namespaces
 - [ ] Terminate duplicate CI namespaces (same commit or merge request)
-- [x] Notify namespace owners of their namespaces' status changes
+- [x] Notify namespace owners of their namespaces' status changes with detailed info regarding the resources affected
 
 #### Namespace Status
 There are two parallel processes checking for `Failure` and `Staleness` of namespaces.

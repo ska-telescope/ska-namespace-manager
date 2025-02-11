@@ -194,6 +194,12 @@ collectController:
       url:
       ca:
       insecure: true
+    prometheus:
+      url:
+      ca:
+      enabled: true
+      insecure: true
+      whitelisted_alerts:
 
   image:
     repository:
