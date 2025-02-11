@@ -2,6 +2,23 @@ Hello {{ user }} :marvin:
 
 Certainly, the universe hasn't been kind to your namespace `{{ target_namespace }}`, which is now `{{ status }}` and on the brink of deletion by `{{ finalize_at }}`.
 If you're somehow hopeful to prevent this, try fixing your deployments within `{{ status_timeframe }}`.
-Not that it will matter in the vast emptiness of space, but you can peek at your <{{ job_url }}|pipeline job> for some potentially pointless logging and monitoring cosmic directions.
 
+{%- if alerts and alerts | length > 0 %}
+
+We’ve detected the following issues that need your attention:
+
+{% for alert_name, alert_data in alerts.items() %}
+    - *Alert*: `{{ alert_name }}`
+      *Affected Resources*:  `{{ alert_data.failing_resources }}`  
+        {%- if alert_data.runbook_url %}
+      *Runbook*: <{{ alert_data.runbook_url }}|Click here>
+        {%- endif -%}
+        {% set alert_description = alert_suggestions[alert_name] if alert_suggestions.get(alert_name) else 'No specific suggested action.' %}
+      *Suggested Actions*: {{ alert_description }}
+
+{% endfor %}
+With the affected resources information provided and suggested actions, please peek at your <{{ job_url }}|pipeline job> to learn more (Headlamp, Kibana, and Grafana links are there!) and try fixing your deployments within {{ status_timeframe }}.
+{% else %}
+Not that it will matter in the vast emptiness of space, but you can peek at your <{{ job_url }}|pipeline job> for some potentially pointless logging and monitoring cosmic directions.
+{% endif %}
 "_{{ quote }}_"
