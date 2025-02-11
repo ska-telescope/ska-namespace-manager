@@ -27,7 +27,7 @@ from ska_ser_namespace_manager.core.types import (
     NamespaceAnnotations,
     NamespaceStatus,
 )
-from ska_ser_namespace_manager.core.utils import alert_suggestions, utc
+from ska_ser_namespace_manager.core.utils import ALERT_SUGGESTIONS, utc
 
 
 class ActionController(Notifier, LeaderController):
@@ -199,7 +199,7 @@ class ActionController(Notifier, LeaderController):
                     CicdAnnotations.JOB_URL.value
                 ),
                 alerts=self.process_failing_resources(failing_resources),
-                alert_suggestions=alert_suggestions,
+                alert_suggestions=ALERT_SUGGESTIONS,
             ):
                 annotations[NamespaceAnnotations.NOTIFIED_TS.value] = utc()
                 annotations[NamespaceAnnotations.NOTIFIED_STATUS.value] = (

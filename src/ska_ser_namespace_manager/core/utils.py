@@ -20,7 +20,7 @@ UNITS = {
 }
 
 
-alert_suggestions = {
+ALERT_SUGGESTIONS = {
     "KubePodNotReady": "The pod in the deployment or StatefulSet is in a 'NotReady' state. This could be due to issues like failing health checks or problems with the containers within the pod. Investigate the pod's logs in Kibana and health status in Headlamp to understand why it isn't ready.",  # pylint: disable=line-too-long  # noqa: E501
     "KubePodCrashLooping": "The pod is repeatedly crashing. This may be caused by configuration issues, missing dependencies, or failing health checks. Check the pod's logs in Kibana and monitor the container's health in Headlamp to identify the root cause.",  # pylint: disable=line-too-long  # noqa: E501
     "KubeDeploymentReplicasMismatch": "The number of replicas in the deployment does not match the desired replica count. This could be due to failed pod creation or issues with the deployment's configuration. Review the deployment configuration to ensure that the replica count is correctly set. Check if there are any errors in the deployment logs or pod status that could explain why some replicas are not being created.",  # pylint: disable=line-too-long  # noqa: E501
