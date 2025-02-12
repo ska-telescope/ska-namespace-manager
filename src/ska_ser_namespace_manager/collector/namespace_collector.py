@@ -66,6 +66,14 @@ class NamespaceCollector(Collector):
             )
             return
 
+        if (
+            status_annotations is None
+            and old_status != NamespaceStatus.UNKNOWN.value
+        ):
+            annotations[NamespaceAnnotations.FAILING_RESOURCES.value] = (
+                json.dumps([])
+            )
+
         annotations[NamespaceAnnotations.STATUS.value] = status
         annotations[NamespaceAnnotations.STATUS_TS.value] = utc()
         annotations[NamespaceAnnotations.NOTIFIED_TS.value] = None
@@ -75,6 +83,7 @@ class NamespaceCollector(Collector):
             self.namespace,
             status,
         )
+
         self.patch_namespace(self.namespace, annotations=annotations)
 
     def check_namespace(self) -> None:
@@ -200,33 +209,30 @@ class NamespaceCollector(Collector):
 
         if alerts is None:
             failing_resources = self.get_k8s_failing_resources()
-            new_annotations[NamespaceAnnotations.FAILING_RESOURCES.value] = (
-                ",".join(failing_resources)
-            )
         else:
             failing_resources = self.process_alerts(alerts)
-            new_annotations[NamespaceAnnotations.FAILING_RESOURCES.value] = (
-                failing_resources
-            )
 
-        self.update_common_annotations(new_annotations, annotations)
+        new_annotations = self.update_annotations(
+            new_annotations, annotations, failing_resources
+        )
 
         return self.update_namespace_status(
             namespace, annotations, failing_resources, new_annotations
         )
 
-    def get_k8s_failing_resources(self) -> set:
+    def get_k8s_failing_resources(self) -> str:
         """Helper to get failing resources from Kubernetes API."""
         resource_types = ["deployment", "statefulset", "replicaset"]
-        return set(
+        failing_resources = set(
             resource
             for resource_type in resource_types
             for resource in self._check_resource_status(
                 self.namespace, resource_type
             )
         )
+        return json.dumps(list(failing_resources))
 
-    def process_alerts(self, alerts: list) -> json:
+    def process_alerts(self, alerts: list) -> str:
         """Helper method to process alerts."""
         alerts_processed = []
 
@@ -267,10 +273,10 @@ class NamespaceCollector(Collector):
             logging.warning("Alert '%s' is firing.", alert_identifier)
         return True
 
-    def update_common_annotations(
-        self, new_annotations: dict, annotations: dict
-    ) -> None:
-        """Helper to update common annotation fields."""
+    def update_annotations(
+        self, new_annotations: dict, annotations: dict, failing_res: str
+    ) -> dict:
+        """Helper to update annotation fields."""
         status_timestamp = parse(
             annotations.get(NamespaceAnnotations.STATUS_TS.value, utc())
         ).replace(tzinfo=pytz.UTC)
@@ -282,14 +288,16 @@ class NamespaceCollector(Collector):
                 NamespaceAnnotations.STATUS_TIMEFRAME.value: format_timespan(
                     self.namespace_config.grace_period
                 ),
+                NamespaceAnnotations.FAILING_RESOURCES.value: failing_res,
             }
         )
+        return new_annotations
 
     def update_namespace_status(
         self,
         namespace: V1Namespace,
         annotations: dict,
-        failing_resources: set,
+        failing_resources: str,
         new_annotations: dict,
     ) -> bool:
         """
@@ -298,6 +306,7 @@ class NamespaceCollector(Collector):
         """
         current_status = annotations.get(NamespaceAnnotations.STATUS.value)
 
+        failing_resources = json.loads(failing_resources)
         if not failing_resources:
             return False
 
