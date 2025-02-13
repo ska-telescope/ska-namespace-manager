@@ -209,7 +209,7 @@ class ActionController(Notifier, LeaderController):
                     namespace.metadata.name, annotations=annotations
                 )
 
-    def process_failing_resources(self, resources_json=json) -> dict:
+    def process_failing_resources(self, resources_json=str) -> dict:
         """
         Processes and combines alert annotations from the given JSON string.
 
@@ -218,13 +218,16 @@ class ActionController(Notifier, LeaderController):
         """
         if not resources_json:
             return {}
+
         try:
             alerts = json.loads(resources_json)
         except json.JSONDecodeError:
             return {}
 
-        processed_alerts = {}
+        if all(isinstance(item, str) for item in alerts):
+            return {}
 
+        processed_alerts = {}
         for alert in alerts:
             alertname = alert["labels"].get("alertname")
             if alertname not in processed_alerts:
@@ -232,12 +235,14 @@ class ActionController(Notifier, LeaderController):
                     "failing_resources": [],
                     "runbook_url": None,
                 }
+
             resource_str = self.format_labels_resources(alert["labels"])
             if resource_str:
                 processed_alerts[alertname]["failing_resources"].append(
                     resource_str
                 )
             runbook_url = alert["annotations"].get("runbook_url")
+
             if runbook_url:
                 processed_alerts[alertname]["runbook_url"] = runbook_url
 
@@ -245,7 +250,6 @@ class ActionController(Notifier, LeaderController):
             alert_data["failing_resources"] = "; ".join(
                 alert_data["failing_resources"]
             )
-
         return processed_alerts
 
     def format_labels_resources(self, labels: dict) -> str:
@@ -269,4 +273,5 @@ class ActionController(Notifier, LeaderController):
         failing_resources = ", ".join(
             [f"{label}={value}" for label, value in resources.items()]
         )
+
         return failing_resources
