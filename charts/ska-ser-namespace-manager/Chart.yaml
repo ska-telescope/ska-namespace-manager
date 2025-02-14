@@ -3,5 +3,5 @@ name: ska-ser-namespace-manager
 description: SKA Kubernetes Namespace Manager Helm Chart
 icon: https://www.skao.int/themes/custom/ska/assets/images/logo-color.svg
 type: application
-version: 0.1.0
-appVersion: 0.1.0
+version: 0.1.1
+appVersion: 0.1.1

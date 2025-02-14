@@ -53,6 +53,7 @@ class CollectNamespaceConfig(NamespaceMatcher):
     dictate namespace phases.
 
     * ttl: Namespace ttl to become stale
+    * settling_period: Period to mark unstable namespace as failing
     * grace_period: Grace period to mark a failing namespace as failed
     """
 
