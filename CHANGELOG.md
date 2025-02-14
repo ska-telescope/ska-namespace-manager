@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] - 2024-07-18
 
+## 0.1.1 - 2025-02-14
+
+- **Address bug and refractor** 
+  - failing_resources was not being cleaned after status passed to OK, when comming from UNSTABLE, FAILING or FAILED
+  - small refractor of namespace controller
+
 ## 0.1.0 - 2025-02-11
 
 - **Prometheus Alert Integration**  
