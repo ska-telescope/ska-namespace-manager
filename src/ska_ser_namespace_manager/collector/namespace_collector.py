@@ -184,7 +184,7 @@ class NamespaceCollector(Collector):
         :return: True if namespace was stale, False otherwise
         """
         if self.namespace_config.ttl is None:
-            return False
+            return False, {}
 
         creation_timestamp = namespace.metadata.creation_timestamp.replace(
             tzinfo=timezone.utc
