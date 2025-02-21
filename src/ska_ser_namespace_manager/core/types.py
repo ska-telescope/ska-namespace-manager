@@ -40,6 +40,7 @@ class NamespaceAnnotations(str, Enum):
     FAILING_RESOURCES = "manager.cicd.skao.int/failing_resources"
     NOTIFIED_TS = "manager.cicd.skao.int/notified_timestamp"
     NOTIFIED_STATUS = "manager.cicd.skao.int/notified_status"
+    SPEC_HASH = "manager.cicd.skao.int/spec_hash"
 
     def __str__(self):
         return self.value
