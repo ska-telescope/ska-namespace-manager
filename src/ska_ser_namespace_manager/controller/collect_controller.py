@@ -269,7 +269,7 @@ class CollectController(LeaderController):
                     Exception
                 ) as exc:
                     logging.error(
-                        "Error while synchronizing '%s' cronjob for '%s': %s\n%s",
+                        "Error while synchronizing '%s' cronjob for '%s': %s\n%s",  # pylint: disable=line-too-long  # noqa: E501
                         action,
                         namespace,
                         str(exc),
@@ -381,9 +381,9 @@ class CollectController(LeaderController):
                         actions=ns_config.actions,
                         context=self.config.context,
                     )
-                    spec_hash = hashlib.sha256(
-                        manifest.encode()
-                    ).hexdigest()[:8]
+                    spec_hash = hashlib.sha256(manifest.encode()).hexdigest()[
+                        :8
+                    ]
                     if spec_hash != current_spec_hash:
                         self.batch_v1.delete_namespaced_job(
                             job.metadata.name,
@@ -398,7 +398,7 @@ class CollectController(LeaderController):
                         )
                         manifest_dict = yaml.safe_load(manifest)
                         manifest_dict["metadata"]["annotations"][
-                            "manager.cicd.skao.int/spec_hash"
+                            NamespaceAnnotations.SPEC_HASH
                         ] = spec_hash
                         self.batch_v1.create_namespaced_job(
                             self.config.context.namespace,
