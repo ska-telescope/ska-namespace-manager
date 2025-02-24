@@ -1,5 +1,5 @@
 from datetime import timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 
@@ -274,18 +274,17 @@ def test_synchronize_jobs_delete_jobs(collect_controller):
 
     collect_controller.get_jobs_by.assert_called_once()
     collect_controller.batch_v1.delete_namespaced_job.assert_called_once_with(
-        "test-job", "default-namespace", _request_timeout=10
+        "test-job",
+        "default-namespace",
+        propagation_policy="Background",
+        _request_timeout=10,
     )
-    collect_controller.v1.delete_namespaced_pod.assert_any_call(
-        "test", "default-namespace", _request_timeout=10
-    )
-    collect_controller.batch_v1.patch_namespaced_job.assert_not_called()
 
 
 def test_create_collect_job(collect_controller):
     collect_controller.template_factory = MagicMock()
     collect_controller.template_factory.render = MagicMock(
-        return_value="manifest"
+        return_value='{"metadata": {"annotations": {}}}'
     )
     collect_controller.get_jobs_by = MagicMock(return_value=[])
     collect_controller.batch_v1 = MagicMock()
@@ -297,30 +296,31 @@ def test_create_collect_job(collect_controller):
     collect_controller.template_factory.render.assert_called_once()
     collect_controller.batch_v1.create_namespaced_job.assert_called_once_with(
         collect_controller.config.context.namespace,
-        "manifest",
+        {"metadata": {"annotations": ANY}},
         _request_timeout=10,
     )
 
 
 def test_create_collect_job_existing(collect_controller):
-    mock_cronjob = MagicMock()
-    mock_cronjob.metadata.name = "test"
+    mock_job = MagicMock()
+    mock_job.metadata.name = "test"
     collect_controller.template_factory = MagicMock()
     collect_controller.template_factory.render = MagicMock(
-        return_value="manifest"
+        return_value='{"metadata": {"annotations": {}}}'
     )
-    collect_controller.get_jobs_by = MagicMock(return_value=[mock_cronjob])
+    collect_controller.get_jobs_by = MagicMock(return_value=[mock_job])
     collect_controller.batch_v1 = MagicMock()
+    collect_controller.wait_for_job_deletion = MagicMock()
 
     collect_controller.create_collect_job(
         CollectActions.CHECK_NAMESPACE, "test-namespace", MagicMock()
     )
 
     collect_controller.template_factory.render.assert_called_once()
-    collect_controller.batch_v1.patch_namespaced_job.assert_called_once_with(
+    collect_controller.batch_v1.delete_namespaced_job.assert_called_once_with(
         "test",
         collect_controller.config.context.namespace,
-        "manifest",
+        propagation_policy="Background",
         _request_timeout=10,
     )
 
@@ -360,6 +360,7 @@ def test_delete_job_for_missing_namespace(collect_controller):
     collect_controller.batch_v1.delete_namespaced_job.assert_called_once_with(
         mock_job.metadata.name,
         collect_controller.config.context.namespace,
+        propagation_policy="Background",
         _request_timeout=10,
     )
 
@@ -400,7 +401,7 @@ def test_patch_cronjob_for_existing_namespace(collect_controller):
     )
 
 
-def test_patch_job_for_existing_namespace(collect_controller):
+def test_delete_job_for_existing_namespace(collect_controller):
     mock_job = MagicMock()
     mock_job.metadata.annotations = {
         NamespaceAnnotations.NAMESPACE: "test-namespace"
@@ -428,10 +429,10 @@ def test_patch_job_for_existing_namespace(collect_controller):
     ):
         collect_controller.synchronize_jobs()
 
-    collect_controller.batch_v1.patch_namespaced_job.assert_called_once_with(
+    collect_controller.batch_v1.delete_namespaced_job.assert_called_once_with(
         mock_job.metadata.name,
         collect_controller.config.context.namespace,
-        "manifest",
+        propagation_policy="Background",
         _request_timeout=10,
     )
 

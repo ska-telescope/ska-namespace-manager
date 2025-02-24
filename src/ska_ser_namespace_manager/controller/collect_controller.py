@@ -5,9 +5,13 @@ resources
 """
 
 import datetime
+import hashlib
+import time
+import traceback
 from typing import Optional
 
 import yaml
+from kubernetes.client.exceptions import ApiException
 
 from ska_ser_namespace_manager.controller.collect_controller_config import (
     CollectActions,
@@ -74,6 +78,34 @@ class CollectController(LeaderController):
         """
         return self.config.metrics.enabled
 
+    def wait_for_job_deletion(self, job_name, namespace, timeout):
+        """
+        Waits until the specified job is completely deleted.
+
+        :param job_name: Name of the Kubernetes Job
+        :param namespace: Kubernetes namespace
+        :param timeout: Maximum wait time in seconds
+        :raises TimeoutError: If the job is not deleted within the timeout
+        period
+        """
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            try:
+                self.batch_v1.read_namespaced_job(job_name, namespace)
+                time.sleep(1)
+            except ApiException as e:
+                if e.status == 404:
+                    logging.info(f"Job {job_name} deleted successfully.")
+                    return
+
+                logging.error(
+                    f"Error checking job {job_name} in namespace {namespace} while deleting: {e}"  # noqa: E501 pylint: disable=line-too-long
+                )
+                raise
+        raise TimeoutError(
+            f"Job {job_name} was not deleted within {timeout} seconds."
+        )
+
     @controller_task(period=datetime.timedelta(seconds=1))
     def check_new_namespaces(self) -> None:
         """
@@ -99,20 +131,32 @@ class CollectController(LeaderController):
                     "Managing new namespace '%s'",
                     namespace,
                 )
-                for action in self.namespace_cronjobs:
-                    self.create_collect_cronjob(action, namespace, ns_config)
+                try:
+                    for action in self.namespace_cronjobs:
+                        self.create_collect_cronjob(
+                            action, namespace, ns_config
+                        )
 
-                for action in self.namespace_jobs:
-                    self.create_collect_job(action, namespace, ns_config)
+                    for action in self.namespace_jobs:
+                        self.create_collect_job(action, namespace, ns_config)
 
-                self.patch_namespace(
-                    namespace,
-                    annotations={
-                        NamespaceAnnotations.STATUS: NamespaceStatus.UNKNOWN.value,  # pylint: disable=line-too-long  # noqa: E501
-                        NamespaceAnnotations.MANAGED: "true",
-                        NamespaceAnnotations.NAMESPACE: namespace,
-                    },
-                )
+                    self.patch_namespace(
+                        namespace,
+                        annotations={
+                            NamespaceAnnotations.STATUS: NamespaceStatus.UNKNOWN.value,  # pylint: disable=line-too-long  # noqa: E501
+                            NamespaceAnnotations.MANAGED: "true",
+                            NamespaceAnnotations.NAMESPACE: namespace,
+                        },
+                    )
+                except (  # pylint: disable=broad-exception-caught
+                    Exception
+                ) as exc:
+                    logging.error(
+                        "Error while managing new namespace '%s': %s\n%s",
+                        namespace,
+                        str(exc),
+                        traceback.format_exc(),
+                    )
 
     def create_collect_cronjob(
         self,
@@ -142,17 +186,19 @@ class CollectController(LeaderController):
                 NamespaceAnnotations.ACTION: action,
             },
         )
-
-        if len(existing_cronjobs) > 0:
-            self.batch_v1.patch_namespaced_cron_job(
-                existing_cronjobs[0].metadata.name,
-                self.config.context.namespace,
-                yaml.safe_load(manifest),
-                _request_timeout=10,
-            )
-            logging.info(
-                "Patched '%s' CronJob for namespace '%s'", action, namespace
-            )
+        if existing_cronjobs:
+            for job in existing_cronjobs:
+                self.batch_v1.patch_namespaced_cron_job(
+                    job.metadata.name,
+                    self.config.context.namespace,
+                    yaml.safe_load(manifest),
+                    _request_timeout=10,
+                )
+                logging.info(
+                    "Patched '%s' CronJob for namespace '%s'",
+                    action,
+                    namespace,
+                )
         else:
             self.batch_v1.create_namespaced_cron_job(
                 self.config.context.namespace,
@@ -178,47 +224,57 @@ class CollectController(LeaderController):
                     NamespaceAnnotations.ACTION: action,
                 },
             )
-
             for cronjob in cronjobs:
-                namespace = cronjob.metadata.annotations.get(
-                    NamespaceAnnotations.NAMESPACE
-                )
-                ns = self.get_namespace(namespace)
-                if ns is None:
-                    self.batch_v1.delete_namespaced_cron_job(
+                try:
+                    namespace = cronjob.metadata.annotations.get(
+                        NamespaceAnnotations.NAMESPACE
+                    )
+                    ns = self.get_namespace(namespace)
+                    if ns is None:
+                        self.batch_v1.delete_namespaced_cron_job(
+                            cronjob.metadata.name,
+                            self.config.context.namespace,
+                            _request_timeout=10,
+                        )
+                        logging.info(
+                            "Deleted '%s' CronJob for namespace '%s'",
+                            action,
+                            namespace,
+                        )
+                        continue
+
+                    ns_config = match_namespace(
+                        self.config.namespaces, self.to_dto(ns)
+                    )
+                    self.batch_v1.patch_namespaced_cron_job(
                         cronjob.metadata.name,
                         self.config.context.namespace,
+                        yaml.safe_load(
+                            self.template_factory.render(
+                                f"{action}-cronjob.j2",
+                                target_namespace=namespace,
+                                action=str(action),
+                                actions=ns_config.actions,
+                                context=self.config.context,
+                            )
+                        ),
                         _request_timeout=10,
                     )
-                    logging.info(
-                        "Deleted '%s' CronJob for namespace '%s'",
+                    logging.debug(
+                        "Patched '%s' CronJob for namespace '%s'",
                         action,
                         namespace,
                     )
-                    continue
-
-                ns_config = match_namespace(
-                    self.config.namespaces, self.to_dto(ns)
-                )
-                self.batch_v1.patch_namespaced_cron_job(
-                    cronjob.metadata.name,
-                    self.config.context.namespace,
-                    yaml.safe_load(
-                        self.template_factory.render(
-                            f"{action}-cronjob.j2",
-                            target_namespace=namespace,
-                            action=str(action),
-                            actions=ns_config.actions,
-                            context=self.config.context,
-                        )
-                    ),
-                    _request_timeout=10,
-                )
-                logging.debug(
-                    "Patched '%s' CronJob for namespace '%s'",
-                    action,
-                    namespace,
-                )
+                except (  # pylint: disable=broad-exception-caught
+                    Exception
+                ) as exc:
+                    logging.error(
+                        "Error while synchronizing '%s' cronjob for '%s': %s\n%s",  # pylint: disable=line-too-long  # noqa: E501
+                        action,
+                        namespace,
+                        str(exc),
+                        traceback.format_exc(),
+                    )
 
     def create_collect_job(
         self,
@@ -233,14 +289,6 @@ class CollectController(LeaderController):
         :param namespace: The namespace to create the CronJob for
         :param config: Config governing this namespace collection configuration
         """
-        manifest = self.template_factory.render(
-            f"{action}-job.j2",
-            target_namespace=namespace,
-            action=str(action),
-            actions=config.actions,
-            context=self.config.context,
-        )
-
         existing_jobs = self.get_jobs_by(
             namespace=self.config.context.namespace,
             annotations={
@@ -248,26 +296,41 @@ class CollectController(LeaderController):
                 NamespaceAnnotations.ACTION: action,
             },
         )
+        if existing_jobs:
+            for job in existing_jobs:
+                self.batch_v1.delete_namespaced_job(
+                    job.metadata.name,
+                    self.config.context.namespace,
+                    propagation_policy="Background",
+                    _request_timeout=10,
+                )
+                self.wait_for_job_deletion(
+                    job.metadata.name,
+                    self.config.context.namespace,
+                    timeout=10,
+                )
+                logging.info(
+                    "Deleted '%s' Job for namespace '%s'", action, namespace
+                )
 
-        if len(existing_jobs) > 0:
-            self.batch_v1.patch_namespaced_job(
-                existing_jobs[0].metadata.name,
-                self.config.context.namespace,
-                yaml.safe_load(manifest),
-                _request_timeout=10,
-            )
-            logging.info(
-                "Patched '%s' Job for namespace '%s'", action, namespace
-            )
-        else:
-            self.batch_v1.create_namespaced_job(
-                self.config.context.namespace,
-                yaml.safe_load(manifest),
-                _request_timeout=10,
-            )
-            logging.info(
-                "Created '%s' Job for namespace '%s'", action, namespace
-            )
+        manifest = self.template_factory.render(
+            f"{action}-job.j2",
+            target_namespace=namespace,
+            action=str(action),
+            actions=config.actions,
+            context=self.config.context,
+        )
+        spec_hash = hashlib.sha256(manifest.encode()).hexdigest()[:8]
+        manifest_dict = yaml.safe_load(manifest)
+        manifest_dict["metadata"]["annotations"][
+            NamespaceAnnotations.SPEC_HASH
+        ] = spec_hash
+        self.batch_v1.create_namespaced_job(
+            self.config.context.namespace,
+            manifest_dict,
+            _request_timeout=10,
+        )
+        logging.info("Created '%s' Job for namespace '%s'", action, namespace)
 
     @conditional_controller_task(
         period=datetime.timedelta(milliseconds=10000),
@@ -284,67 +347,79 @@ class CollectController(LeaderController):
                     NamespaceAnnotations.ACTION: action,
                 },
             )
-
             for job in jobs:
-                namespace = job.metadata.annotations.get(
-                    NamespaceAnnotations.NAMESPACE
-                )
-                ns = self.get_namespace(namespace)
-                if ns is None:
-                    self.batch_v1.delete_namespaced_job(
-                        job.metadata.name,
-                        self.config.context.namespace,
-                        _request_timeout=10,
+                try:
+                    namespace = job.metadata.annotations.get(
+                        NamespaceAnnotations.NAMESPACE
                     )
-                    logging.info(
-                        "Deleted '%s' Job for namespace '%s'",
-                        action,
-                        namespace,
-                    )
-
-                    job_pods = self.get_namespace_pods_by(
-                        namespace=self.config.context.namespace,
-                        labels={
-                            "job-name": job.metadata.name,
-                        },
-                    )
-
-                    for pod in job_pods:
-                        self.v1.delete_namespaced_pod(
-                            pod.metadata.name,
+                    ns = self.get_namespace(namespace)
+                    if ns is None:
+                        self.batch_v1.delete_namespaced_job(
+                            job.metadata.name,
                             self.config.context.namespace,
+                            propagation_policy="Background",
                             _request_timeout=10,
                         )
                         logging.info(
-                            "Deleted '%s' Pod from Job '%s'"
-                            " for namespace '%s'",
+                            "Deleted '%s' Job for namespace '%s'",
                             action,
-                            job.metadata.name,
                             namespace,
                         )
 
-                    continue
+                        continue
 
-                ns_config = match_namespace(
-                    self.config.namespaces, self.to_dto(ns)
-                )
-                self.batch_v1.patch_namespaced_job(
-                    job.metadata.name,
-                    self.config.context.namespace,
-                    yaml.safe_load(
-                        self.template_factory.render(
-                            f"{action}-job.j2",
-                            target_namespace=namespace,
-                            action=action,
-                            actions=ns_config.actions,
-                            context=self.config.context,
+                    current_spec_hash = job.metadata.annotations.get(
+                        NamespaceAnnotations.SPEC_HASH
+                    )
+                    ns_config = match_namespace(
+                        self.config.namespaces, self.to_dto(ns)
+                    )
+                    manifest = self.template_factory.render(
+                        f"{action}-job.j2",
+                        target_namespace=namespace,
+                        action=action,
+                        actions=ns_config.actions,
+                        context=self.config.context,
+                    )
+                    spec_hash = hashlib.sha256(manifest.encode()).hexdigest()[
+                        :8
+                    ]
+                    if spec_hash != current_spec_hash:
+                        self.batch_v1.delete_namespaced_job(
+                            job.metadata.name,
+                            self.config.context.namespace,
+                            propagation_policy="Background",
+                            _request_timeout=10,
                         )
-                    ),
-                    _request_timeout=10,
-                )
-                logging.debug(
-                    "Patched '%s' Job for namespace '%s'", action, namespace
-                )
+                        self.wait_for_job_deletion(
+                            job.metadata.name,
+                            self.config.context.namespace,
+                            timeout=10,
+                        )
+                        manifest_dict = yaml.safe_load(manifest)
+                        manifest_dict["metadata"]["annotations"][
+                            NamespaceAnnotations.SPEC_HASH
+                        ] = spec_hash
+                        self.batch_v1.create_namespaced_job(
+                            self.config.context.namespace,
+                            manifest_dict,
+                            _request_timeout=10,
+                        )
+                        logging.debug(
+                            "Created '%s' Job for namespace '%s'",
+                            action,
+                            namespace,
+                        )
+                except (  # pylint: disable=broad-exception-caught
+                    Exception
+                ) as exc:
+                    logging.error(
+                        "Error while synchronizing '%s' job for '%s': %s\n%s",
+                        action,
+                        namespace,
+                        str(exc),
+                        traceback.format_exc(),
+                    )
 
     @conditional_controller_task(
         period=datetime.timedelta(seconds=5),
