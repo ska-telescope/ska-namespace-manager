@@ -36,9 +36,9 @@ author = "SKA System Team"
 # built documents.
 #
 # The short X.Y.Z version.
-version = '0.1.4'
+version = '0.1.5'
 # The full version, including alpha/beta/rc pre-release tags.
-release = '0.1.4'
+release = '0.1.5'
 
 # -- General configuration ------------------------------------------------
 
