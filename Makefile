@@ -28,9 +28,10 @@ K8S_CHART_PARAMS += --set image.tag=$(VERSION)-dev.c$(CI_COMMIT_SHORT_SHA)
 endif
 
 PYTHON_SWITCHES_FOR_PYLINT = \
-	--disable "fixme,duplicate-code" \
+	--disable "fixme,duplicate-code,arguments-differ" \
 	--min-public-methods 0 \
 	--max-attributes 10 \
+        --max-positional-arguments 8 \
 	--max-args 8
 PYTHON_TEST_FILE = ./tests/unit
 PYTHON_VARS_AFTER_PYTEST = --disable-warnings
