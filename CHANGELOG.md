@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] - 2024-07-18
 
+## 0.1.6 - 2025-09-11
+
+- **Update base images** 
+  - update ska base images as part of the monthly ST security patches
+
 ## 0.1.1 - 2025-02-14
 
 - **Address bug and refractor** 
