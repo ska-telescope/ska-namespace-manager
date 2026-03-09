@@ -40,16 +40,11 @@ from ska_ser_namespace_manager.core.types import (
     NamespaceAnnotations,
     NamespaceStatus,
 )
-from ska_ser_namespace_manager.metrics.metrics import MetricsManager
-
-
 class CollectController(LeaderController):
     """
     CollectController is responsible for creating tasks to collect
     information on managed resources and manage those tasks
     """
-
-    metrics_manager: MetricsManager
 
     def __init__(self, kubeconfig: Optional[str] = None) -> None:
         """
@@ -63,7 +58,6 @@ class CollectController(LeaderController):
         )
 
         self.config: CollectControllerConfig
-        self.metrics_manager = MetricsManager(self.config.metrics)
         logging.debug(
             "CollectController initialized for namespace '%s' with %d namespace rules",
             self.config.context.namespace,
@@ -73,15 +67,8 @@ class CollectController(LeaderController):
             [
                 self.collect_namespace_health,
                 self.collect_namespace_ownership,
-                self.generate_metrics,
             ]
         )
-
-    def is_metrics_enabled(self) -> bool:
-        """
-        Check if metrics are enabled
-        """
-        return self.config.metrics.enabled
 
     def get_replica_id(self) -> str:
         """
@@ -267,28 +254,3 @@ class CollectController(LeaderController):
                     str(exc),
                     traceback.format_exc(),
                 )
-
-    @conditional_controller_task(
-        period=datetime.timedelta(seconds=5),
-        run_if=lambda instance: LeaderController.is_leader(instance)
-        and instance.is_metrics_enabled(),
-    )
-    def generate_metrics(self) -> None:
-        """
-        Generates metrics on the managed namespaces
-        """
-        managed_namespaces = [
-            namespace
-            for namespace in self.get_namespaces_by(
-                annotations={NamespaceAnnotations.MANAGED.value: "true"}
-            )
-            if namespace.metadata.name not in self.forbidden_namespaces
-        ]
-        self.metrics_manager.delete_stale_metrics(
-            [ns.metadata.name for ns in managed_namespaces]
-        )
-
-        for ns in managed_namespaces:
-            self.metrics_manager.update_namespace_metrics(ns)
-
-        self.metrics_manager.save_metrics()

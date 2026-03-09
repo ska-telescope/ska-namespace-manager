@@ -12,7 +12,7 @@ In a production cluster, administrators/operators have good knowledge on what na
 
 Kubernetes doesn't provide an out-of-the-box solution for these challenges, so a custom implementation is provided here. The goal of SKA Namespace Manager is to be able to optimize the usage of the cluster resources and provide fair share to every user. In the spirit of visibility and predictability, it is expected that it communicates to the affected users any operations done to their environments. This will allow developers to be more aware of what is going on in the background for their CI/CD.
 
-In the spirit of visibility and predictability, SKA Namespace Manager now integrates with Prometheus alerts to dynamically monitor namespaces and react to failures proactively. This ensures that affected users are notified of critical namespace issues before they escalate.
+In the spirit of visibility and predictability, SKA Namespace Manager integrates with Prometheus alerts to dynamically monitor namespaces and react to failures proactively. This ensures that affected users are notified of critical namespace issues before they escalate.
 
 ## Design
 
@@ -62,6 +62,10 @@ With the integration of Prometheus alerts, namespace statuses are now determined
 
 **Enhanced Annotations Management:**
 * A detailed JSON annotation (FAILED_RESOURCES) is added to namespaces, containing every alert and the affected resources.
+
+**Annotation-Derived Metrics:**
+* Metrics are built by the API directly from namespace annotations and labels.
+* The metrics endpoint uses a short in-memory cache to reduce repeated Kubernetes API reads during Prometheus scrapes.
 
 ## Capabilities
 

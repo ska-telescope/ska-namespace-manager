@@ -18,10 +18,7 @@ configPath: /etc/config
 config:
   metrics:
     enabled: true
-    registry_path: /etc/metrics
-    pvc:
-      storageClassName: nfss1
-      size: 1Gi
+    cache_ttl: 15
 
 api:
   config:

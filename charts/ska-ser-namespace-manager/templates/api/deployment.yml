@@ -127,10 +127,6 @@ spec:
               mountPath: {{ $appConfig.pki_path }}
               readOnly: true
             {{- end }}
-            {{- if $appConfig.metrics.enabled }}
-            - name: metrics-volume
-              mountPath: {{ $appConfig.metrics.registry_path }}
-            {{- end }}
       volumes:
       - name: config
         secret:
@@ -139,9 +135,4 @@ spec:
       - name: pki
         secret:
           secretName: {{ template "ska-ser-namespace-manager.api.serviceName" . }}-cert
-      {{- end }}
-      {{- if $appConfig.metrics.enabled }}
-      - name: metrics-volume
-        persistentVolumeClaim:
-          claimName: {{ include "ska-ser-namespace-manager.name" . }}-metrics-registry
       {{- end }}

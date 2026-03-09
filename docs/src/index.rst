@@ -1,7 +1,7 @@
 SKA Namespace Manager
 =====================
 
-SKA Namespace Manager is a tool designed to efficiently manage namespaces in a Kuberentes cluster. The main goal is to be able to provide fair usage quotasto the multiple users of the cluster, as well as to maintain efficient use of it.
+SKA Namespace Manager is a tool designed to efficiently manage namespaces in a Kubernetes cluster. The main goal is to provide fair usage quotas to multiple cluster users while maintaining efficient resource usage.
 
 What the SKA Namespace Manager can do now:
 

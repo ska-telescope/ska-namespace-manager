@@ -8,10 +8,10 @@ from pydantic import BaseModel
 class MetricsConfig(BaseModel):
     """
     MetricsConfig holds configuration for the metrics module
-
-    * registry_path: Path to the folder holding the metrics registry
+    
     * enabled: True to enable metrics, False to disable
+    * cache_ttl: Cache TTL in seconds for generated metrics
     """
 
-    registry_path: str = "metrics"
     enabled: bool = True
+    cache_ttl: int = 15
