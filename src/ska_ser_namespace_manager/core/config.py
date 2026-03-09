@@ -18,6 +18,21 @@ from ska_ser_namespace_manager.core.utils import Singleton
 T = TypeVar("T", bound=BaseModel)
 
 
+def summarize_config_data(config_data: dict) -> dict:
+    """
+    Return a redacted summary of loaded config keys.
+    """
+    if not isinstance(config_data, dict):
+        return {"type": type(config_data).__name__}
+
+    return {
+        "keys": sorted(config_data.keys()),
+        "top_level_types": {
+            key: type(value).__name__ for key, value in config_data.items()
+        },
+    }
+
+
 class ConfigLoader(metaclass=Singleton):
     """
     ConfigLoader is a singleton class responsible for loading
@@ -72,8 +87,11 @@ class ConfigLoader(metaclass=Singleton):
         if config_data is None:
             raise ValueError("Unable to load a valid configuration")
 
-        # Debug output to check what is being loaded
-        logging.debug(f"Loaded config data: {config_data}")
+        logging.debug(
+            "Loaded config summary for '%s': %s",
+            clazz.__qualname__,
+            summarize_config_data(config_data),
+        )
 
         # Initialize the configuration class
         self.configs[clazz] = clazz(**config_data)

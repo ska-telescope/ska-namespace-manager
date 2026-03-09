@@ -6,8 +6,6 @@ and the bootstrapping of the kubernetes API
 import sys
 from typing import Callable, Dict, Optional, TypeVar
 
-import yaml
-
 from ska_ser_namespace_manager.collector.collector_config import (
     CollectorConfig,
 )
@@ -73,10 +71,11 @@ class Collector(KubernetesAPI):
             self.namespace_config = CollectNamespaceConfig()
 
         logging.debug(
-            "Configuration: \n%s",
-            yaml.safe_dump(
-                yaml.safe_load(self.namespace_config.model_dump_json())
-            ),
+            "Collector configured for namespace '%s' with ttl=%s, settling_period=%s, grace_period=%s",
+            self.namespace,
+            self.namespace_config.ttl,
+            self.namespace_config.settling_period,
+            self.namespace_config.grace_period,
         )
 
     @classmethod

@@ -10,7 +10,6 @@ import time
 import traceback
 from typing import Optional
 
-import yaml
 from kubernetes.client.exceptions import ApiException
 
 from ska_ser_namespace_manager.controller.collect_controller_config import (
@@ -58,8 +57,9 @@ class CollectController(LeaderController):
         self.config: CollectControllerConfig
         self.metrics_manager = MetricsManager(self.config.metrics)
         logging.debug(
-            "Configuration: \n%s",
-            yaml.safe_dump(yaml.safe_load(self.config.model_dump_json())),
+            "CollectController initialized for namespace '%s' with %d namespace rules",
+            self.config.context.namespace,
+            len(self.config.namespaces),
         )
         self.add_tasks(
             [

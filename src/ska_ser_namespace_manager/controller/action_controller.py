@@ -8,7 +8,6 @@ import datetime
 import json
 from typing import Optional
 
-import yaml
 from slack_bolt import App
 
 from ska_ser_namespace_manager.controller.action_controller_config import (
@@ -56,8 +55,9 @@ class ActionController(Notifier, LeaderController):
         Notifier.__init__(self, self.config.notifier.token)
 
         logging.debug(
-            "Configuration: \n%s",
-            yaml.safe_dump(yaml.safe_load(self.config.model_dump_json())),
+            "ActionController initialized for namespace '%s' with %d namespace rules",
+            self.config.context.namespace,
+            len(self.config.namespaces),
         )
 
     def delete_namespaces_with_status(self, status: str):
