@@ -8,8 +8,6 @@ import datetime
 import json
 from typing import Optional
 
-from slack_bolt import App
-
 from ska_ser_namespace_manager.controller.action_controller_config import (
     ActionControllerConfig,
     ActionNamespacePhaseConfig,
@@ -29,13 +27,13 @@ from ska_ser_namespace_manager.core.types import (
 from ska_ser_namespace_manager.core.utils import ALERT_SUGGESTIONS, utc
 
 
-class ActionController(Notifier, LeaderController):
+class ActionController(LeaderController):
     """
     ActionController is responsible for creating tasks to perform actions
     on managed resources and manage those tasks
     """
 
-    slack_client: App
+    notifier: Notifier
 
     def __init__(self, kubeconfig: Optional[str] = None) -> None:
         """
@@ -52,12 +50,25 @@ class ActionController(Notifier, LeaderController):
             kubeconfig,
         )
         self.config: ActionControllerConfig
-        Notifier.__init__(self, self.config.notifier.token)
+        self.notifier = Notifier(self.config.notifier.token)
 
         logging.debug(
             "ActionController initialized for namespace '%s' with %d namespace rules",
             self.config.context.namespace,
             len(self.config.namespaces),
+        )
+
+    def notify_user(
+        self, address: str, template: str, status: str, **kwargs
+    ) -> bool:
+        """
+        Delegate user notifications to the configured notifier.
+        """
+        return self.notifier.notify_user(
+            address=address,
+            template=template,
+            status=status,
+            **kwargs,
         )
 
     def delete_namespaces_with_status(self, status: str):

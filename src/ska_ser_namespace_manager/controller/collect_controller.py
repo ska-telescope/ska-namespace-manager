@@ -10,6 +10,7 @@ import time
 import traceback
 from typing import Optional
 
+import yaml
 from kubernetes.client.exceptions import ApiException
 
 from ska_ser_namespace_manager.controller.collect_controller_config import (

@@ -45,6 +45,38 @@ class ConfigLoader(metaclass=Singleton):
         super().__init__()
         self.configs = defaultdict()
 
+    def _get_default_config_path(self) -> str:
+        """
+        Return the default config path.
+        """
+        return os.environ.get("CONFIG_PATH", "/etc/config/config.yml")
+
+    def _load_config_from_path(self, config_path: str):
+        """
+        Load config data from a file path.
+        """
+        with open(config_path, encoding="utf-8") as cf:
+            return yaml.safe_load(cf)
+
+    def _load_config_data(self, clazz: T, config: str | dict | io.IOBase = None):
+        """
+        Resolve config data from the supported config sources.
+        """
+        config_source = config if config is not None else self._get_default_config_path()
+        if isinstance(config_source, dict):
+            return config_source
+
+        if isinstance(config_source, io.IOBase):
+            return yaml.safe_load(config_source)
+
+        config_path = config_source
+        logging.info(
+            "Loading configuration for '%s' from %s",
+            clazz.__qualname__,
+            config_path,
+        )
+        return self._load_config_from_path(config_path)
+
     def load(self, clazz: T, config: str | dict | io.IOBase = None) -> T:
         """
         Loads a configuration and stores it in a "singleton"
@@ -56,33 +88,13 @@ class ConfigLoader(metaclass=Singleton):
         if clazz in self.configs:
             return self.configs[clazz]
 
-        config_source = config
-        if config_source is None:
-            config_source = os.environ.get(
-                "CONFIG_PATH", "/etc/config/config.yml"
+        try:
+            config_data = self._load_config_data(clazz, config)
+        except Exception:  # pylint: disable=broad-exception-caught
+            logging.warning(
+                "Failed to load config from file. Loading default config."
             )
-        config_data = config
-        if config is None or isinstance(config_source, str):
-            config_path = (
-                config
-                if config
-                else os.environ.get("CONFIG_PATH", "/etc/config/config.yml")
-            )
-            logging.info(
-                "Loading configuration for '%s' from %s",
-                clazz.__qualname__,
-                config_path,
-            )
-            try:
-                with open(config_path, encoding="utf-8") as cf:
-                    config_data = yaml.safe_load(cf)
-            except Exception:  # pylint: disable=broad-exception-caught
-                logging.warning(
-                    "Failed to load config from file. Loading default config."
-                )
-                return clazz()
-        elif isinstance(config_source, io.IOBase):
-            config_data = yaml.safe_load(config_source)
+            return clazz()
 
         if config_data is None:
             raise ValueError("Unable to load a valid configuration")

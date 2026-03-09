@@ -24,7 +24,7 @@ from ska_ser_namespace_manager.core.thread_manager import ThreadManager
 T = TypeVar("T", bound=ControllerConfig)
 
 
-class Controller(KubernetesAPI, ThreadManager):
+class Controller(ThreadManager):
     """
     A generic controller class to implement simple process
     management tasks
@@ -32,6 +32,7 @@ class Controller(KubernetesAPI, ThreadManager):
 
     config: BaseModel
     forbidden_namespaces: list[str]
+    kubernetes_api: KubernetesAPI
 
     def __init__(
         self,
@@ -46,14 +47,65 @@ class Controller(KubernetesAPI, ThreadManager):
         :param tasks: List of tasks to manage
         :param kubeconfig: Kubeconfig to use
         """
-        KubernetesAPI.__init__(self, kubeconfig)
         ThreadManager.__init__(self)
+        self.kubernetes_api = KubernetesAPI(kubeconfig)
+        self.v1 = getattr(self.kubernetes_api, "v1", None)
+        self.apps_v1 = getattr(self.kubernetes_api, "apps_v1", None)
+        self.batch_v1 = getattr(self.kubernetes_api, "batch_v1", None)
         self.config: T = ConfigLoader().load(config_class)
         self.template_factory = TemplateFactory()
         self.forbidden_namespaces = FORBIDDEN_NAMESPACES + [
             self.config.context.namespace
         ]
         self.add_tasks(tasks)
+
+    def get_namespaces(self) -> list[str]:
+        """
+        Delegate namespace listing to the Kubernetes API service.
+        """
+        return self.kubernetes_api.get_namespaces()
+
+    def get_namespace(self, namespace: str):
+        """
+        Delegate namespace retrieval to the Kubernetes API service.
+        """
+        return self.kubernetes_api.get_namespace(namespace)
+
+    def get_namespaces_by(self, **kwargs):
+        """
+        Delegate namespace filtering to the Kubernetes API service.
+        """
+        return self.kubernetes_api.get_namespaces_by(**kwargs)
+
+    def patch_namespace(self, namespace: str, **kwargs):
+        """
+        Delegate namespace patching to the Kubernetes API service.
+        """
+        return self.kubernetes_api.patch_namespace(namespace, **kwargs)
+
+    def delete_namespace(self, namespace: str, grace_period: int = 0) -> None:
+        """
+        Delegate namespace deletion to the Kubernetes API service.
+        """
+        self.kubernetes_api.delete_namespace(namespace, grace_period)
+
+    def get_cronjobs_by(self, namespace: str, **kwargs):
+        """
+        Delegate cronjob lookup to the Kubernetes API service.
+        """
+        return self.kubernetes_api.get_cronjobs_by(namespace, **kwargs)
+
+    def get_jobs_by(self, namespace: str, **kwargs):
+        """
+        Delegate job lookup to the Kubernetes API service.
+        """
+        return self.kubernetes_api.get_jobs_by(namespace, **kwargs)
+
+    def to_dto(self, resource):
+        """
+        Delegate DTO conversion to the Kubernetes API service.
+        """
+        return self.kubernetes_api.to_dto(resource)
 
 
 def controller_task(
