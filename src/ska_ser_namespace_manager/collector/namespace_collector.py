@@ -108,7 +108,7 @@ class NamespaceCollector(Collector):
 
         self.patch_namespace(self.namespace, annotations=annotations)
 
-    def check_namespace(self) -> None:
+    def check_namespace(self, alerts: Optional[list] = None) -> None:
         """
         Check the namespace for staleness and failures throught Prometheus
         alerts or fallback to kubernetes API.
@@ -119,12 +119,12 @@ class NamespaceCollector(Collector):
             logging.error("Failed to get namespace '%s'", self.namespace)
             return
 
-        alerts = None
-        if self.prometheus_config.enabled:
-            alerts = self.fetch_prometheus_alerts()
+        namespace_alerts = alerts
+        if namespace_alerts is None and self.prometheus_config.enabled:
+            namespace_alerts = self.fetch_prometheus_alerts()
 
         new_status, new_annotations = self.evaluate_namespace_health(
-            namespace, alerts
+            namespace, namespace_alerts
         )
         self.set_status(namespace, new_status, new_annotations)
 

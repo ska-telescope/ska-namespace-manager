@@ -187,9 +187,6 @@ collectController:
         ttl: 5m
         settling_period: 5m
         grace_period: 2m
-        tasks:
-          check-namespace:
-            schedule: "*/1 * * * *"
     people_api:
       url:
       ca:
@@ -200,6 +197,10 @@ collectController:
       enabled: true
       insecure: true
       whitelisted_alerts:
+    sharding:
+      enabled: true
+      pod_labels: {}
+      membership_refresh: 5s
 
   image:
     repository:
@@ -386,4 +387,3 @@ actionController:
   extraArgs: []
 
   extraEnvVars: []
-

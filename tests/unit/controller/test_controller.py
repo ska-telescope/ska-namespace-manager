@@ -63,6 +63,41 @@ def test_terminate(controller):
     assert controller.shutdown_event.is_set()
 
 
+def test_controller_delegates_kubernetes_helpers(controller, mock_kubernetes_api):
+    mock_resource = MagicMock()
+    mock_kubernetes_api.get_namespace.return_value = mock_resource
+    mock_kubernetes_api.get_namespaces.return_value = ["ci-test"]
+    mock_kubernetes_api.get_namespaces_by.return_value = [mock_resource]
+    mock_kubernetes_api.get_cronjobs_by.return_value = []
+    mock_kubernetes_api.get_jobs_by.return_value = []
+    mock_kubernetes_api.to_dto.return_value = "dto"
+
+    assert controller.get_namespaces() == ["ci-test"]
+    assert controller.get_namespace("ci-test") == mock_resource
+    assert controller.get_namespaces_by(annotations={"managed": "true"}) == [
+        mock_resource
+    ]
+    assert controller.get_cronjobs_by("manager") == []
+    assert controller.get_jobs_by("manager") == []
+    assert controller.to_dto(mock_resource) == "dto"
+
+    controller.patch_namespace("ci-test", annotations={"status": "ok"})
+    controller.delete_namespace("ci-test", 5)
+
+    mock_kubernetes_api.get_namespaces.assert_called_once_with()
+    mock_kubernetes_api.get_namespace.assert_called_once_with("ci-test")
+    mock_kubernetes_api.get_namespaces_by.assert_called_once_with(
+        annotations={"managed": "true"}
+    )
+    mock_kubernetes_api.get_cronjobs_by.assert_called_once_with("manager")
+    mock_kubernetes_api.get_jobs_by.assert_called_once_with("manager")
+    mock_kubernetes_api.to_dto.assert_called_once_with(mock_resource)
+    mock_kubernetes_api.patch_namespace.assert_called_once_with(
+        "ci-test", annotations={"status": "ok"}
+    )
+    mock_kubernetes_api.delete_namespace.assert_called_once_with("ci-test", 5)
+
+
 @patch("ska_ser_namespace_manager.controller.controller.logging.debug")
 def test_run_controller(mock_logging_debug, controller):
     def dummy_task():

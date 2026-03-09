@@ -108,74 +108,67 @@ def action_controller(
 
 
 def test_action_controller_init(
-    mock_notifier_init,
-    mock_leader_controller_init,
     mock_action_controller_config,
 ):
+    def fake_leader_controller_init(
+        self, config_class, tasks, kubeconfig
+    ):
+        self.config = mock_action_controller_config
+
     with patch(
         "ska_ser_namespace_manager.controller.controller.ConfigLoader"
     ) as mock_config_loader, patch(
         "ska_ser_namespace_manager.core.logging.logging.debug"
-    ), patch(
-        "ska_ser_namespace_manager.controller.action_controller.yaml.safe_dump"
-    ) as mock_yaml_dump, patch(
-        "ska_ser_namespace_manager.controller.action_controller.yaml.safe_load"
-    ) as mock_yaml_load, patch.object(
-        LeaderController, "__init__", return_value=None
-    ) as mock_leader_init, patch.object(
-        Notifier, "__init__", return_value=None
-    ) as mock_notifier_init:
+    ), patch.object(
+        LeaderController,
+        "__init__",
+        autospec=True,
+        side_effect=fake_leader_controller_init,
+    ) as mock_leader_init, patch(
+        "ska_ser_namespace_manager.controller.action_controller.Notifier"
+    ) as mock_notifier_class:
 
         mock_config_loader.return_value.load.return_value = (
             mock_action_controller_config
         )
-        mock_yaml_load.return_value = {}
-        mock_yaml_dump.return_value = "config dump"
-
-        action_controller_instance = ActionController.__new__(ActionController)
-        action_controller_instance.config = mock_action_controller_config
-
-        LeaderController.__init__(
-            action_controller_instance,
-            ActionControllerConfig,
-            [
-                action_controller_instance.delete_stale_namespaces,
-                action_controller_instance.delete_failed_namespaces,
-            ],
-            None,
-        )
-        Notifier.__init__(
-            action_controller_instance,
-            action_controller_instance.config.notifier.token,
-        )
-
-        action_controller_instance.forbidden_namespaces = []
-        action_controller_instance.leader_lock = MagicMock()
-        action_controller_instance.shutdown_event = MagicMock()
-        action_controller_instance.shutdown_event.is_set = MagicMock(
-            return_value=False
-        )
+        notifier_instance = mock_notifier_class.return_value
+        action_controller_instance = ActionController()
 
         assert isinstance(action_controller_instance, ActionController)
         assert isinstance(action_controller_instance, LeaderController)
-        assert isinstance(action_controller_instance, Notifier)
         assert (
             action_controller_instance.config == mock_action_controller_config
         )
+        assert action_controller_instance.notifier == notifier_instance
 
-        mock_leader_init.assert_called_once_with(
-            action_controller_instance,
-            ActionControllerConfig,
-            [
-                action_controller_instance.delete_stale_namespaces,
-                action_controller_instance.delete_failed_namespaces,
-            ],
-            None,
-        )
-        mock_notifier_init.assert_called_once_with(
-            action_controller_instance,
+        mock_leader_init.assert_called_once()
+        leader_call_args = mock_leader_init.call_args[0]
+        assert leader_call_args[0] is action_controller_instance
+        assert len(leader_call_args[2]) == 3
+        assert leader_call_args[3] is None
+        mock_notifier_class.assert_called_once_with(
             mock_action_controller_config.notifier.token,
         )
+
+
+def test_notify_user_delegates_to_notifier(action_controller):
+    action_controller.notifier = MagicMock()
+    action_controller.notifier.notify_user.return_value = True
+
+    notified = action_controller.notify_user(
+        address="encoded-address",
+        template="template.j2",
+        status="failing",
+        target_namespace="ci-test",
+    )
+
+    assert notified is True
+    action_controller.notifier.notify_user.assert_called_once_with(
+        address="encoded-address",
+        template="template.j2",
+        status="failing",
+        target_namespace="ci-test",
+    )
 
 
 def test_delete_namespaces_with_status_no_match(action_controller):

@@ -144,6 +144,18 @@ class PrometheusConfig(BaseModel):
                 )
 
 
+class ShardingConfig(BaseModel):
+    """
+    ShardingConfig holds collect-controller sharding settings.
+    """
+
+    enabled: bool = True
+    pod_labels: Dict[str, str] = {}
+    membership_refresh: (
+        Annotated[datetime.timedelta, BeforeValidator(parse_timedelta)] | None
+    ) = datetime.timedelta(seconds=5)
+
+
 class CollectConfig(BaseModel):
     """
     CollectConfig holds the configurations governing collection of
@@ -153,6 +165,7 @@ class CollectConfig(BaseModel):
     namespaces: Optional[List[CollectNamespaceConfig]] = None
     people_api: PeopleAPIConfig = PeopleAPIConfig()
     prometheus: PrometheusConfig = PrometheusConfig()
+    sharding: ShardingConfig = ShardingConfig()
 
     def model_post_init(self, _):
         if self.namespaces is None:

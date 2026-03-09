@@ -59,6 +59,11 @@ people_api:
 {{- else }}
   url: http://{{ include "ska-ser-namespace-manager.api.serviceName" . }}.{{ .Release.Namespace }}.svc:{{ .Values.api.service.http.port }}
 {{- end }}
+sharding:
+  pod_labels:
+    app.kubernetes.io/part-of: {{ template "ska-ser-namespace-manager.fullname" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: collect-controller
 {{- end -}}
 
 {{- define "ska-ser-namespace-manager.collect-controller.configPath" -}}

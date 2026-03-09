@@ -69,6 +69,8 @@ class OwnershipCollector(Collector):
                 response.status_code,
             )
             sys.exit(0 if response.status_code == 404 else 1)
+
+            return
         else:
             user = PeopleDatabaseUser(**response.json())
 

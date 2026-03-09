@@ -71,6 +71,12 @@ class Controller(ThreadManager):
         """
         return self.kubernetes_api.get_namespace(namespace)
 
+    def get_namespace_pods_by(self, namespace: str, **kwargs):
+        """
+        Delegate pod filtering to the Kubernetes API service.
+        """
+        return self.kubernetes_api.get_namespace_pods_by(namespace, **kwargs)
+
     def get_namespaces_by(self, **kwargs):
         """
         Delegate namespace filtering to the Kubernetes API service.

@@ -114,10 +114,10 @@ When making code changes, agents should generally follow this sequence:
 
 ### Purpose
 
-- This service manages Kubernetes namespaces used by CI/CD workloads. It applies lifecycle policies, tracks namespace health, creates per-namespace collection jobs, and deletes stale or failed namespaces.
+- This service manages Kubernetes namespaces used by CI/CD workloads. It applies lifecycle policies, tracks namespace health with sharded collect-controller replicas, and deletes stale or failed namespaces through the leader action controller.
 - There are three runtime surfaces:
   - `src/api.py`: FastAPI service for health, metrics, and People API-backed ownership lookups.
-  - `src/collect_controller.py` plus `src/collector.py`: leader-elected controller plus per-namespace Jobs/CronJobs that collect ownership and health data.
+  - `src/collect_controller.py`: multi-replica sharded controller that collects ownership and health data in-process.
   - `src/action_controller.py`: leader-elected controller that deletes stale/failed namespaces and sends Slack notifications for `failing`, `unstable`, and delete events.
 - The repo also ships the Helm chart under `charts/ska-ser-namespace-manager` and expects the application to run in Kubernetes. Prefer preserving deployment behavior and config shape unless asked otherwise.
 
@@ -127,7 +127,7 @@ When making code changes, agents should generally follow this sequence:
 - Controllers inherit from `Controller`/`LeaderController`, which combine Kubernetes access, thread management, config loading, and optional file-lock leader election. Preserve that layering when adding behavior.
 - Namespace selection is matcher-driven. `NamespaceMatcher` supports `names`, `any`, and `all`, with precedence `all > any > names`. Reuse `match_namespace()` instead of adding ad hoc matching logic.
 - Namespace lifecycle state is annotation-driven. The annotation keys in `core/types.py` are part of the operational contract with collectors, controllers, templates, and chart manifests. Do not rename them casually.
-- Collection and action behavior is rendered from Jinja templates in `src/ska_ser_namespace_manager/resources/templates/`. When changing Kubernetes Job/CronJob manifests or Slack message content, update the templates rather than hardcoding strings in controllers.
+- Notification behavior is rendered from Jinja templates in `src/ska_ser_namespace_manager/resources/templates/`. When changing Slack message content, update the templates rather than hardcoding strings in controllers.
 - Config is loaded through typed Pydantic models via `ConfigLoader`. Keep new config in typed models and preserve compatibility with the YAML structure consumed by the Helm chart values and rendered secrets/config maps.
 
 ### Local conventions
