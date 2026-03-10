@@ -23,6 +23,7 @@ Given these constraints, we opted for the following design:
 * Controllers: Python-based services with leader-election where singleton behavior is required
 * Collection: In-process work executed by sharded collect-controller replicas
 * Actions: In-process work executed by the leader action-controller replica
+* Metrics: Namespace status is exposed by the API, while collect-controller task-failure metrics are exposed locally by each replica and republished by the leader collect-controller
 
 .. image:: ../_static/images/namespace_manager.png
   :width: 600

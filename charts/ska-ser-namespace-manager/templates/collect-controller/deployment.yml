@@ -87,6 +87,10 @@ spec:
           resources:
             {{- tpl (toYaml .) $ | nindent 12 }}
           {{- end }}
+          ports:
+            - containerPort: {{ $appConfig.metrics.port }}
+              name: metrics
+              protocol: TCP
           {{- with .Values.collectController.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}

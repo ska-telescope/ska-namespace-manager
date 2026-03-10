@@ -63,9 +63,10 @@ With the integration of Prometheus alerts, namespace statuses are now determined
 **Enhanced Annotations Management:**
 * A detailed JSON annotation (FAILED_RESOURCES) is added to namespaces, containing every alert and the affected resources.
 
-**Annotation-Derived Metrics:**
-* Metrics are built by the API directly from namespace annotations and labels.
-* The metrics endpoint uses a short in-memory cache to reduce repeated Kubernetes API reads during Prometheus scrapes.
+**Metrics Surfaces:**
+* Namespace status metrics are still built by the API from namespace annotations and labels.
+* Collect-controller replicas now expose local task-failure metrics, and the leader collect-controller republishes the merged metrics view for stable scraping.
+* Failed collect task executions are exported as `namespace_manager_failed_jobs_total`, labeled by replica, namespace, and task name.
 
 ## Capabilities
 

@@ -198,6 +198,11 @@ collectController:
       enabled: true
       pod_labels: {}
       membership_refresh: 5s
+    metrics:
+      enabled: true
+      host: 0.0.0.0
+      port: 8081
+      scrape_timeout_seconds: 5
 
   image:
     repository:
@@ -283,6 +288,12 @@ collectController:
   securityContext: {}
 
   extraArgs: []
+
+  service:
+    metrics:
+      enabled: true
+      port: 8081
+      type: ClusterIP
 
   extraEnvVars: []
 

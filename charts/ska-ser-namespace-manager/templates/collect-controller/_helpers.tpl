@@ -24,6 +24,10 @@
 {{- printf "%s-collect-ctl-sa" (include "ska-ser-namespace-manager.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{- define "ska-ser-namespace-manager.collect-controller.serviceName" -}}
+{{- printf "%s-collect-ctl" (include "ska-ser-namespace-manager.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
 {{- define "ska-ser-namespace-manager.collect-controller.clusterWidePrefix" -}}
 {{- printf "%s-%s-collect-ctl" (include "ska-ser-namespace-manager.fullname" .) (.Release.Namespace | sha256sum | substr 0 4) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}

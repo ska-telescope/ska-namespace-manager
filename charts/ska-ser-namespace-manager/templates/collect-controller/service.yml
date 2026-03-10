@@ -1,0 +1,18 @@
+{{- if .Values.collectController.service.metrics.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ska-ser-namespace-manager.collect-controller.serviceName" . }}
+  namespace: {{ include "ska-ser-namespace-manager.namespace" . }}
+  labels:
+    {{- include "ska-ser-namespace-manager.collect-controller.labels" . | nindent 4 }}
+spec:
+  ports:
+    - port: {{ .Values.collectController.service.metrics.port }}
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
+  selector:
+    {{- include "ska-ser-namespace-manager.collect-controller.matchLabels" . | nindent 4 }}
+  type: {{ .Values.collectController.service.metrics.type }}
+{{- end }}

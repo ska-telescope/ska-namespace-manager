@@ -294,3 +294,60 @@ def test_collect_namespace_ownership_records_failed_job_metric(
 
     payload = collect_controller.get_local_metrics_payload().decode("utf-8")
     assert 'namespace_manager_failed_jobs_total{job="get-owner-info",namespace="ci-test",replica="collect-a"} 1.0' in payload
+
+
+def test_get_aggregated_metrics_payload_merges_replica_payloads(
+    collect_controller,
+):
+    remote_pod = MagicMock()
+    remote_pod.metadata.name = "collect-b"
+    remote_pod.status.pod_ip = "10.0.0.2"
+    collect_controller.get_replica_id = MagicMock(return_value="collect-a")
+    collect_controller.get_active_collect_replica_pods = MagicMock(
+        return_value=[remote_pod]
+    )
+    collect_controller.collect_metrics.record_failed_job(
+        "ci-a",
+        "check-namespace",
+    )
+    remote_metrics = CollectMetrics("collect-b")
+    remote_metrics.record_failed_job("ci-b", "get-owner-info")
+    collect_controller._scrape_metrics = MagicMock(
+        return_value=remote_metrics.get_metrics_payload()
+    )
+
+    payload = collect_controller.get_aggregated_metrics_payload().decode(
+        "utf-8"
+    )
+
+    assert 'namespace_manager_failed_jobs_total{job="check-namespace",namespace="ci-a",replica="collect-a"} 1.0' in payload
+    assert 'namespace_manager_failed_jobs_total{job="get-owner-info",namespace="ci-b",replica="collect-b"} 1.0' in payload
+
+
+def test_get_public_metrics_payload_proxies_to_leader(collect_controller):
+    collect_controller.is_leader = MagicMock(return_value=False)
+    collect_controller._find_leader_host = MagicMock(return_value="10.0.0.5")
+    collect_controller._scrape_metrics = MagicMock(
+        return_value=b"leader-metrics"
+    )
+
+    assert collect_controller.get_public_metrics_payload() == b"leader-metrics"
+    collect_controller._scrape_metrics.assert_called_once_with(
+        "10.0.0.5",
+        "/metrics",
+    )
+
+
+def test_get_public_metrics_payload_falls_back_to_local_aggregate(
+    collect_controller,
+):
+    collect_controller.is_leader = MagicMock(return_value=False)
+    collect_controller._find_leader_host = MagicMock(return_value=None)
+    collect_controller.get_aggregated_metrics_payload = MagicMock(
+        return_value=b"aggregated-metrics"
+    )
+
+    assert (
+        collect_controller.get_public_metrics_payload()
+        == b"aggregated-metrics"
+    )

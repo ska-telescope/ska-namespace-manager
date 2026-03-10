@@ -7,9 +7,12 @@ resources
 import datetime
 import os
 import traceback
+from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Optional
 
 import requests
+from prometheus_client import CONTENT_TYPE_LATEST
 
 from ska_ser_namespace_manager.controller.collect_controller_config import (
     CollectControllerConfig,
@@ -27,6 +30,7 @@ from ska_ser_namespace_manager.controller.leader_controller import (
 from ska_ser_namespace_manager.controller.sharding import (
     NamespaceShardAssigner,
     get_ready_pod_names,
+    is_pod_ready,
 )
 from ska_ser_namespace_manager.collector.ownership_collector import (
     OwnershipCollector,
@@ -73,6 +77,8 @@ class CollectController(LeaderController):
                 self.collect_namespace_ownership,
             ]
         )
+        if self.config.metrics.enabled:
+            self.add_tasks([self.serve_metrics])
 
     def get_replica_id(self) -> str:
         """
@@ -96,6 +102,19 @@ class CollectController(LeaderController):
         )
         return get_ready_pod_names(pods)
 
+    def get_active_collect_replica_pods(self) -> list:
+        """
+        Return the ready collect-controller pods for sharding and metrics.
+        """
+        return [
+            pod
+            for pod in self.get_namespace_pods_by(
+                self.config.context.namespace,
+                labels=self.config.sharding.pod_labels,
+            )
+            if is_pod_ready(pod)
+        ]
+
     def owns_namespace(self, namespace: str) -> bool:
         """
         Return whether this replica owns the namespace shard.
@@ -116,6 +135,173 @@ class CollectController(LeaderController):
             replica_id,
             active_replicas,
         )
+
+    def _build_replica_metrics_url(self, host: str, path: str) -> str:
+        """
+        Build a collect-controller metrics URL for a pod IP or host.
+        """
+        return f"http://{host}:{self.config.metrics.port}{path}"
+
+    def _scrape_metrics(self, host: str, path: str) -> bytes | None:
+        """
+        Fetch a metrics-related payload from another collect-controller
+        replica.
+        """
+        try:
+            response = requests.get(
+                self._build_replica_metrics_url(host, path),
+                timeout=self.config.metrics.scrape_timeout_seconds,
+            )
+            response.raise_for_status()
+            return response.content
+        except requests.exceptions.RequestException as exc:
+            logging.debug(
+                "Error scraping collect-controller metrics from '%s%s': %s",
+                host,
+                path,
+                exc,
+            )
+            return None
+
+    def get_aggregated_metrics_payload(self) -> bytes:
+        """
+        Return the merged metrics payload for all ready collect-controller
+        replicas.
+        """
+        payloads = [self.get_local_metrics_payload()]
+        current_replica = self.get_replica_id()
+
+        for pod in self.get_active_collect_replica_pods():
+            if (
+                pod.metadata is None
+                or pod.metadata.name is None
+                or pod.status is None
+                or pod.status.pod_ip is None
+                or pod.metadata.name == current_replica
+            ):
+                continue
+
+            payload = self._scrape_metrics(
+                pod.status.pod_ip,
+                "/internal/metrics",
+            )
+            if payload is not None:
+                payloads.append(payload)
+
+        return CollectMetrics.merge_payloads(payloads)
+
+    def _find_leader_host(self) -> str | None:
+        """
+        Return the pod IP of the current collect-controller leader.
+        """
+        current_replica = self.get_replica_id()
+        for pod in self.get_active_collect_replica_pods():
+            if (
+                pod.metadata is None
+                or pod.metadata.name is None
+                or pod.status is None
+                or pod.status.pod_ip is None
+                or pod.metadata.name == current_replica
+            ):
+                continue
+
+            try:
+                response = requests.get(
+                    self._build_replica_metrics_url(
+                        pod.status.pod_ip,
+                        "/internal/leader",
+                    ),
+                    timeout=self.config.metrics.scrape_timeout_seconds,
+                )
+                if response.status_code == HTTPStatus.OK:
+                    return pod.status.pod_ip
+            except requests.exceptions.RequestException as exc:
+                logging.debug(
+                    "Error checking collect-controller leader at '%s': %s",
+                    pod.status.pod_ip,
+                    exc,
+                )
+
+        return None
+
+    def get_public_metrics_payload(self) -> bytes:
+        """
+        Return the public metrics payload. Leaders aggregate directly;
+        non-leaders proxy to the leader when possible.
+        """
+        if self.is_leader():
+            return self.get_aggregated_metrics_payload()
+
+        leader_host = self._find_leader_host()
+        if leader_host is not None:
+            payload = self._scrape_metrics(leader_host, "/metrics")
+            if payload is not None:
+                return payload
+
+        return self.get_aggregated_metrics_payload()
+
+    def serve_metrics(self) -> None:
+        """
+        Serve collect-controller local and aggregated metrics over HTTP.
+        """
+        controller = self
+
+        class CollectMetricsHandler(BaseHTTPRequestHandler):
+            """
+            Handle collect-controller metrics requests.
+            """
+
+            def do_GET(self):  # pylint: disable=invalid-name
+                path = self.path.split("?", maxsplit=1)[0]
+                if path == "/internal/metrics":
+                    payload = controller.get_local_metrics_payload()
+                    self.send_response(HTTPStatus.OK)
+                    self.send_header("Content-Type", CONTENT_TYPE_LATEST)
+                    self.end_headers()
+                    self.wfile.write(payload)
+                    return
+
+                if path == "/internal/leader":
+                    status = (
+                        HTTPStatus.OK
+                        if controller.is_leader()
+                        else HTTPStatus.SERVICE_UNAVAILABLE
+                    )
+                    self.send_response(status)
+                    self.send_header("Content-Type", "text/plain")
+                    self.end_headers()
+                    self.wfile.write(b"leader")
+                    return
+
+                if path == "/metrics":
+                    payload = controller.get_public_metrics_payload()
+                    self.send_response(HTTPStatus.OK)
+                    self.send_header("Content-Type", CONTENT_TYPE_LATEST)
+                    self.end_headers()
+                    self.wfile.write(payload)
+                    return
+
+                self.send_response(HTTPStatus.NOT_FOUND)
+                self.end_headers()
+
+            def log_message(self, format, *args) -> None:  # noqa: A003
+                return
+
+        server = ThreadingHTTPServer(
+            (self.config.metrics.host, self.config.metrics.port),
+            CollectMetricsHandler,
+        )
+        server.timeout = 1
+        logging.info(
+            "Serving collect-controller metrics on '%s:%d'",
+            self.config.metrics.host,
+            self.config.metrics.port,
+        )
+        try:
+            while not self.shutdown_event.is_set():
+                server.handle_request()
+        finally:
+            server.server_close()
 
     @controller_task(period=datetime.timedelta(seconds=1))
     def check_new_namespaces(self) -> None:
