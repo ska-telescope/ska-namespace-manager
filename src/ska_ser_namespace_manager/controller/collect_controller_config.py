@@ -155,6 +155,17 @@ class ShardingConfig(BaseModel):
     ) = datetime.timedelta(seconds=5)
 
 
+class CollectMetricsConfig(BaseModel):
+    """
+    CollectMetricsConfig holds collect-controller metrics settings.
+    """
+
+    enabled: bool = True
+    host: str = "0.0.0.0"
+    port: int = 8081
+    scrape_timeout_seconds: int = 5
+
+
 class CollectConfig(BaseModel):
     """
     CollectConfig holds the configurations governing collection of
@@ -165,6 +176,7 @@ class CollectConfig(BaseModel):
     people_api: PeopleAPIConfig = PeopleAPIConfig()
     prometheus: PrometheusConfig = PrometheusConfig()
     sharding: ShardingConfig = ShardingConfig()
+    metrics: CollectMetricsConfig = CollectMetricsConfig()
 
     def model_post_init(self, _):
         if self.namespaces is None:

@@ -9,6 +9,7 @@ from ska_ser_namespace_manager.controller.collect_controller import (
 from ska_ser_namespace_manager.controller.collect_controller_config import (
     CollectControllerConfig,
 )
+from ska_ser_namespace_manager.controller.collect_metrics import CollectMetrics
 from ska_ser_namespace_manager.controller.leader_controller import (
     LeaderController,
 )
@@ -46,6 +47,11 @@ def mock_collect_controller_config():
         mock_config_instance.sharding.pod_labels = {
             "app.kubernetes.io/component": "collect-controller"
         }
+        mock_config_instance.metrics = MagicMock()
+        mock_config_instance.metrics.enabled = True
+        mock_config_instance.metrics.host = "0.0.0.0"
+        mock_config_instance.metrics.port = 8081
+        mock_config_instance.metrics.scrape_timeout_seconds = 5
         yield mock_config_instance
 
 
@@ -73,6 +79,9 @@ def collect_controller(
 
         collect_controller_instance.config = mock_collect_controller_config
         collect_controller_instance.forbidden_namespaces = []
+        collect_controller_instance.collect_metrics = CollectMetrics(
+            "collect-a"
+        )
         collect_controller_instance.leader_lock = MagicMock()
         collect_controller_instance.shutdown_event = MagicMock()
         collect_controller_instance.shutdown_event.is_set = MagicMock(
@@ -238,3 +247,50 @@ def test_collect_namespace_ownership(collect_controller):
         ANY,
     )
     ownership_collector.get_owner_info.assert_called_once_with()
+
+
+def test_collect_namespace_health_records_failed_job_metric(
+    collect_controller,
+):
+    mock_namespace = MagicMock()
+    mock_namespace.metadata.name = "ci-test"
+    collect_controller.get_namespaces_by = MagicMock(
+        return_value=[mock_namespace]
+    )
+    collect_controller.owns_namespace = MagicMock(return_value=True)
+    collect_controller._fetch_prometheus_alerts_snapshot = MagicMock(
+        return_value=[]
+    )
+
+    with patch(
+        "ska_ser_namespace_manager.controller.collect_controller.NamespaceCollector",
+    ) as mock_namespace_collector:
+        mock_namespace_collector.return_value.check_namespace.side_effect = (
+            RuntimeError("boom")
+        )
+        collect_controller.collect_namespace_health()
+
+    payload = collect_controller.get_local_metrics_payload().decode("utf-8")
+    assert 'namespace_manager_failed_jobs_total{job="check-namespace",namespace="ci-test",replica="collect-a"} 1.0' in payload
+
+
+def test_collect_namespace_ownership_records_failed_job_metric(
+    collect_controller,
+):
+    mock_namespace = MagicMock()
+    mock_namespace.metadata.name = "ci-test"
+    collect_controller.get_namespaces_by = MagicMock(
+        return_value=[mock_namespace]
+    )
+    collect_controller.owns_namespace = MagicMock(return_value=True)
+
+    with patch(
+        "ska_ser_namespace_manager.controller.collect_controller.OwnershipCollector",
+    ) as mock_ownership_collector:
+        mock_ownership_collector.return_value.get_owner_info.side_effect = (
+            RuntimeError("boom")
+        )
+        collect_controller.collect_namespace_ownership()
+
+    payload = collect_controller.get_local_metrics_payload().decode("utf-8")
+    assert 'namespace_manager_failed_jobs_total{job="get-owner-info",namespace="ci-test",replica="collect-a"} 1.0' in payload

@@ -14,6 +14,9 @@ import requests
 from ska_ser_namespace_manager.controller.collect_controller_config import (
     CollectControllerConfig,
 )
+from ska_ser_namespace_manager.controller.collect_metrics import (
+    CollectMetrics,
+)
 from ska_ser_namespace_manager.controller.controller import (
     conditional_controller_task,
     controller_task,
@@ -58,6 +61,7 @@ class CollectController(LeaderController):
         )
 
         self.config: CollectControllerConfig
+        self.collect_metrics = CollectMetrics(self.get_replica_id())
         logging.debug(
             "CollectController initialized for namespace '%s' with %d namespace rules",
             self.config.context.namespace,
@@ -75,6 +79,12 @@ class CollectController(LeaderController):
         Return the current collect-controller replica identity.
         """
         return os.environ.get("HOSTNAME", "")
+
+    def get_local_metrics_payload(self) -> bytes:
+        """
+        Return the local collect-controller metrics payload.
+        """
+        return self.collect_metrics.get_metrics_payload()
 
     def get_active_collect_replicas(self) -> list[str]:
         """
@@ -218,6 +228,10 @@ class CollectController(LeaderController):
                     alerts=alerts_by_namespace.get(namespace.metadata.name)
                 )
             except Exception as exc:  # pylint: disable=broad-exception-caught
+                self.collect_metrics.record_failed_job(
+                    namespace.metadata.name,
+                    "check-namespace",
+                )
                 logging.error(
                     "Error while collecting namespace health for '%s': %s\n%s",
                     namespace.metadata.name,
@@ -248,6 +262,10 @@ class CollectController(LeaderController):
                     CollectorConfig,
                 ).get_owner_info()
             except Exception as exc:  # pylint: disable=broad-exception-caught
+                self.collect_metrics.record_failed_job(
+                    namespace.metadata.name,
+                    "get-owner-info",
+                )
                 logging.error(
                     "Error while collecting owner information for '%s': %s\n%s",
                     namespace.metadata.name,
