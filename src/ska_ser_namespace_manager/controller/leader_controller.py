@@ -60,9 +60,13 @@ class LeaderController(Controller):
         if self.leader_lock is not None:
             self.leader_lock.acquire_lease()
 
-    def cleanup(self) -> None:
-        super().cleanup()
-        if self.leader_lock:
+    def cleanup(self, terminate: bool = True) -> None:
+        """
+        Cleanup controller resources and release leadership on shutdown.
+        """
+        super().cleanup(terminate=terminate)
+
+        if terminate and self.leader_lock:
             self.leader_lock.release()
 
     def is_leader(self):

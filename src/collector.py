@@ -1,6 +1,6 @@
 """
 collector is an entry point to run collection tasks to gather
-information on namespaces and labels them according to its state.
+information on namespaces and label them according to their state.
 """
 
 import argparse
@@ -66,7 +66,4 @@ if __name__ == "__main__":
     logging.info("Running '%s' for namespace '%s'", action, namespace)
 
     collector_class: NamespaceCollector = ACTIONS[action]
-    namespace_collector = collector_class(
-        namespace, CollectorConfig, kubeconfig
-    )
-    collector_class.get_actions()[action](namespace_collector)
+    collector_class.run_action(action, namespace, CollectorConfig, kubeconfig)

@@ -34,11 +34,11 @@ class CollectActions(str, Enum):
 class CollectTaskConfig(BaseModel):
     """
     CollectTaskConfig holds the configurations for the collect controller
-    tasks. Properties below are the ones we can set for cronjobs or jobs in
-    the Kubernetes API
+    tasks. The schedule uses interval syntax for in-process namespace checks,
+    while the remaining properties are used for Kubernetes Jobs.
     """
 
-    schedule: Optional[str] = "*/1 * * * *"
+    schedule: Optional[str] = "60s"
     successful_jobs_history_limit: Optional[int] = 1
     failed_jobs_history_limit: Optional[int] = None
     concurrency_policy: Optional[str] = "Forbid"

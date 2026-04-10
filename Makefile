@@ -31,7 +31,7 @@ PYTHON_SWITCHES_FOR_PYLINT = \
 	--disable "fixme,duplicate-code,arguments-differ" \
 	--min-public-methods 0 \
 	--max-attributes 10 \
-        --max-positional-arguments 8 \
+	--max-positional-arguments 8 \
 	--max-args 8
 PYTHON_TEST_FILE = ./tests/unit
 PYTHON_VARS_AFTER_PYTEST = --disable-warnings

@@ -26,6 +26,7 @@ class KubernetesAPI:
 
         :return: None
         """
+        self.kubeconfig = kubeconfig
         self.load_kubeconfig(kubeconfig)
         self.v1 = client.CoreV1Api()
         self.apps_v1 = client.AppsV1Api()

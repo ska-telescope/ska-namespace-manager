@@ -1,5 +1,11 @@
-from datetime import timedelta
-from unittest.mock import ANY, MagicMock, patch
+"""
+Tests for collect controller orchestration and sharding behavior.
+"""
+
+import hashlib
+import threading
+from datetime import datetime, timedelta, timezone
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -17,8 +23,22 @@ from ska_ser_namespace_manager.core.namespace import Namespace
 from ska_ser_namespace_manager.core.types import NamespaceAnnotations
 
 
-@pytest.fixture
-def mock_leader_controller_init():
+def _make_pod(name: str, service_account_name: str, deleting=False):
+    """Build a pod-like mock for replica discovery tests."""
+    pod = MagicMock()
+    pod.metadata = MagicMock()
+    pod.metadata.name = name
+    pod.metadata.deletion_timestamp = (
+        datetime.now(timezone.utc) if deleting else None
+    )
+    pod.spec = MagicMock()
+    pod.spec.service_account_name = service_account_name
+    return pod
+
+
+@pytest.fixture(name="mock_leader_controller_init", autouse=True)
+def mock_leader_controller_init_fixture():
+    """Patch the leader controller init for isolated controller tests."""
     with patch.object(
         LeaderController,
         "__init__",
@@ -27,8 +47,9 @@ def mock_leader_controller_init():
         yield
 
 
-@pytest.fixture
-def mock_collect_controller_config():
+@pytest.fixture(name="mock_collect_controller_config")
+def mock_collect_controller_config_fixture():
+    """Build a collect-controller config fixture for unit tests."""
     with patch(
         "ska_ser_namespace_manager.controller.collect_controller.CollectControllerConfig",  # pylint: disable=line-too-long # noqa: E501
         autospec=True,
@@ -36,6 +57,7 @@ def mock_collect_controller_config():
         mock_config_instance = mock_config_class.return_value
         mock_config_instance.context = MagicMock()
         mock_config_instance.context.namespace = "default-namespace"
+        mock_config_instance.context.service_account = "collect-ctl-sa"
         mock_config_instance.leader_election = MagicMock()
         mock_config_instance.leader_election.enabled = True
         mock_config_instance.leader_election.lock_path = "/mock/lock/path"
@@ -46,10 +68,9 @@ def mock_collect_controller_config():
         yield mock_config_instance
 
 
-@pytest.fixture
-def collect_controller(
-    mock_leader_controller_init, mock_collect_controller_config
-):
+@pytest.fixture(name="collect_controller")
+def collect_controller_fixture(mock_collect_controller_config):
+    """Build a partially initialized collect controller for unit tests."""
     with patch(
         "ska_ser_namespace_manager.controller.controller.ConfigLoader"
     ) as mock_config_loader:
@@ -75,68 +96,20 @@ def collect_controller(
         collect_controller_instance.shutdown_event.is_set = MagicMock(
             return_value=False
         )
-        collect_controller_instance.namespace_cronjobs = [
-            CollectActions.CHECK_NAMESPACE
-        ]
         collect_controller_instance.namespace_jobs = [
             CollectActions.GET_OWNER_INFO
         ]
+        collect_controller_instance.current_pod_name = "collect-1"
+        collect_controller_instance.namespace_check_threads = {}
+        collect_controller_instance.kubeconfig = None
+        collect_controller_instance.threads = {}
+        collect_controller_instance.task_stop_events = {}
+        collect_controller_instance.is_running = False
         yield collect_controller_instance
 
 
-def test_collect_controller_init(
-    mock_leader_controller_init, mock_collect_controller_config
-):
-    with patch(
-        "ska_ser_namespace_manager.controller.controller.ConfigLoader"
-    ) as mock_config_loader, patch(
-        "ska_ser_namespace_manager.controller.collect_controller.yaml.safe_dump"  # pylint: disable=line-too-long # noqa: E501
-    ) as mock_yaml_dump, patch(
-        "ska_ser_namespace_manager.controller.collect_controller.yaml.safe_load"  # pylint: disable=line-too-long # noqa: E501
-    ) as mock_yaml_load, patch.object(
-        LeaderController, "__init__", return_value=None
-    ) as mock_leader_init:
-
-        mock_config_loader.return_value.load.return_value = (
-            mock_collect_controller_config
-        )
-        mock_yaml_load.return_value = {}
-        mock_yaml_dump.return_value = "config dump"
-
-        collect_controller_instance = CollectController.__new__(
-            CollectController
-        )
-        collect_controller_instance.config = mock_collect_controller_config
-
-        LeaderController.__init__(
-            collect_controller_instance,
-            CollectControllerConfig,
-            [collect_controller_instance.check_new_namespaces],
-            None,
-        )
-
-        collect_controller_instance.namespace_cronjobs = [
-            CollectActions.CHECK_NAMESPACE
-        ]
-        collect_controller_instance.namespace_jobs = [
-            CollectActions.GET_OWNER_INFO
-        ]
-
-        assert isinstance(collect_controller_instance, CollectController)
-        assert isinstance(collect_controller_instance, LeaderController)
-        assert (
-            collect_controller_instance.config
-            == mock_collect_controller_config
-        )
-        mock_leader_init.assert_called_once_with(
-            collect_controller_instance,
-            CollectControllerConfig,
-            [collect_controller_instance.check_new_namespaces],
-            None,
-        )
-
-
 def test_check_new_namespaces(collect_controller):
+    """New namespaces should create owner jobs and become managed."""
     mock_namespace = MagicMock()
     mock_namespace.metadata.name = "test-namespace"
     mock_namespace.metadata.annotations = {}
@@ -151,7 +124,6 @@ def test_check_new_namespaces(collect_controller):
             annotations={},
         )
     )
-    collect_controller.create_collect_cronjob = MagicMock()
     collect_controller.create_collect_job = MagicMock()
     collect_controller.patch_namespace = MagicMock()
 
@@ -161,9 +133,6 @@ def test_check_new_namespaces(collect_controller):
     ):
         collect_controller.check_new_namespaces()
 
-    collect_controller.create_collect_cronjob.assert_called_once_with(
-        CollectActions.CHECK_NAMESPACE, "test-namespace", True
-    )
     collect_controller.create_collect_job.assert_called_once_with(
         CollectActions.GET_OWNER_INFO, "test-namespace", True
     )
@@ -177,111 +146,295 @@ def test_check_new_namespaces(collect_controller):
     )
 
 
-def test_create_collect_cronjob(collect_controller):
-    collect_controller.template_factory = MagicMock()
-    collect_controller.template_factory.render = MagicMock(
-        return_value="manifest"
-    )
-    collect_controller.get_cronjobs_by = MagicMock(return_value=[])
-    collect_controller.batch_v1 = MagicMock()
-
-    collect_controller.config.prometheus = MagicMock()
-
-    with patch.object(collect_controller.config.prometheus, "enabled", False):
-        collect_controller.create_collect_cronjob(
-            CollectActions.CHECK_NAMESPACE, "test-namespace", MagicMock()
-        )
-
-    collect_controller.template_factory.render.assert_called_once()
-    collect_controller.batch_v1.create_namespaced_cron_job.assert_called_once_with(  # pylint: disable=line-too-long # noqa: E501
-        collect_controller.config.context.namespace,
-        "manifest",
-        _request_timeout=10,
-    )
-
-
-def test_create_collect_cronjob_existing(collect_controller):
-    mock_cronjob = MagicMock()
-    mock_cronjob.metadata.name = "test"
-    collect_controller.template_factory = MagicMock()
-    collect_controller.template_factory.render = MagicMock(
-        return_value="manifest"
-    )
-    collect_controller.get_cronjobs_by = MagicMock(return_value=[mock_cronjob])
-    collect_controller.batch_v1 = MagicMock()
-
-    collect_controller.create_collect_cronjob(
-        CollectActions.CHECK_NAMESPACE, "test-namespace", MagicMock()
-    )
-
-    collect_controller.template_factory.render.assert_called_once()
-    collect_controller.batch_v1.patch_namespaced_cron_job.assert_called_once_with(  # pylint: disable=line-too-long # noqa: E501
-        "test",
-        collect_controller.config.context.namespace,
-        "manifest",
-        _request_timeout=10,
-    )
-
-
-def test_synchronize_cronjobs(collect_controller):
-    collect_controller.get_cronjobs_by = MagicMock(return_value=[])
-    collect_controller.batch_v1 = MagicMock()
-
-    collect_controller.synchronize_cronjobs()
-
-    collect_controller.get_cronjobs_by.assert_called_once()
-    collect_controller.batch_v1.patch_namespaced_cron_job.assert_not_called()
-
-
-def test_synchronize_cronjobs_no_namespace(collect_controller):
-    mock_cronjob = MagicMock()
-    mock_cronjob.metadata.annotations.get.return_value = True
-    collect_controller.get_cronjobs_by = MagicMock(return_value=None)
-    collect_controller.batch_v1 = MagicMock()
-    collect_controller.get_namespace = MagicMock(return_value=None)
-
-    collect_controller.synchronize_cronjobs()
-
-    collect_controller.get_cronjobs_by.assert_called_once()
-    collect_controller.get_namespace.assert_not_called()
-
-
-def test_synchronize_jobs(collect_controller):
-    collect_controller.get_jobs_by = MagicMock(return_value=[])
-    collect_controller.batch_v1 = MagicMock()
-
-    collect_controller.synchronize_jobs()
-
-    collect_controller.get_jobs_by.assert_called_once()
-    collect_controller.batch_v1.patch_namespaced_job.assert_not_called()
-
-
-def test_synchronize_jobs_delete_jobs(collect_controller):
-    mock_job = MagicMock()
-    mock_job.metadata.name = "test-job"
-    mock_job.metadata.annotations.get.return_value = "test-namespace"
-    collect_controller.get_jobs_by = MagicMock(return_value=[mock_job])
-    collect_controller.get_namespace = MagicMock(return_value=None)
-    collect_controller.batch_v1 = MagicMock()
-    mock_pod = MagicMock()
-    mock_pod.metadata.name = "test"
+def test_get_collect_controller_pods(collect_controller):
+    """Replica discovery should only include active collect-controller pods."""
     collect_controller.get_namespace_pods_by = MagicMock(
-        return_value=[mock_pod, mock_pod]
+        return_value=[
+            _make_pod("collect-1", "collect-ctl-sa"),
+            _make_pod("collect-2", "collect-ctl-sa"),
+            _make_pod("other", "other-sa"),
+            _make_pod("terminating", "collect-ctl-sa", deleting=True),
+        ]
     )
-    collect_controller.v1 = MagicMock()
 
-    collect_controller.synchronize_jobs()
+    assert collect_controller.get_collect_controller_pods() == [
+        "collect-1",
+        "collect-2",
+    ]
 
-    collect_controller.get_jobs_by.assert_called_once()
-    collect_controller.batch_v1.delete_namespaced_job.assert_called_once_with(
-        "test-job",
-        "default-namespace",
-        propagation_policy="Background",
-        _request_timeout=10,
+
+def test_get_assigned_managed_namespaces(collect_controller):
+    """Shard assignment should deterministically select this replica share."""
+    namespaces = []
+    for name in ["a", "b", "c", "d"]:
+        namespace = MagicMock()
+        namespace.metadata.name = name
+        namespaces.append(namespace)
+
+    collect_controller.get_collect_controller_pods = MagicMock(
+        return_value=["collect-1", "collect-2"]
     )
+
+    assigned = collect_controller.get_assigned_managed_namespaces(namespaces)
+
+    assert [namespace.metadata.name for namespace in assigned] == [
+        namespace.metadata.name
+        for namespace in namespaces
+        if (
+            int(
+                hashlib.sha256(
+                    namespace.metadata.name.encode("utf-8")
+                ).hexdigest(),
+                16,
+            )
+            % 2
+        )
+        == 0
+    ]
+
+
+def test_get_assigned_managed_namespaces_current_pod_missing(
+    collect_controller,
+):
+    """No namespaces should be assigned if the current pod is unknown."""
+    collect_controller.get_collect_controller_pods = MagicMock(
+        return_value=["collect-2", "collect-3"]
+    )
+
+    assert collect_controller.get_assigned_managed_namespaces([]) == []
+
+
+def test_get_namespace_check_period(collect_controller):
+    """Threaded namespace checks should parse interval schedules."""
+    namespace_config = MagicMock()
+    namespace_config.actions = {
+        CollectActions.CHECK_NAMESPACE: MagicMock(schedule="45s")
+    }
+
+    assert collect_controller.get_namespace_check_period(
+        namespace_config
+    ) == timedelta(seconds=45)
+
+
+def test_get_namespace_check_period_invalid(collect_controller):
+    """Invalid schedules should fall back to the default interval."""
+    namespace_config = MagicMock()
+    namespace_config.actions = {
+        CollectActions.CHECK_NAMESPACE: MagicMock(schedule="invalid")
+    }
+
+    assert collect_controller.get_namespace_check_period(
+        namespace_config
+    ) == timedelta(seconds=60)
+
+
+def test_get_namespace_thread_name(collect_controller):
+    """Namespace thread names should be stable and unique."""
+    assert (
+        collect_controller.get_namespace_thread_name("test-namespace")
+        == "namespace-check-test-namespace"
+    )
+
+
+def test_create_namespace_check_thread(collect_controller):
+    """Newly assigned namespaces should create one managed thread."""
+    collect_controller.add_managed_task = MagicMock()
+    collect_controller.has_task = MagicMock(return_value=False)
+
+    collect_controller.create_namespace_check_thread(
+        "test-namespace", timedelta(seconds=30)
+    )
+
+    collect_controller.add_managed_task.assert_called_once()
+    assert collect_controller.namespace_check_threads == {
+        "test-namespace": "namespace-check-test-namespace"
+    }
+
+
+def test_create_namespace_check_thread_skips_existing(
+    collect_controller,
+):
+    """Existing namespace threads should not be recreated."""
+    collect_controller.add_managed_task = MagicMock()
+    collect_controller.has_task = MagicMock(return_value=True)
+
+    collect_controller.create_namespace_check_thread(
+        "test-namespace", timedelta(seconds=30)
+    )
+
+    collect_controller.add_managed_task.assert_not_called()
+
+
+def test_remove_namespace_check_thread(collect_controller):
+    """Unassigned namespaces should have their threads removed."""
+    collect_controller.namespace_check_threads = {
+        "test-namespace": "namespace-check-test-namespace"
+    }
+    collect_controller.remove_task = MagicMock()
+
+    collect_controller.remove_namespace_check_thread("test-namespace")
+
+    collect_controller.remove_task.assert_called_once_with(
+        "namespace-check-test-namespace"
+    )
+    assert collect_controller.namespace_check_threads == {}
+
+
+def test_remove_namespace_check_thread_missing(collect_controller):
+    """Removing a missing namespace thread should be a no-op."""
+    collect_controller.has_task = MagicMock(return_value=False)
+    collect_controller.remove_task = MagicMock()
+
+    collect_controller.remove_namespace_check_thread("missing")
+
+    collect_controller.remove_task.assert_not_called()
+
+
+def test_check_assigned_namespaces_creates_new_thread(collect_controller):
+    """Assigned namespaces should create one periodic thread each."""
+    namespace = MagicMock()
+    namespace.metadata.name = "test-namespace"
+    namespace.metadata.annotations = {}
+    namespace_config = MagicMock()
+    namespace_config.actions = {
+        CollectActions.CHECK_NAMESPACE: MagicMock(schedule="30s")
+    }
+    collect_controller.get_namespaces_by = MagicMock(return_value=[namespace])
+    collect_controller.get_assigned_managed_namespaces = MagicMock(
+        return_value=[namespace]
+    )
+    collect_controller.to_dto = MagicMock(
+        return_value=Namespace(
+            name="test-namespace",
+            labels={},
+            annotations={},
+        )
+    )
+    collect_controller.create_namespace_check_thread = MagicMock()
+    collect_controller.namespace_check_threads = {}
+
+    with patch(
+        "ska_ser_namespace_manager.controller.collect_controller.match_namespace",  # pylint: disable=line-too-long # noqa: E501
+        return_value=namespace_config,
+    ):
+        collect_controller.check_assigned_namespaces()
+
+    collect_controller.create_namespace_check_thread.assert_called_once_with(
+        "test-namespace", timedelta(seconds=30)
+    )
+
+
+def test_check_assigned_namespaces_reuses_existing_thread(
+    collect_controller,
+):
+    """Reconciliation should not duplicate an existing namespace thread."""
+    namespace = MagicMock()
+    namespace.metadata.name = "test-namespace"
+    namespace.metadata.annotations = {}
+    collect_controller.get_namespaces_by = MagicMock(return_value=[namespace])
+    collect_controller.get_assigned_managed_namespaces = MagicMock(
+        return_value=[namespace]
+    )
+    collect_controller.to_dto = MagicMock(
+        return_value=Namespace(
+            name="test-namespace",
+            labels={},
+            annotations={},
+        )
+    )
+    collect_controller.create_namespace_check_thread = MagicMock()
+    collect_controller.namespace_check_threads = {
+        "test-namespace": "namespace-check-test-namespace"
+    }
+
+    with patch(
+        "ska_ser_namespace_manager.controller.collect_controller.match_namespace",  # pylint: disable=line-too-long # noqa: E501
+        return_value=MagicMock(
+            actions={CollectActions.CHECK_NAMESPACE: MagicMock(schedule="30s")}
+        ),
+    ):
+        collect_controller.check_assigned_namespaces()
+
+    collect_controller.create_namespace_check_thread.assert_called_once()
+
+
+def test_check_assigned_namespaces_removes_unassigned_thread(
+    collect_controller,
+):
+    """Reconciliation should remove threads no longer assigned here."""
+    collect_controller.get_namespaces_by = MagicMock(return_value=[])
+    collect_controller.get_assigned_managed_namespaces = MagicMock(
+        return_value=[]
+    )
+    collect_controller.namespace_check_threads = {
+        "test-namespace": "namespace-check-test-namespace"
+    }
+    collect_controller.remove_namespace_check_thread = MagicMock()
+
+    collect_controller.check_assigned_namespaces()
+
+    collect_controller.remove_namespace_check_thread.assert_called_once_with(
+        "test-namespace"
+    )
+
+
+def test_namespace_thread_stops_when_namespace_missing(
+    collect_controller,
+):
+    """Per-namespace threads should exit when the namespace disappears."""
+    collect_controller.has_task = MagicMock(return_value=False)
+    collect_controller.get_namespace = MagicMock(return_value=None)
+    collect_controller.run_namespace_check = MagicMock()
+    collect_controller.add_managed_task = MagicMock()
+
+    collect_controller.create_namespace_check_thread(
+        "test-namespace", timedelta(milliseconds=1)
+    )
+
+    task = collect_controller.add_managed_task.call_args.args[1]
+    task_args = collect_controller.add_managed_task.call_args.args[2]
+    stop_event = threading.Event()
+    task(stop_event, *task_args)
+
+    collect_controller.run_namespace_check.assert_not_called()
+
+
+def test_namespace_thread_stops_when_namespace_no_longer_matches(
+    collect_controller,
+):
+    """Per-namespace threads should exit when config matching is lost."""
+    namespace = MagicMock()
+    namespace.metadata.name = "test-namespace"
+    collect_controller.has_task = MagicMock(return_value=False)
+    collect_controller.get_namespace = MagicMock(return_value=namespace)
+    collect_controller.to_dto = MagicMock(
+        return_value=Namespace(
+            name="test-namespace",
+            labels={},
+            annotations={},
+        )
+    )
+    collect_controller.run_namespace_check = MagicMock()
+    collect_controller.add_managed_task = MagicMock()
+
+    with patch(
+        "ska_ser_namespace_manager.controller.collect_controller."
+        "match_namespace",
+        return_value=None,
+    ):
+        collect_controller.create_namespace_check_thread(
+            "test-namespace", timedelta(milliseconds=1)
+        )
+        task = collect_controller.add_managed_task.call_args.args[1]
+        task_args = collect_controller.add_managed_task.call_args.args[2]
+        stop_event = threading.Event()
+        task(stop_event, *task_args)
+
+    collect_controller.run_namespace_check.assert_not_called()
 
 
 def test_create_collect_job(collect_controller):
+    """Owner-info jobs should still be created through Kubernetes Jobs."""
     collect_controller.template_factory = MagicMock()
     collect_controller.template_factory.render = MagicMock(
         return_value='{"metadata": {"annotations": {}}}'
@@ -294,166 +447,15 @@ def test_create_collect_job(collect_controller):
     )
 
     collect_controller.template_factory.render.assert_called_once()
-    collect_controller.batch_v1.create_namespaced_job.assert_called_once_with(
-        collect_controller.config.context.namespace,
-        {"metadata": {"annotations": ANY}},
-        _request_timeout=10,
-    )
+    collect_controller.batch_v1.create_namespaced_job.assert_called_once()
 
 
-def test_create_collect_job_existing(collect_controller):
-    mock_job = MagicMock()
-    mock_job.metadata.name = "test"
-    collect_controller.template_factory = MagicMock()
-    collect_controller.template_factory.render = MagicMock(
-        return_value='{"metadata": {"annotations": {}}}'
-    )
-    collect_controller.get_jobs_by = MagicMock(return_value=[mock_job])
+def test_synchronize_jobs(collect_controller):
+    """Existing owner-info job synchronization should remain unchanged."""
+    collect_controller.get_jobs_by = MagicMock(return_value=[])
     collect_controller.batch_v1 = MagicMock()
-    collect_controller.wait_for_job_deletion = MagicMock()
-
-    collect_controller.create_collect_job(
-        CollectActions.CHECK_NAMESPACE, "test-namespace", MagicMock()
-    )
-
-    collect_controller.template_factory.render.assert_called_once()
-    collect_controller.batch_v1.delete_namespaced_job.assert_called_once_with(
-        "test",
-        collect_controller.config.context.namespace,
-        propagation_policy="Background",
-        _request_timeout=10,
-    )
-
-
-def test_delete_cronjob_for_missing_namespace(collect_controller):
-    mock_cronjob = MagicMock()
-    mock_cronjob.metadata.annotations = {
-        NamespaceAnnotations.NAMESPACE: "missing-namespace"
-    }
-
-    collect_controller.get_cronjobs_by = MagicMock(return_value=[mock_cronjob])
-    collect_controller.get_namespace = MagicMock(return_value=None)
-    collect_controller.batch_v1 = MagicMock()
-
-    collect_controller.synchronize_cronjobs()
-
-    collect_controller.batch_v1.delete_namespaced_cron_job.assert_called_once_with(  # pylint: disable=line-too-long # noqa: E501
-        mock_cronjob.metadata.name,
-        collect_controller.config.context.namespace,
-        _request_timeout=10,
-    )
-
-
-def test_delete_job_for_missing_namespace(collect_controller):
-    mock_job = MagicMock()
-    mock_job.metadata.annotations = {
-        NamespaceAnnotations.NAMESPACE: "missing-namespace"
-    }
-
-    collect_controller.get_jobs_by = MagicMock(return_value=[mock_job])
-    collect_controller.get_namespace = MagicMock(return_value=None)
-    collect_controller.batch_v1 = MagicMock()
-    collect_controller.v1 = MagicMock()
 
     collect_controller.synchronize_jobs()
 
-    collect_controller.batch_v1.delete_namespaced_job.assert_called_once_with(
-        mock_job.metadata.name,
-        collect_controller.config.context.namespace,
-        propagation_policy="Background",
-        _request_timeout=10,
-    )
-
-
-def test_patch_cronjob_for_existing_namespace(collect_controller):
-    mock_cronjob = MagicMock()
-    mock_cronjob.metadata.annotations = {
-        NamespaceAnnotations.NAMESPACE: "test-namespace"
-    }
-
-    mock_namespace = MagicMock()
-    collect_controller.get_cronjobs_by = MagicMock(return_value=[mock_cronjob])
-    collect_controller.get_namespace = MagicMock(return_value=mock_namespace)
-    collect_controller.to_dto = MagicMock(
-        return_value=Namespace(
-            name="test-namespace",
-            labels={},
-            annotations={},
-        )
-    )
-    collect_controller.template_factory = MagicMock()
-    collect_controller.template_factory.render = MagicMock(
-        return_value="manifest"
-    )
-    collect_controller.batch_v1 = MagicMock()
-
-    with patch(
-        "ska_ser_namespace_manager.controller.collect_controller.match_namespace",  # pylint: disable=line-too-long # noqa: E501
-        return_value=MagicMock(),
-    ):
-        collect_controller.synchronize_cronjobs()
-
-    collect_controller.batch_v1.patch_namespaced_cron_job.assert_called_once_with(  # pylint: disable=line-too-long # noqa: E501
-        mock_cronjob.metadata.name,
-        collect_controller.config.context.namespace,
-        "manifest",
-        _request_timeout=10,
-    )
-
-
-def test_delete_job_for_existing_namespace(collect_controller):
-    mock_job = MagicMock()
-    mock_job.metadata.annotations = {
-        NamespaceAnnotations.NAMESPACE: "test-namespace"
-    }
-
-    mock_namespace = MagicMock()
-    collect_controller.get_jobs_by = MagicMock(return_value=[mock_job])
-    collect_controller.get_namespace = MagicMock(return_value=mock_namespace)
-    collect_controller.to_dto = MagicMock(
-        return_value=Namespace(
-            name="test-namespace",
-            labels={},
-            annotations={},
-        )
-    )
-    collect_controller.template_factory = MagicMock()
-    collect_controller.template_factory.render = MagicMock(
-        return_value="manifest"
-    )
-    collect_controller.batch_v1 = MagicMock()
-
-    with patch(
-        "ska_ser_namespace_manager.controller.collect_controller.match_namespace",  # pylint: disable=line-too-long # noqa: E501
-        return_value=MagicMock(),
-    ):
-        collect_controller.synchronize_jobs()
-
-    collect_controller.batch_v1.delete_namespaced_job.assert_called_once_with(
-        mock_job.metadata.name,
-        collect_controller.config.context.namespace,
-        propagation_policy="Background",
-        _request_timeout=10,
-    )
-
-
-def test_generate_metrics(collect_controller):
-    mock_namespace = MagicMock()
-    mock_namespace.metadata.name = "test-namespace"
-    mock_namespace.metadata.annotations = {}
-
-    collect_controller.get_namespaces_by = MagicMock(
-        return_value=[mock_namespace]
-    )
-
-    collect_controller.metrics_manager = MagicMock()
-    collect_controller.metrics_manager.delete_stale_metrics = MagicMock()
-    collect_controller.metrics_manager.update_namespace_metrics = MagicMock()
-    collect_controller.metrics_manager.save_metrics = MagicMock()
-
-    collect_controller.generate_metrics()
-
-    collect_controller.metrics_manager.delete_stale_metrics.assert_called_once_with(  # pylint: disable=line-too-long  # noqa: E501
-        [mock_namespace.metadata.name]
-    )
-    collect_controller.metrics_manager.save_metrics.assert_called_once()
+    collect_controller.get_jobs_by.assert_called_once()
+    collect_controller.batch_v1.patch_namespaced_job.assert_not_called()

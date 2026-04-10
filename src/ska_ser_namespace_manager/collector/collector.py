@@ -1,10 +1,10 @@
 """
-collector is a generic implementation to abstract the loading of configurations
-and the bootstrapping of the kubernetes API
+collector is a generic implementation to abstract the loading of
+configurations and the bootstrapping of the kubernetes API
 """
 
 import sys
-from typing import Callable, Dict, Optional, TypeVar
+from typing import Callable, Dict, Optional, Type, TypeVar
 
 import yaml
 
@@ -87,3 +87,28 @@ class Collector(KubernetesAPI):
         :return: Dict of actions for this collector
         """
         return {}
+
+    @classmethod
+    def run_action(
+        cls,
+        action: CollectActions,
+        namespace: str,
+        config_class: Type[T],
+        kubeconfig: Optional[str] = None,
+    ) -> None:
+        """
+        Instantiate the collector and execute a supported action.
+
+        :param action: Action to execute
+        :param namespace: Namespace to process
+        :param config_class: Configuration model to load
+        :param kubeconfig: Kubeconfig to use to access the API
+        """
+        actions = cls.get_actions()
+        if action not in actions:
+            raise ValueError(
+                f"Collector '{cls.__name__}' does not support '{action}'"
+            )
+
+        collector = cls(namespace, config_class, kubeconfig)
+        actions[action](collector)

@@ -6,13 +6,22 @@ resources
 
 import datetime
 import hashlib
+import os
+import threading
 import time
 import traceback
-from typing import Optional
+from typing import List, Optional
 
 import yaml
+from kubernetes.client import V1Namespace
 from kubernetes.client.exceptions import ApiException
 
+from ska_ser_namespace_manager.collector.collector_config import (
+    CollectorConfig,
+)
+from ska_ser_namespace_manager.collector.namespace_collector import (
+    NamespaceCollector,
+)
 from ska_ser_namespace_manager.controller.collect_controller_config import (
     CollectActions,
     CollectControllerConfig,
@@ -31,6 +40,7 @@ from ska_ser_namespace_manager.core.types import (
     NamespaceAnnotations,
     NamespaceStatus,
 )
+from ska_ser_namespace_manager.core.utils import parse_timedelta
 from ska_ser_namespace_manager.metrics.metrics import MetricsManager
 
 
@@ -40,9 +50,9 @@ class CollectController(LeaderController):
     information on managed resources and manage those tasks
     """
 
-    namespace_cronjobs: list[CollectActions]
     namespace_jobs: list[CollectActions]
     metrics_manager: MetricsManager
+    namespace_check_threads: dict[str, str]
 
     def __init__(self, kubeconfig: Optional[str] = None) -> None:
         """
@@ -63,14 +73,17 @@ class CollectController(LeaderController):
         )
         self.add_tasks(
             [
-                self.synchronize_cronjobs,
+                self.check_assigned_namespaces,
                 self.synchronize_jobs,
                 self.generate_metrics,
             ]
         )
 
-        self.namespace_cronjobs = [CollectActions.CHECK_NAMESPACE]
         self.namespace_jobs = [CollectActions.GET_OWNER_INFO]
+        self.current_pod_name = os.environ.get(
+            "HOSTNAME", os.environ.get("POD_NAME", "")
+        )
+        self.namespace_check_threads = {}
 
     def is_metrics_enabled(self) -> bool:
         """
@@ -106,7 +119,10 @@ class CollectController(LeaderController):
             f"Job {job_name} was not deleted within {timeout} seconds."
         )
 
-    @controller_task(period=datetime.timedelta(seconds=1))
+    @conditional_controller_task(
+        period=datetime.timedelta(seconds=1),
+        run_if=LeaderController.is_leader,
+    )
     def check_new_namespaces(self) -> None:
         """
         Check for new namespaces and create collection jobs
@@ -132,11 +148,6 @@ class CollectController(LeaderController):
                     namespace,
                 )
                 try:
-                    for action in self.namespace_cronjobs:
-                        self.create_collect_cronjob(
-                            action, namespace, ns_config
-                        )
-
                     for action in self.namespace_jobs:
                         self.create_collect_job(action, namespace, ns_config)
 
@@ -158,123 +169,255 @@ class CollectController(LeaderController):
                         traceback.format_exc(),
                     )
 
-    def create_collect_cronjob(
+    def get_collect_controller_pods(self) -> list[str]:
+        """
+        Get all active collect-controller pod names in the current namespace.
+        """
+        pods = self.get_namespace_pods_by(
+            namespace=self.config.context.namespace,
+            labels={"app.kubernetes.io/component": "collect-controller"},
+        )
+        pod_names = sorted(
+            {
+                pod.metadata.name
+                for pod in pods
+                if pod.metadata
+                and pod.metadata.name
+                and pod.metadata.deletion_timestamp is None
+                and getattr(pod.spec, "service_account_name", None)
+                == self.config.context.service_account
+            }
+        )
+        if not pod_names:
+            logging.warning(
+                "Failed to discover active collect-controller pods in '%s'",
+                self.config.context.namespace,
+            )
+
+        return pod_names
+
+    def get_assigned_managed_namespaces(
+        self, managed_namespaces: List[V1Namespace]
+    ) -> List[V1Namespace]:
+        """
+        Get the managed namespaces assigned to the current replica.
+        """
+        pod_names = self.get_collect_controller_pods()
+        if not pod_names:
+            logging.warning(
+                "Skipping namespace checks because no collect-controller "
+                "replicas were discovered"
+            )
+            return []
+
+        if not self.current_pod_name:
+            logging.warning(
+                "Skipping namespace checks because current pod name is "
+                "unavailable"
+            )
+            return []
+
+        if len(pod_names) == 1:
+            if pod_names[0] == self.current_pod_name:
+                return sorted(
+                    managed_namespaces, key=lambda item: item.metadata.name
+                )
+
+            logging.warning(
+                "Skipping namespace checks because current pod '%s' was not "
+                "found in the discovered replica set %s",
+                self.current_pod_name,
+                pod_names,
+            )
+            return []
+
+        if self.current_pod_name not in pod_names:
+            logging.warning(
+                "Skipping namespace checks because current pod '%s' was not "
+                "found in the discovered replica set %s",
+                self.current_pod_name,
+                pod_names,
+            )
+            return []
+
+        assigned_namespaces = []
+        for namespace in sorted(
+            managed_namespaces, key=lambda item: item.metadata.name
+        ):
+            hash_index = int(
+                hashlib.sha256(
+                    namespace.metadata.name.encode("utf-8")
+                ).hexdigest(),
+                16,
+            ) % len(pod_names)
+            if pod_names[hash_index] == self.current_pod_name:
+                assigned_namespaces.append(namespace)
+
+        return assigned_namespaces
+
+    def get_namespace_check_period(
+        self, config: CollectNamespaceConfig
+    ) -> datetime.timedelta:
+        """
+        Get the interval used for in-process namespace checks.
+        """
+        schedule = (
+            config.actions.get(CollectActions.CHECK_NAMESPACE).schedule
+            if config.actions
+            else None
+        )
+        if not schedule:
+            return datetime.timedelta(seconds=60)
+
+        try:
+            period = parse_timedelta(schedule)
+        except (TypeError, ValueError) as exc:
+            logging.warning(
+                "Invalid check schedule '%s'. Falling back to 60s: %s",
+                schedule,
+                exc,
+            )
+            return datetime.timedelta(seconds=60)
+
+        if period.total_seconds() <= 0:
+            logging.warning(
+                "Non-positive check schedule '%s'. Falling back to 60s",
+                schedule,
+            )
+            return datetime.timedelta(seconds=60)
+
+        return period
+
+    def run_namespace_check(self, namespace: str) -> None:
+        """
+        Run the namespace health collector in-process for a namespace.
+        """
+        NamespaceCollector.run_action(
+            CollectActions.CHECK_NAMESPACE,
+            namespace,
+            CollectorConfig,
+            self.kubeconfig,
+        )
+
+    def get_namespace_thread_name(self, namespace: str) -> str:
+        """
+        Build a stable thread name for a namespace check.
+        """
+        return f"namespace-check-{namespace}"
+
+    def run_namespace_check_thread(
         self,
-        action: CollectActions,
+        stop_event: threading.Event,
         namespace: str,
-        config: CollectNamespaceConfig,
+        period: datetime.timedelta,
     ) -> None:
         """
-        Create a new CronJob for the given namespace to actively collect
-        namespace information
-
-        :param action: Action to run in the cronjob
-        :param namespace: The namespace to create the CronJob for
-        :param config: Config governing this namespace collection configuration
+        Run a periodic namespace check thread for a namespace.
         """
-        manifest = self.template_factory.render(
-            f"{action}-cronjob.j2",
-            target_namespace=namespace,
-            action=str(action),
-            actions=config.actions,
-            context=self.config.context,
+        logging.info(
+            "Starting namespace check thread '%s' for namespace '%s' with "
+            "period '%ss'",
+            threading.current_thread().name,
+            namespace,
+            period.total_seconds(),
         )
-        existing_cronjobs = self.get_cronjobs_by(
-            namespace=self.config.context.namespace,
-            annotations={
-                NamespaceAnnotations.NAMESPACE: namespace,
-                NamespaceAnnotations.ACTION: action,
-            },
-        )
-        if existing_cronjobs:
-            for job in existing_cronjobs:
-                self.batch_v1.patch_namespaced_cron_job(
-                    job.metadata.name,
-                    self.config.context.namespace,
-                    yaml.safe_load(manifest),
-                    _request_timeout=10,
-                )
+        while not self.shutdown_event.is_set() and not stop_event.is_set():
+            namespace_resource = self.get_namespace(namespace)
+            if namespace_resource is None:
                 logging.info(
-                    "Patched '%s' CronJob for namespace '%s'",
-                    action,
+                    "Stopping namespace thread for '%s' because the "
+                    "namespace no longer exists",
                     namespace,
                 )
-        else:
-            self.batch_v1.create_namespaced_cron_job(
-                self.config.context.namespace,
-                yaml.safe_load(manifest),
-                _request_timeout=10,
+                break
+
+            namespace_config = match_namespace(
+                self.config.namespaces, self.to_dto(namespace_resource)
             )
+            if namespace_config is None:
+                logging.info(
+                    "Stopping namespace thread for '%s' because the "
+                    "namespace no longer matches collector configuration",
+                    namespace,
+                )
+                break
+
             logging.info(
-                "Created '%s' CronJob for namespace '%s'", action, namespace
+                "Running namespace check thread '%s' for namespace '%s'",
+                threading.current_thread().name,
+                namespace,
+            )
+            self.run_namespace_check(namespace)
+            if self.wait_for_task_stop(stop_event, period.total_seconds()):
+                break
+
+    def create_namespace_check_thread(
+        self, namespace: str, period: datetime.timedelta
+    ) -> None:
+        """
+        Create a periodic namespace check thread for a namespace.
+        """
+        thread_name = self.get_namespace_thread_name(namespace)
+        if self.has_task(thread_name):
+            return
+
+        self.add_managed_task(
+            thread_name, self.run_namespace_check_thread, (namespace, period)
+        )
+        self.namespace_check_threads[namespace] = thread_name
+        logging.info("Created namespace thread for '%s'", namespace)
+
+    def remove_namespace_check_thread(self, namespace: str) -> None:
+        """
+        Stop and remove a namespace check thread if it exists.
+        """
+        thread_name = self.namespace_check_threads.pop(namespace, None)
+        if thread_name is None:
+            thread_name = self.get_namespace_thread_name(namespace)
+            if not self.has_task(thread_name):
+                return
+
+        self.remove_task(thread_name)
+        logging.info("Removed namespace thread for '%s'", namespace)
+
+    @controller_task(period=datetime.timedelta(seconds=1))
+    def check_assigned_namespaces(self) -> None:
+        """
+        Reconcile periodic namespace check threads for this replica.
+        """
+        managed_namespaces = [
+            namespace
+            for namespace in self.get_namespaces_by(
+                annotations={NamespaceAnnotations.MANAGED.value: "true"}
+            )
+            if namespace.metadata.name not in self.forbidden_namespaces
+        ]
+        assigned_namespaces = self.get_assigned_managed_namespaces(
+            managed_namespaces
+        )
+        active_namespaces = set()
+
+        for namespace in assigned_namespaces:
+            namespace_name = namespace.metadata.name
+            namespace_config = match_namespace(
+                self.config.namespaces, self.to_dto(namespace)
+            )
+            if namespace_config is None:
+                logging.warning(
+                    "Skipping namespace '%s' because it no longer matches "
+                    "collector configuration",
+                    namespace_name,
+                )
+                continue
+            active_namespaces.add(namespace_name)
+            self.create_namespace_check_thread(
+                namespace_name,
+                self.get_namespace_check_period(namespace_config),
             )
 
-    @conditional_controller_task(
-        period=datetime.timedelta(milliseconds=10000),
-        run_if=LeaderController.is_leader,
-    )
-    def synchronize_cronjobs(self) -> None:
-        """
-        Synchronize created cronjobs by patching or deleting them
-        """
-        for action in self.namespace_cronjobs:
-            cronjobs = self.get_cronjobs_by(
-                namespace=self.config.context.namespace,
-                annotations={
-                    NamespaceAnnotations.ACTION: action,
-                },
-            )
-            for cronjob in cronjobs:
-                try:
-                    namespace = cronjob.metadata.annotations.get(
-                        NamespaceAnnotations.NAMESPACE
-                    )
-                    ns = self.get_namespace(namespace)
-                    if ns is None:
-                        self.batch_v1.delete_namespaced_cron_job(
-                            cronjob.metadata.name,
-                            self.config.context.namespace,
-                            _request_timeout=10,
-                        )
-                        logging.info(
-                            "Deleted '%s' CronJob for namespace '%s'",
-                            action,
-                            namespace,
-                        )
-                        continue
-
-                    ns_config = match_namespace(
-                        self.config.namespaces, self.to_dto(ns)
-                    )
-                    self.batch_v1.patch_namespaced_cron_job(
-                        cronjob.metadata.name,
-                        self.config.context.namespace,
-                        yaml.safe_load(
-                            self.template_factory.render(
-                                f"{action}-cronjob.j2",
-                                target_namespace=namespace,
-                                action=str(action),
-                                actions=ns_config.actions,
-                                context=self.config.context,
-                            )
-                        ),
-                        _request_timeout=10,
-                    )
-                    logging.debug(
-                        "Patched '%s' CronJob for namespace '%s'",
-                        action,
-                        namespace,
-                    )
-                except (  # pylint: disable=broad-exception-caught
-                    Exception
-                ) as exc:
-                    logging.error(
-                        "Error while synchronizing '%s' cronjob for '%s': %s\n%s",  # pylint: disable=line-too-long  # noqa: E501
-                        action,
-                        namespace,
-                        str(exc),
-                        traceback.format_exc(),
-                    )
+        for namespace in list(self.namespace_check_threads):
+            if namespace not in active_namespaces:
+                self.remove_namespace_check_thread(namespace)
 
     def create_collect_job(
         self,

@@ -189,7 +189,7 @@ collectController:
         grace_period: 2m
         tasks:
           check-namespace:
-            schedule: "*/1 * * * *"
+            schedule: "60s"
     people_api:
       url:
       ca:
@@ -206,7 +206,7 @@ collectController:
     pullPolicy:
     tag:
 
-  replicas: 1
+  replicas: 3
 
   pvc:
     leaderElection:
@@ -386,4 +386,3 @@ actionController:
   extraArgs: []
 
   extraEnvVars: []
-
