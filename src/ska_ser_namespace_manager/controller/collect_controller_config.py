@@ -4,6 +4,7 @@ for the collect controller component
 """
 
 import datetime
+import os
 import tempfile
 from enum import Enum
 from typing import Annotated, Dict, List, Optional
@@ -159,10 +160,24 @@ class CollectConfig(BaseModel):
             self.namespaces = []
 
 
+class HeartbeatConfig(BaseModel):
+    """
+    HeartbeatConfig holds configurations for the collect-controller
+    liveness heartbeat file.
+    """
+
+    path: str = "/tmp/collect-controller-heartbeat"
+    max_age_seconds: int = 60
+
+    def model_post_init(self, _):
+        self.path = os.path.abspath(self.path)
+
+
 class CollectControllerConfig(CollectConfig, LeaderControllerConfig):
     """
     CollectControllerConfig provides the configurations for the collect
     controller
     """
 
+    heartbeat: HeartbeatConfig = HeartbeatConfig()
     metrics: Optional[MetricsConfig] = MetricsConfig()

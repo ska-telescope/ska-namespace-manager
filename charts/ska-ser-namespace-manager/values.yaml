@@ -177,6 +177,9 @@ api:
 
 collectController:
   config:
+    heartbeat:
+      path: /tmp/collect-controller-heartbeat
+      max_age_seconds: 60
     leader_election:
       enabled: true
       path: /etc/leader
@@ -241,6 +244,20 @@ collectController:
   startupProbe:
 
   livenessProbe:
+    exec:
+      command:
+        - /bin/sh
+        - -ec
+        - >-
+          heartbeat_path='{{ .Values.collectController.config.heartbeat.path }}';
+          max_age='{{ .Values.collectController.config.heartbeat.max_age_seconds }}';
+          test -f "$heartbeat_path" &&
+          [ $(( $(date +%s) - $(stat -c %Y "$heartbeat_path") )) -lt "$max_age" ]
+    initialDelaySeconds: 15
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 2
+    successThreshold: 1
 
   readinessProbe:
 

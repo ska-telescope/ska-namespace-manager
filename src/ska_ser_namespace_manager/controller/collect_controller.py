@@ -10,6 +10,7 @@ import os
 import threading
 import time
 import traceback
+from pathlib import Path
 from typing import List, Optional
 
 import yaml
@@ -90,6 +91,21 @@ class CollectController(LeaderController):
         Check if metrics are enabled
         """
         return self.config.metrics.enabled
+
+    def update_heartbeat(self) -> None:
+        """
+        Update the local heartbeat file used by the liveness probe.
+        """
+        heartbeat_path = Path(self.config.heartbeat.path)
+        try:
+            heartbeat_path.parent.mkdir(parents=True, exist_ok=True)
+            heartbeat_path.touch()
+        except OSError as exc:
+            logging.error(
+                "Failed to update collect-controller heartbeat at '%s': %s",
+                heartbeat_path,
+                exc,
+            )
 
     def wait_for_job_deletion(self, job_name, namespace, timeout):
         """
@@ -385,6 +401,7 @@ class CollectController(LeaderController):
         """
         Reconcile periodic namespace check threads for this replica.
         """
+        self.update_heartbeat()
         managed_namespaces = [
             namespace
             for namespace in self.get_namespaces_by(

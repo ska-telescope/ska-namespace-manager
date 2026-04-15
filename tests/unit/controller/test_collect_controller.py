@@ -4,7 +4,9 @@ Tests for collect controller orchestration and sharding behavior.
 
 import hashlib
 import threading
+import time
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -63,13 +65,14 @@ def mock_collect_controller_config_fixture():
         mock_config_instance.leader_election.lock_path = "/mock/lock/path"
         mock_config_instance.leader_election.lease_path = "/mock/lease/path"
         mock_config_instance.leader_election.lease_ttl = timedelta(seconds=30)
+        mock_config_instance.heartbeat = MagicMock()
         mock_config_instance.namespaces = []
         mock_config_instance.metrics = MagicMock()
         yield mock_config_instance
 
 
 @pytest.fixture(name="collect_controller")
-def collect_controller_fixture(mock_collect_controller_config):
+def collect_controller_fixture(mock_collect_controller_config, tmp_path):
     """Build a partially initialized collect controller for unit tests."""
     with patch(
         "ska_ser_namespace_manager.controller.controller.ConfigLoader"
@@ -90,6 +93,10 @@ def collect_controller_fixture(mock_collect_controller_config):
         )
 
         collect_controller_instance.config = mock_collect_controller_config
+        collect_controller_instance.config.heartbeat.path = str(
+            tmp_path / "collect-controller-heartbeat"
+        )
+        collect_controller_instance.config.heartbeat.max_age_seconds = 60
         collect_controller_instance.forbidden_namespaces = []
         collect_controller_instance.leader_lock = MagicMock()
         collect_controller_instance.shutdown_event = MagicMock()
@@ -322,6 +329,7 @@ def test_check_assigned_namespaces_creates_new_thread(collect_controller):
     collect_controller.create_namespace_check_thread.assert_called_once_with(
         "test-namespace", timedelta(seconds=30)
     )
+    assert Path(collect_controller.config.heartbeat.path).exists()
 
 
 def test_check_assigned_namespaces_reuses_existing_thread(
@@ -356,6 +364,7 @@ def test_check_assigned_namespaces_reuses_existing_thread(
         collect_controller.check_assigned_namespaces()
 
     collect_controller.create_namespace_check_thread.assert_called_once()
+    assert Path(collect_controller.config.heartbeat.path).exists()
 
 
 def test_check_assigned_namespaces_removes_unassigned_thread(
@@ -375,6 +384,81 @@ def test_check_assigned_namespaces_removes_unassigned_thread(
 
     collect_controller.remove_namespace_check_thread.assert_called_once_with(
         "test-namespace"
+    )
+    assert Path(collect_controller.config.heartbeat.path).exists()
+
+
+def test_check_assigned_namespaces_updates_heartbeat_without_assignments(
+    collect_controller,
+):
+    """Heartbeat should still refresh when nothing is assigned."""
+    collect_controller.get_namespaces_by = MagicMock(return_value=[])
+    collect_controller.get_assigned_managed_namespaces = MagicMock(
+        return_value=[]
+    )
+
+    collect_controller.check_assigned_namespaces()
+
+    assert Path(collect_controller.config.heartbeat.path).exists()
+
+
+def test_check_assigned_namespaces_updates_heartbeat_without_peers(
+    collect_controller,
+):
+    """Heartbeat should still refresh when peer discovery returns none."""
+    collect_controller.get_namespaces_by = MagicMock(return_value=[])
+    collect_controller.get_collect_controller_pods = MagicMock(return_value=[])
+
+    collect_controller.check_assigned_namespaces()
+
+    assert Path(collect_controller.config.heartbeat.path).exists()
+
+
+def test_update_heartbeat_refreshes_mtime(collect_controller):
+    """Heartbeat updates should refresh the file modification time."""
+    heartbeat_path = Path(collect_controller.config.heartbeat.path)
+
+    collect_controller.update_heartbeat()
+    initial_mtime = heartbeat_path.stat().st_mtime_ns
+    time.sleep(0.01)
+    collect_controller.update_heartbeat()
+
+    assert heartbeat_path.stat().st_mtime_ns > initial_mtime
+
+
+def test_check_assigned_namespaces_continues_when_heartbeat_write_fails(
+    collect_controller, caplog
+):
+    """Heartbeat write failures should be logged without stopping work."""
+    namespace = MagicMock()
+    namespace.metadata.name = "test-namespace"
+    namespace.metadata.annotations = {}
+    namespace_config = MagicMock()
+    namespace_config.actions = {
+        CollectActions.CHECK_NAMESPACE: MagicMock(schedule="30s")
+    }
+    collect_controller.get_namespaces_by = MagicMock(return_value=[namespace])
+    collect_controller.get_assigned_managed_namespaces = MagicMock(
+        return_value=[namespace]
+    )
+    collect_controller.to_dto = MagicMock(
+        return_value=Namespace(
+            name="test-namespace",
+            labels={},
+            annotations={},
+        )
+    )
+    collect_controller.create_namespace_check_thread = MagicMock()
+
+    with patch.object(Path, "touch", side_effect=OSError("disk full")), patch(
+        "ska_ser_namespace_manager.controller.collect_controller.match_namespace",  # pylint: disable=line-too-long # noqa: E501
+        return_value=namespace_config,
+    ):
+        collect_controller.check_assigned_namespaces()
+
+    assert "Failed to update collect-controller heartbeat" in caplog.text
+    collect_controller.create_namespace_check_thread.assert_called_once_with(
+        "test-namespace", timedelta(seconds=30)
     )
 
 
