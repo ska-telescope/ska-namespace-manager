@@ -5,7 +5,20 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
 
-## [Unreleased] - 2024-07-18
+## 0.2.0 - 2024-07-18
+
+- **Collect-controller namespace checks run in-process**
+  - replaced namespace check CronJobs with periodic in-process threads managed by the collect-controller
+  - distributed namespace checks across collect-controller replicas and increased the default replica count to `3`
+  - changed the default `check-namespace` schedule format from cron syntax to interval syntax, defaulting to `60s`
+
+- **Collect-controller liveness probe support**
+  - added heartbeat-based liveness configuration for collect-controller pods
+  - updated the controller to refresh a heartbeat file used by the Helm chart liveness probe
+
+- **Prometheus alert filtering fix**
+  - fixed namespace alert matching so Prometheus alerts can also be filtered by optional `datacentre` label
+  - added Helm values and configuration support for the Prometheus `datacentre` filter
 
 ## 0.1.6 - 2025-09-11
 
