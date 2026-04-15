@@ -53,3 +53,46 @@ def test_collect_controller_config_heartbeat_overrides():
         "var/run/collect-heartbeat"
     )
     assert config.heartbeat.max_age_seconds == 120
+
+
+def test_collect_controller_config_prometheus_datacentre_default():
+    """Collect-controller config should default Prometheus datacentre."""
+    config = CollectControllerConfig.model_validate(
+        {
+            "context": {
+                "namespace": "default",
+                "service_account": "collect-ctl-sa",
+                "image": "example/image:latest",
+                "config_path": "/etc/config",
+                "config_secret": "collect-config",
+            },
+            "leader_election": {
+                "enabled": True,
+            },
+        }
+    )
+
+    assert config.prometheus.datacentre is None
+
+
+def test_collect_controller_config_prometheus_datacentre_override():
+    """Collect-controller config should load Prometheus datacentre."""
+    config = CollectControllerConfig.model_validate(
+        {
+            "context": {
+                "namespace": "default",
+                "service_account": "collect-ctl-sa",
+                "image": "example/image:latest",
+                "config_path": "/etc/config",
+                "config_secret": "collect-config",
+            },
+            "leader_election": {
+                "enabled": True,
+            },
+            "prometheus": {
+                "datacentre": "stfc-techops",
+            },
+        }
+    )
+
+    assert config.prometheus.datacentre == "stfc-techops"

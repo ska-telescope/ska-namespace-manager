@@ -124,12 +124,14 @@ class PrometheusConfig(BaseModel):
     * ca: CA certificate of Prometheus
     * ca_path: Path to the CA certificate file
     * insecure: True to ignore the SSL certificate
+    * datacentre: Optional alert label filter for Prometheus alerts
     """
 
     url: Optional[str] = None
     ca: Optional[str] = None
     ca_path: Optional[str] = None
     insecure: Optional[bool] = False
+    datacentre: Optional[str] = None
     enabled: Optional[bool] = True
     whitelisted_alerts: Optional[list] = []
 

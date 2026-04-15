@@ -167,7 +167,7 @@ class NamespaceCollector(Collector):
             matching_alerts = [
                 alert
                 for alert in alerts
-                if alert["labels"].get("namespace") == self.namespace
+                if self._matches_alert_labels(namespace, alert)
             ]
 
         stale, annotations = self.check_stale(namespace)
@@ -175,6 +175,22 @@ class NamespaceCollector(Collector):
             return NamespaceStatus.STALE, annotations
 
         return self.check_failure(namespace, matching_alerts)
+
+    def _matches_alert_labels(
+        self, namespace: V1Namespace, alert: dict
+    ) -> bool:
+        """
+        Check whether a Prometheus alert applies to this namespace collector.
+        """
+        labels = alert.get("labels", {})
+        if labels.get("namespace") != namespace.metadata.name:
+            return False
+
+        datacentre = self.prometheus_config.datacentre
+        if datacentre is None:
+            return True
+
+        return labels.get("datacentre") == datacentre
 
     def check_stale(self, namespace: V1Namespace) -> Tuple[bool, dict]:
         """

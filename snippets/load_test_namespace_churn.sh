@@ -2,17 +2,18 @@
 
 set -euo pipefail
 
-COUNT="${COUNT:-20}"
-PREFIX="${PREFIX:-ci-load-test-}"
-SAMPLE_COUNT="${SAMPLE_COUNT:-120}"
+COUNT="${COUNT:-100}"
+PREFIX="${PREFIX:-nstest-}"
+SAMPLE_COUNT="${SAMPLE_COUNT:-40}"
 SAMPLE_INTERVAL_SECONDS="${SAMPLE_INTERVAL_SECONDS:-3}"
 NSM_NAMESPACE="${NSM_NAMESPACE:-ska-ser-namespace-manager}"
+DELETE_NAMESPACES="${DELETE_NAMESPACES:-false}"
 
 TMPDIR_PATH="$(mktemp -d)"
 RESOURCE_SAMPLES="${TMPDIR_PATH}/resource-samples.tsv"
+DEPLOYMENT_RESULTS="${TMPDIR_PATH}/deployment-results.log"
 CREATED_ANY="false"
-WATCH_PID=""
-SAMPLE_PID=""
+STOP_REQUESTED="false"
 
 cleanup_tmpdir() {
   rm -rf "${TMPDIR_PATH}"
@@ -23,12 +24,63 @@ count_matching_namespaces() {
 
   count="$(
     kubectl get namespaces --no-headers 2>/dev/null \
-      | grep "^${PREFIX}" \
-      | wc -l \
+      | awk -v prefix="${PREFIX}" '$1 ~ ("^" prefix) { count += 1 } END { print count + 0 }' \
       | tr -d ' '
   )"
 
   echo "${count}"
+}
+
+create_test_deployments() {
+  local namespace="$1"
+  local total_deployment_count
+  local broken_deployment_count
+  local healthy_deployment_count
+  local workload_profile
+  local deployment_message
+
+  total_deployment_count="$((RANDOM % 5 + 1))"
+  workload_profile="$((RANDOM % 3))"
+
+  case "${workload_profile}" in
+    0)
+      healthy_deployment_count="${total_deployment_count}"
+      broken_deployment_count=0
+      ;;
+    1)
+      broken_deployment_count="${total_deployment_count}"
+      healthy_deployment_count=0
+      ;;
+    *)
+      if [ "${total_deployment_count}" -eq 1 ]; then
+        healthy_deployment_count=1
+        broken_deployment_count=0
+      else
+        broken_deployment_count="$((RANDOM % (total_deployment_count - 1) + 1))"
+        healthy_deployment_count="$((total_deployment_count - broken_deployment_count))"
+      fi
+      ;;
+  esac
+
+  deployment_message="Creating ${healthy_deployment_count} healthy deployment(s) and ${broken_deployment_count} broken deployment(s) in namespace '${namespace}'..."
+  echo "${deployment_message}"
+  printf '%s\n' "${deployment_message}" >> "${DEPLOYMENT_RESULTS}"
+
+  for deployment_index in $(seq 1 "${healthy_deployment_count}"); do
+    local deployment_name="healthy-${deployment_index}"
+
+    kubectl -n "${namespace}" create deployment "${deployment_name}" \
+      --image=busybox:1.36 \
+      -- /bin/sh -c 'sleep 3600' >/dev/null
+  done
+
+  for deployment_index in $(seq 1 "${broken_deployment_count}"); do
+    local deployment_name="broken-${deployment_index}"
+
+    kubectl -n "${namespace}" create deployment "${deployment_name}" \
+      --image=busybox:1.36 \
+      -- /bin/sh -c 'exit 1' >/dev/null
+  done
 }
 
 capture_resource_sample() {
@@ -82,7 +134,7 @@ sample_namespace_resources() {
 
   : > "${RESOURCE_SAMPLES}"
 
-  while [ "${sample_index}" -lt "${SAMPLE_COUNT}" ]; do
+  while [ "${sample_index}" -lt "${SAMPLE_COUNT}" ] && [ "${STOP_REQUESTED}" != "true" ]; do
     local sample
 
     if sample="$(capture_resource_sample)"; then
@@ -91,8 +143,10 @@ sample_namespace_resources() {
 
     sample_index=$((sample_index + 1))
 
-    if [ "${sample_index}" -lt "${SAMPLE_COUNT}" ]; then
-      sleep "${SAMPLE_INTERVAL_SECONDS}"
+    print_monitor_snapshot "${sample_index}"
+
+    if [ "${sample_index}" -lt "${SAMPLE_COUNT}" ] && [ "${STOP_REQUESTED}" != "true" ]; then
+      sleep "${SAMPLE_INTERVAL_SECONDS}" || true
     fi
   done
 }
@@ -100,7 +154,7 @@ sample_namespace_resources() {
 print_average_resources() {
   if [ ! -s "${RESOURCE_SAMPLES}" ]; then
     echo "No pod resource samples were collected from namespace '${NSM_NAMESPACE}'." >&2
-    exit 1
+    return
   fi
 
   awk -F '\t' '
@@ -130,6 +184,7 @@ print_current_resources() {
   if ! sample="$(capture_resource_sample)"; then
     echo "Namespace CPU: unavailable"
     echo "Namespace Memory: unavailable"
+    echo "Pod Resources: unavailable"
     return
   fi
 
@@ -140,26 +195,74 @@ print_current_resources() {
       printf "Namespace Memory: %.3fMi (%.3f Gi)\n", $2, $2 / 1024
     }
   '
+
+  print_pod_resources
+}
+
+print_deployment_results() {
+  if [ ! -s "${DEPLOYMENT_RESULTS}" ]; then
+    echo "Deployment Creation: none recorded"
+    return
+  fi
+
+  echo "Deployment Creation:"
+  cat "${DEPLOYMENT_RESULTS}"
+}
+
+print_pod_resources() {
+  local pod_top_output
+
+  if ! pod_top_output="$(kubectl top pod -n "${NSM_NAMESPACE}" 2>/dev/null)"; then
+    echo "Pod Resources: unavailable"
+    return
+  fi
+
+  if [ -z "${pod_top_output}" ]; then
+    echo "Pod Resources: none"
+    return
+  fi
+
+  echo "Pod Resources:"
+  printf '%s\n' "${pod_top_output}"
+}
+
+print_monitor_snapshot() {
+  local sample_index="$1"
+
+  if [ -t 1 ]; then
+    clear
+  fi
+
+  date
+  echo
+  echo "Sample ${sample_index}/${SAMPLE_COUNT}"
+  echo "Namespaces: $(kubectl get namespaces --no-headers 2>/dev/null | awk -v prefix="${PREFIX}" '$1 ~ ("^" prefix) { count += 1 } END { print count + 0 }')"
+  echo "CronJobs:   $(kubectl -n "${NSM_NAMESPACE}" get cronjobs --no-headers 2>/dev/null | wc -l | tr -d ' ')"
+  echo "Jobs:       $(kubectl -n "${NSM_NAMESPACE}" get jobs --no-headers 2>/dev/null | wc -l | tr -d ' ')"
+  echo "Pods:       $(kubectl -n "${NSM_NAMESPACE}" get pods --no-headers 2>/dev/null | wc -l | tr -d ' ')"
+  echo
+  print_current_resources
+}
+
+handle_interrupt() {
+  STOP_REQUESTED="true"
+  echo
+  echo "Stopping monitoring early and finalizing results..."
 }
 
 cleanup() {
-  if [ -n "${WATCH_PID}" ]; then
-    kill "${WATCH_PID}" 2>/dev/null || true
-    wait "${WATCH_PID}" 2>/dev/null || true
-    WATCH_PID=""
-  fi
-
-  if [ -n "${SAMPLE_PID}" ]; then
-    kill "${SAMPLE_PID}" 2>/dev/null || true
-    wait "${SAMPLE_PID}" 2>/dev/null || true
-    SAMPLE_PID=""
-  fi
-
   if [ "${CREATED_ANY}" = "true" ]; then
+    if [ "${DELETE_NAMESPACES}" != "true" ]; then
+      echo
+      echo "Skipping namespace deletion because DELETE_NAMESPACES=${DELETE_NAMESPACES}."
+      cleanup_tmpdir
+      return
+    fi
+
     echo
     echo "Deleting ${COUNT} namespaces with prefix '${PREFIX}'..."
     for i in $(seq 1 "${COUNT}"); do
-      kubectl delete namespace "${PREFIX}${i}" --ignore-not-found=true >/dev/null
+      kubectl delete namespace "${PREFIX}${i}" --ignore-not-found=true --wait=false >/dev/null
     done
   fi
 
@@ -167,6 +270,7 @@ cleanup() {
 }
 
 trap cleanup EXIT
+trap handle_interrupt INT TERM
 
 if [ "$(count_matching_namespaces)" != "0" ]; then
   echo "Found existing namespaces with prefix '${PREFIX}'." >&2
@@ -176,38 +280,20 @@ fi
 
 echo "Creating ${COUNT} namespaces with prefix '${PREFIX}'..."
 for i in $(seq 1 "${COUNT}"); do
-  kubectl create namespace "${PREFIX}${i}" >/dev/null
+  namespace_name="${PREFIX}${i}"
+
+  kubectl create namespace "${namespace_name}" >/dev/null
+  #kubectl label namespace "${namespace_name}" "cicd.skao.int/author=j-pandeirada" --overwrite >/dev/null
+  #kubectl annotate namespace "${namespace_name}" "cicd.skao.int/authorEmail=joao.pandeirada@atlar.pt" --overwrite >/dev/null
+  create_test_deployments "${namespace_name}"
 done
 CREATED_ANY="true"
 
 echo "Monitoring namespace-manager load for ${SAMPLE_COUNT} samples every ${SAMPLE_INTERVAL_SECONDS} second(s)..."
-sample_namespace_resources &
-SAMPLE_PID=$!
-watch -n 1 -t "
-date
-echo
-echo \"Namespaces: \$(kubectl get namespaces --no-headers 2>/dev/null | grep '^${PREFIX}' | wc -l | tr -d ' ')\"
-echo \"CronJobs:   \$(kubectl -n '${NSM_NAMESPACE}' get cronjobs --no-headers 2>/dev/null | wc -l | tr -d ' ')\"
-echo \"Jobs:       \$(kubectl -n '${NSM_NAMESPACE}' get jobs --no-headers 2>/dev/null | wc -l | tr -d ' ')\"
-echo \"Pods:       \$(kubectl -n '${NSM_NAMESPACE}' get pods --no-headers 2>/dev/null | wc -l | tr -d ' ')\"
-echo
-$(typeset -f capture_resource_sample)
-$(typeset -f print_current_resources)
-print_current_resources
-echo
-kubectl get --raw /metrics \
-  | grep '^apiserver_request_total' \
-  | grep -E 'resource=\"(cronjobs|jobs|pods|namespaces)\"' \
-  | grep -E 'verb=\"(LIST|GET|CREATE|PATCH|DELETE)\"' \
-  | sort || true
-" &
-WATCH_PID=$!
-wait "${SAMPLE_PID}" 2>/dev/null || true
-SAMPLE_PID=""
-kill "${WATCH_PID}" 2>/dev/null || true
-wait "${WATCH_PID}" 2>/dev/null || true
-WATCH_PID=""
+sample_namespace_resources
 
+#echo
+#echo "Average namespace-manager resource usage during monitoring:"
+#print_average_resources
 echo
-echo "Average namespace-manager resource usage during monitoring:"
-print_average_resources
+print_deployment_results
