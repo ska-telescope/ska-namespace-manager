@@ -103,9 +103,6 @@ def collect_controller_fixture(mock_collect_controller_config, tmp_path):
         collect_controller_instance.shutdown_event.is_set = MagicMock(
             return_value=False
         )
-        collect_controller_instance.namespace_jobs = [
-            CollectActions.GET_OWNER_INFO
-        ]
         collect_controller_instance.current_pod_name = "collect-1"
         collect_controller_instance.namespace_check_threads = {}
         collect_controller_instance.kubeconfig = None
@@ -131,7 +128,6 @@ def test_check_new_namespaces(collect_controller):
             annotations={},
         )
     )
-    collect_controller.create_collect_job = MagicMock()
     collect_controller.patch_namespace = MagicMock()
 
     with patch(
@@ -140,9 +136,6 @@ def test_check_new_namespaces(collect_controller):
     ):
         collect_controller.check_new_namespaces()
 
-    collect_controller.create_collect_job.assert_called_once_with(
-        CollectActions.GET_OWNER_INFO, "test-namespace", True
-    )
     collect_controller.patch_namespace.assert_called_once_with(
         "test-namespace",
         annotations={
@@ -515,31 +508,3 @@ def test_namespace_thread_stops_when_namespace_no_longer_matches(
         task(stop_event, *task_args)
 
     collect_controller.run_namespace_check.assert_not_called()
-
-
-def test_create_collect_job(collect_controller):
-    """Owner-info jobs should still be created through Kubernetes Jobs."""
-    collect_controller.template_factory = MagicMock()
-    collect_controller.template_factory.render = MagicMock(
-        return_value='{"metadata": {"annotations": {}}}'
-    )
-    collect_controller.get_jobs_by = MagicMock(return_value=[])
-    collect_controller.batch_v1 = MagicMock()
-
-    collect_controller.create_collect_job(
-        CollectActions.GET_OWNER_INFO, "test-namespace", MagicMock()
-    )
-
-    collect_controller.template_factory.render.assert_called_once()
-    collect_controller.batch_v1.create_namespaced_job.assert_called_once()
-
-
-def test_synchronize_jobs(collect_controller):
-    """Existing owner-info job synchronization should remain unchanged."""
-    collect_controller.get_jobs_by = MagicMock(return_value=[])
-    collect_controller.batch_v1 = MagicMock()
-
-    collect_controller.synchronize_jobs()
-
-    collect_controller.get_jobs_by.assert_called_once()
-    collect_controller.batch_v1.patch_namespaced_job.assert_not_called()

@@ -30,7 +30,7 @@ class MetricsManager:
 
     def __init__(self, config: MetricsConfig):
         self.config = config
-        logging.info("Metrics regsitry at: %s", self.config.registry_path)
+        logging.info("Metrics registry at: %s", self.config.registry_path)
 
         if not os.path.exists(self.config.registry_path):
             os.makedirs(self.config.registry_path)

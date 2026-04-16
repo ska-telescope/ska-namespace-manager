@@ -65,6 +65,8 @@ async def handle_get_user(
         if slack_id:
             matched_user = await people_db.get_user_by_slack_id(slack_id)
 
+    print(matched_user.model_dump() if matched_user else "User not found")
+
     return JSONResponse(
         content=(
             jsonable_encoder(matched_user)

@@ -163,6 +163,7 @@ class NamespaceCollector(Collector):
             bool: True if the namespace is healthy, False if there are issues.
         """
         matching_alerts = alerts
+
         if alerts:
             matching_alerts = [
                 alert
@@ -183,6 +184,7 @@ class NamespaceCollector(Collector):
         Check whether a Prometheus alert applies to this namespace collector.
         """
         labels = alert.get("labels", {})
+
         if labels.get("namespace") != namespace.metadata.name:
             return False
 

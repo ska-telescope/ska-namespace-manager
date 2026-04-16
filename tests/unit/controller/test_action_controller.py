@@ -15,6 +15,7 @@ from ska_ser_namespace_manager.controller.leader_controller import (
 from ska_ser_namespace_manager.core.namespace import Namespace
 from ska_ser_namespace_manager.core.notifier import Notifier
 from ska_ser_namespace_manager.core.types import (
+    CicdAnnotations,
     NamespaceAnnotations,
     NamespaceStatus,
 )
@@ -376,7 +377,7 @@ def test_notify_failing_unstable_namespaces_no_match(action_controller):
         annotations={
             NamespaceAnnotations.MANAGED.value: "true",
             NamespaceAnnotations.STATUS.value: "(failing|unstable)",
-            NamespaceAnnotations.OWNER.value: ".+",
+            CicdAnnotations.NOTIFICATION_ADDRESS.value: ".+",
         },
         exclude_annotations={NamespaceAnnotations.NOTIFIED_TS.value: ".+"},
     )
@@ -387,7 +388,7 @@ def test_notify_failing_unstable_namespaces_match(action_controller):
     mock_namespace.metadata.name = "test-namespace"
     mock_namespace.metadata.annotations = {
         NamespaceAnnotations.STATUS.value: NamespaceStatus.FAILING.value,
-        NamespaceAnnotations.OWNER.value: "test-owner",
+        CicdAnnotations.NOTIFICATION_ADDRESS.value: "test-address",
     }
     action_controller.get_namespaces_by = MagicMock(
         return_value=[mock_namespace]
@@ -398,7 +399,7 @@ def test_notify_failing_unstable_namespaces_match(action_controller):
             labels={},
             annotations={
                 NamespaceAnnotations.STATUS.value: NamespaceStatus.FAILING.value,  # pylint: disable=line-too-long # noqa: E501
-                NamespaceAnnotations.OWNER.value: "test-owner",
+                CicdAnnotations.NOTIFICATION_ADDRESS.value: "test-address",
             },
         )
     )
@@ -427,7 +428,7 @@ def test_notify_failing_unstable_namespaces_match_no_notify(action_controller):
     mock_namespace.metadata.name = "test-namespace"
     mock_namespace.metadata.annotations = {
         NamespaceAnnotations.STATUS.value: "failing",
-        NamespaceAnnotations.OWNER.value: "test-owner",
+        CicdAnnotations.NOTIFICATION_ADDRESS.value: "test-address",
     }
     action_controller.get_namespaces_by = MagicMock(
         return_value=[mock_namespace]
@@ -438,7 +439,7 @@ def test_notify_failing_unstable_namespaces_match_no_notify(action_controller):
             labels={},
             annotations={
                 NamespaceAnnotations.STATUS.value: "failing",
-                NamespaceAnnotations.OWNER.value: "test-owner",
+                CicdAnnotations.NOTIFICATION_ADDRESS.value: "test-address",
             },
         )
     )

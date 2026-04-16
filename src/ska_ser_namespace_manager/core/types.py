@@ -18,6 +18,7 @@ class CicdAnnotations(str, Enum):
     AUTHOR = "cicd.skao.int/author"
     PIPELINE_ID = "cicd.skao.int/pipelineId"
     PROJECT_ID = "cicd.skao.int/projectId"
+    NOTIFICATION_ADDRESS = "cicd.skao.int/notificationAddress"
 
     def __str__(self):
         return self.value
@@ -36,7 +37,6 @@ class NamespaceAnnotations(str, Enum):
     STATUS_TS = "manager.cicd.skao.int/status_timestamp"
     STATUS_TIMEFRAME = "manager.cicd.skao.int/status_timeframe"
     STATUS_FINALIZE_AT = "manager.cicd.skao.int/status_finalize_at"
-    OWNER = "manager.cicd.skao.int/owner"
     FAILING_RESOURCES = "manager.cicd.skao.int/failing_resources"
     NOTIFIED_TS = "manager.cicd.skao.int/notified_timestamp"
     NOTIFIED_STATUS = "manager.cicd.skao.int/notified_status"

@@ -26,7 +26,6 @@ class CollectActions(str, Enum):
     """
 
     CHECK_NAMESPACE = "check-namespace"
-    GET_OWNER_INFO = "get-owner-info"
 
     def __str__(self):
         return self.value

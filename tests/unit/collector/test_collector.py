@@ -4,8 +4,6 @@ Tests for collector action execution helpers.
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from ska_ser_namespace_manager.collector.collector import Collector
 from ska_ser_namespace_manager.controller.collect_controller_config import (
     CollectActions,
@@ -46,13 +44,3 @@ def test_run_action():
         )
 
     mock_action.assert_called_once()
-
-
-def test_run_action_unsupported():
-    """Unsupported actions should raise a clear error."""
-    with pytest.raises(ValueError):
-        ExampleCollector.run_action(
-            CollectActions.GET_OWNER_INFO,
-            "test-namespace",
-            MagicMock(),
-        )

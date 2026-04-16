@@ -25,7 +25,6 @@ from ska_ser_namespace_manager.core.types import (
             NamespaceAnnotations.STATUS_FINALIZE_AT,
             "manager.cicd.skao.int/status_finalize_at",
         ),
-        (NamespaceAnnotations.OWNER, "manager.cicd.skao.int/owner"),
         (
             NamespaceAnnotations.FAILING_RESOURCES,
             "manager.cicd.skao.int/failing_resources",
@@ -46,7 +45,19 @@ def test_namespace_annotations_values(member, expected):
 
 @pytest.mark.parametrize(
     "member, expected",
-    [(CicdAnnotations.JOB_URL, "cicd.skao.int/jobUrl")],
+    [
+        (CicdAnnotations.JOB_URL, "cicd.skao.int/jobUrl"),
+        (CicdAnnotations.ENV_TIER, "cicd.skao.int/environmentTier"),
+        (CicdAnnotations.PROJECT, "cicd.skao.int/project"),
+        (CicdAnnotations.TEAM, "cicd.skao.int/team"),
+        (CicdAnnotations.AUTHOR, "cicd.skao.int/author"),
+        (CicdAnnotations.PIPELINE_ID, "cicd.skao.int/pipelineId"),
+        (CicdAnnotations.PROJECT_ID, "cicd.skao.int/projectId"),
+        (
+            CicdAnnotations.NOTIFICATION_ADDRESS,
+            "cicd.skao.int/notificationAddress",
+        ),
+    ],
 )
 def test_cicd_annotations_values(member, expected):
     assert str(member) == expected, "Enum value does not match expected string"

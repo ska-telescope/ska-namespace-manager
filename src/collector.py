@@ -12,19 +12,12 @@ from ska_ser_namespace_manager.collector.collector_config import (
 from ska_ser_namespace_manager.collector.namespace_collector import (
     NamespaceCollector,
 )
-from ska_ser_namespace_manager.collector.ownership_collector import (
-    OwnershipCollector,
-)
 from ska_ser_namespace_manager.core.logging import logging
 
 ACTIONS = {
     **{
         action: NamespaceCollector
         for action in NamespaceCollector.get_actions()
-    },
-    **{
-        action: OwnershipCollector
-        for action in OwnershipCollector.get_actions()
     },
 }
 

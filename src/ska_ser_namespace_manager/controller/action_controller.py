@@ -115,7 +115,7 @@ class ActionController(Notifier, LeaderController):
             if phase_config.notify_on_delete:
                 self.notify_user(
                     address=annotations.get(
-                        NamespaceAnnotations.OWNER.value, ""
+                        CicdAnnotations.NOTIFICATION_ADDRESS.value, ""
                     ),
                     template="namespace-deleted-notification.j2",
                     status=status,
@@ -157,7 +157,7 @@ class ActionController(Notifier, LeaderController):
                 annotations={
                     NamespaceAnnotations.MANAGED.value: "true",
                     NamespaceAnnotations.STATUS.value: "(failing|unstable)",
-                    NamespaceAnnotations.OWNER.value: ".+",
+                    CicdAnnotations.NOTIFICATION_ADDRESS.value: ".+",
                 },
                 exclude_annotations={
                     NamespaceAnnotations.NOTIFIED_TS.value: ".+"
@@ -185,7 +185,9 @@ class ActionController(Notifier, LeaderController):
                 continue
 
             if self.notify_user(
-                address=annotations.get(NamespaceAnnotations.OWNER.value, ""),
+                address=annotations.get(
+                    CicdAnnotations.NOTIFICATION_ADDRESS.value, ""
+                ),
                 template=f"{status}-namespace-notification.j2",
                 status=status,
                 target_namespace=namespace.metadata.name,
