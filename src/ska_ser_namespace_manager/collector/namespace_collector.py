@@ -17,6 +17,7 @@ from kubernetes.client import V1Namespace
 from ska_ser_namespace_manager.collector.collector import Collector
 from ska_ser_namespace_manager.controller.collect_controller_config import (
     CollectActions,
+    CollectNamespaceConfig,
 )
 from ska_ser_namespace_manager.core.logging import logging
 from ska_ser_namespace_manager.core.types import (
@@ -45,6 +46,7 @@ class NamespaceCollector(Collector):
     def set_status(
         self,
         namespace: V1Namespace,
+        namespace_config: CollectNamespaceConfig,
         status: NamespaceStatus,
         status_annotations: Optional[Dict[str, str]] = None,
     ) -> None:
@@ -74,26 +76,32 @@ class NamespaceCollector(Collector):
             ).replace(tzinfo=pytz.UTC)
             logging.info(
                 "Setting namespace '%s' status: %s",
-                self.namespace,
+                namespace.metadata.name,
+                status,
+            )
+        else:
+            logging.info(
+                "Namespace '%s' status remains unchanged: %s",
+                namespace.metadata.name,
                 status,
             )
 
-        if status == NamespaceStatus.OK and self.namespace_config.ttl:
+        if status == NamespaceStatus.OK and namespace_config.ttl:
             annotations.update(
                 {
                     NamespaceAnnotations.STATUS_FINALIZE_AT.value: format_utc(  # noqa: E501 pylint: disable=line-too-long
-                        status_timestamp + self.namespace_config.ttl
+                        status_timestamp + namespace_config.ttl
                     ),
                     NamespaceAnnotations.STATUS_TIMEFRAME.value: format_timespan(  # noqa: E501 pylint: disable=line-too-long
-                        self.namespace_config.ttl
+                        namespace_config.ttl
                     ),
                 }
             )
 
         if status in [NamespaceStatus.UNSTABLE, NamespaceStatus.FAILING]:
-            ttl = self.namespace_config.grace_period
+            ttl = namespace_config.grace_period
             if status == NamespaceStatus.UNSTABLE:
-                ttl += self.namespace_config.settling_period
+                ttl += namespace_config.settling_period
 
             annotations.update(
                 {
@@ -106,29 +114,33 @@ class NamespaceCollector(Collector):
                 }
             )
 
-        self.patch_namespace(self.namespace, annotations=annotations)
+        self.patch_namespace(namespace.metadata.name, annotations=annotations)
 
-    def check_namespace(self) -> None:
+    def check_namespace(
+        self, namespace_name: str, namespace: V1Namespace
+    ) -> None:
         """
         Check the namespace for staleness and failures throught Prometheus
         alerts or fallback to kubernetes API.
         """
-        logging.info("Starting check for namespace '%s'", self.namespace)
-        namespace = self.get_namespace(self.namespace)
-        if namespace is None:
-            logging.error("Failed to get namespace '%s'", self.namespace)
-            return
+        logging.info("Starting check for namespace '%s'", namespace_name)
+        namespace_config = self.get_namespace_config(namespace)
 
         alerts = None
         if self.prometheus_config.enabled:
             alerts = self.fetch_prometheus_alerts()
 
         new_status, new_annotations = self.evaluate_namespace_health(
-            namespace, alerts
+            namespace_name, namespace, namespace_config, alerts
         )
-        self.set_status(namespace, new_status, new_annotations)
+        self.set_status(
+            namespace,
+            namespace_config,
+            new_status,
+            new_annotations,
+        )
 
-        logging.debug("Completed check for namespace: '%s", self.namespace)
+        logging.debug("Completed check for namespace: '%s", namespace_name)
 
     def fetch_prometheus_alerts(self) -> list:
         """
@@ -153,7 +165,11 @@ class NamespaceCollector(Collector):
             return []
 
     def evaluate_namespace_health(
-        self, namespace: V1Namespace, alerts: Optional[list] = None
+        self,
+        namespace_name: str,
+        namespace: V1Namespace,
+        namespace_config: CollectNamespaceConfig,
+        alerts: Optional[list] = None,
     ) -> Tuple[NamespaceStatus, dict]:
         """
         Evaluate namespace health based on Prometheus alerts or
@@ -171,11 +187,13 @@ class NamespaceCollector(Collector):
                 if self._matches_alert_labels(namespace, alert)
             ]
 
-        stale, annotations = self.check_stale(namespace)
+        stale, annotations = self.check_stale(namespace, namespace_config)
         if stale:
             return NamespaceStatus.STALE, annotations
 
-        return self.check_failure(namespace, matching_alerts)
+        return self.check_failure(
+            namespace_name, namespace_config, namespace, matching_alerts
+        )
 
     def _matches_alert_labels(
         self, namespace: V1Namespace, alert: dict
@@ -194,29 +212,32 @@ class NamespaceCollector(Collector):
 
         return labels.get("datacentre") == datacentre
 
-    def check_stale(self, namespace: V1Namespace) -> Tuple[bool, dict]:
+    def check_stale(
+        self,
+        namespace: V1Namespace,
+        namespace_config: CollectNamespaceConfig,
+    ) -> Tuple[bool, dict]:
         """
         Check if the namespace is stale based on the TTL
 
         :param namespace: Namespace to check
         :return: True if namespace was stale, False otherwise
         """
-        if self.namespace_config.ttl is None:
+        if namespace_config.ttl is None:
             return False, {}
 
         creation_timestamp = namespace.metadata.creation_timestamp.replace(
             tzinfo=timezone.utc
         )
         is_stale = (
-            datetime.now(pytz.UTC) - creation_timestamp
-            >= self.namespace_config.ttl
+            datetime.now(pytz.UTC) - creation_timestamp >= namespace_config.ttl
         )
-        ttl_timeframe = format_timespan(self.namespace_config.ttl)
+        ttl_timeframe = format_timespan(namespace_config.ttl)
         annotations = {}
         if is_stale:
             annotations = {
                 NamespaceAnnotations.STATUS_FINALIZE_AT.value: format_utc(
-                    creation_timestamp + self.namespace_config.ttl
+                    creation_timestamp + namespace_config.ttl
                 ),
                 NamespaceAnnotations.STATUS_TIMEFRAME.value: ttl_timeframe,
             }
@@ -224,7 +245,11 @@ class NamespaceCollector(Collector):
         return is_stale, annotations
 
     def check_failure(
-        self, namespace: V1Namespace, alerts: Optional[list] = None
+        self,
+        namespace_name: str,
+        namespace_config: CollectNamespaceConfig,
+        namespace: V1Namespace,
+        alerts: Optional[list] = None,
     ) -> bool:
         """
         Check for failures in the namespace using the alerts from Prometheus,
@@ -238,7 +263,7 @@ class NamespaceCollector(Collector):
         annotations = namespace.metadata.annotations or {}
 
         if alerts is None:
-            failing_resources = self.get_k8s_failing_resources()
+            failing_resources = self.get_k8s_failing_resources(namespace_name)
         else:
             failing_resources = self.process_alerts(alerts)
 
@@ -250,9 +275,12 @@ class NamespaceCollector(Collector):
         if len(failing_resources) == 0:
             return NamespaceStatus.OK, new_annotations
 
-        return self.transition_namespace_status(annotations), new_annotations
+        return (
+            self.transition_namespace_status(annotations, namespace_config),
+            new_annotations,
+        )
 
-    def get_k8s_failing_resources(self) -> List[str]:
+    def get_k8s_failing_resources(self, namespace: str) -> List[str]:
         """Helper to get failing resources from Kubernetes API."""
         resource_types = ["deployment", "statefulset", "replicaset"]
         return list(
@@ -260,7 +288,7 @@ class NamespaceCollector(Collector):
                 resource
                 for resource_type in resource_types
                 for resource in self._check_resource_status(
-                    self.namespace, resource_type
+                    namespace, resource_type
                 )
             )
         )
@@ -308,6 +336,7 @@ class NamespaceCollector(Collector):
     def transition_namespace_status(
         self,
         annotations: dict,
+        namespace_config: CollectNamespaceConfig,
     ) -> bool:
         """
         Helper to update the namespace status based on the alerts
@@ -324,27 +353,34 @@ class NamespaceCollector(Collector):
 
         if (
             current_status == NamespaceStatus.UNSTABLE
-            and self._is_after_period("settling_period", annotations)
+            and self._is_after_period(
+                "settling_period", annotations, namespace_config
+            )
         ):
             return NamespaceStatus.FAILING
 
         if (
             current_status == NamespaceStatus.FAILING
-            and self._is_after_period("grace_period", annotations)
+            and self._is_after_period(
+                "grace_period", annotations, namespace_config
+            )
         ):
             return NamespaceStatus.FAILED
 
         return current_status
 
     def _is_after_period(
-        self, period_type: str, annotations: Dict[str, str]
+        self,
+        period_type: str,
+        annotations: Dict[str, str],
+        namespace_config: CollectNamespaceConfig,
     ) -> bool:
         status_timestamp = parse(
             annotations.get(NamespaceAnnotations.STATUS_TS.value, utc())
         ).replace(tzinfo=None)
 
         try:
-            period = getattr(self.namespace_config, period_type)
+            period = getattr(namespace_config, period_type)
         except AttributeError as e:
             logging.error(
                 "Namespace configuration has no %s attribute.", period_type

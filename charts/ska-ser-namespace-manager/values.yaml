@@ -257,7 +257,7 @@ collectController:
     initialDelaySeconds: 15
     periodSeconds: 30
     timeoutSeconds: 5
-    failureThreshold: 2
+    failureThreshold: 3
     successThreshold: 1
 
   readinessProbe:

@@ -3,10 +3,10 @@ collector is a generic implementation to abstract the loading of
 configurations and the bootstrapping of the kubernetes API
 """
 
-import sys
-from typing import Callable, Dict, Optional, Type, TypeVar
+from typing import Callable, Dict, Optional, TypeVar
 
 import yaml
+from kubernetes.client import V1Namespace
 
 from ska_ser_namespace_manager.collector.collector_config import (
     CollectorConfig,
@@ -33,51 +33,51 @@ class Collector(KubernetesAPI):
     failures. The results are updated as namespace annotations.
     """
 
-    namespace: str
     config: T
-    namespace_config: CollectNamespaceConfig
     prometheus_config: PrometheusConfig
 
     def __init__(
-        self, namespace: str, config_class: T, kubeconfig: Optional[str] = None
+        self, config_class: T, kubeconfig: Optional[str] = None
     ) -> None:
         """
         Initialize NamespaceCollector with the provided information
 
-        :param namespace: The name of the namespace to check
         :param config_class: The class of the configuration
         :param kubeconfig: Kubeconfig to use to access the API
         """
         super().__init__(kubeconfig=kubeconfig)
-        self.namespace = namespace
         self.config: T = ConfigLoader().load(config_class)
 
         self.prometheus_config = self.config.prometheus
 
-        namespace_resource = self.get_namespace(self.namespace)
-        if namespace_resource is None:
-            logging.warning(
-                "Namespace '%s no longer exists. Deleting CronJob(s) ...",
-                self.namespace,
-            )
-            sys.exit(1)
+    def get_namespace_config(
+        self, namespace_resource: V1Namespace
+    ) -> CollectNamespaceConfig:
+        """
+        Resolve the collector configuration for a namespace at runtime.
 
-        self.namespace_config: CollectNamespaceConfig = match_namespace(
-            self.config.namespaces, self.to_dto(namespace_resource)
+        :param namespace_resource: Current namespace object
+        :return: Matched namespace config or a default config
+        """
+        namespace = self.to_dto(namespace_resource)
+        namespace_config: CollectNamespaceConfig = match_namespace(
+            self.config.namespaces, namespace
         )
-        if self.namespace_config is None:
+        if namespace_config is None:
             logging.warning(
                 "Failed to find collect configuration for namespace '%s',"
-                " using a default ..."
+                " using a default ...",
+                namespace.name,
             )
-            self.namespace_config = CollectNamespaceConfig()
+            namespace_config = CollectNamespaceConfig()
 
         logging.debug(
-            "Configuration: \n%s",
-            yaml.safe_dump(
-                yaml.safe_load(self.namespace_config.model_dump_json())
-            ),
+            "Configuration for namespace '%s':\n%s",
+            namespace.name,
+            yaml.safe_dump(yaml.safe_load(namespace_config.model_dump_json())),
         )
+
+        return namespace_config
 
     @classmethod
     def get_actions(cls) -> Dict[CollectActions, Callable]:
@@ -88,27 +88,30 @@ class Collector(KubernetesAPI):
         """
         return {}
 
-    @classmethod
     def run_action(
-        cls,
+        self,
         action: CollectActions,
         namespace: str,
-        config_class: Type[T],
-        kubeconfig: Optional[str] = None,
     ) -> None:
         """
-        Instantiate the collector and execute a supported action.
+        Execute a supported action on this collector instance.
 
         :param action: Action to execute
         :param namespace: Namespace to process
-        :param config_class: Configuration model to load
-        :param kubeconfig: Kubeconfig to use to access the API
         """
-        actions = cls.get_actions()
+        namespace_resource = self.get_namespace(namespace)
+        if namespace_resource is None:
+            logging.warning(
+                "Namespace '%s' no longer exists. Skipping collection.",
+                namespace,
+            )
+            return
+
+        actions = self.get_actions()
         if action not in actions:
             raise ValueError(
-                f"Collector '{cls.__name__}' does not support '{action}'"
+                f"Collector '{type(self).__name__}' does not support "
+                f"'{action}'"
             )
 
-        collector = cls(namespace, config_class, kubeconfig)
-        actions[action](collector)
+        actions[action](self, namespace, namespace_resource)

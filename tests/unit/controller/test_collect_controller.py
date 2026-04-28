@@ -105,6 +105,7 @@ def collect_controller_fixture(mock_collect_controller_config, tmp_path):
         )
         collect_controller_instance.current_pod_name = "collect-1"
         collect_controller_instance.namespace_check_threads = {}
+        collect_controller_instance.namespace_collector = MagicMock()
         collect_controller_instance.kubeconfig = None
         collect_controller_instance.threads = {}
         collect_controller_instance.task_stop_events = {}
@@ -233,6 +234,16 @@ def test_get_namespace_thread_name(collect_controller):
     assert (
         collect_controller.get_namespace_thread_name("test-namespace")
         == "namespace-check-test-namespace"
+    )
+
+
+def test_run_namespace_check_uses_shared_collector(collect_controller):
+    """Namespace checks should reuse the controller's collector instance."""
+    collect_controller.run_namespace_check("test-namespace")
+
+    collect_controller.namespace_collector.run_action.assert_called_once_with(
+        CollectActions.CHECK_NAMESPACE,
+        "test-namespace",
     )
 
 

@@ -24,9 +24,7 @@ def make_namespace(name="ci-test"):
 def make_collector(datacentre=None):
     """Build a namespace collector without running the full initializer."""
     collector = NamespaceCollector.__new__(NamespaceCollector)
-    collector.namespace = "ci-test"
     collector.prometheus_config = SimpleNamespace(datacentre=datacentre)
-    collector.namespace_config = SimpleNamespace(ttl=None)
     collector.check_stale = MagicMock(return_value=(False, {}))
     collector.check_failure = MagicMock(
         return_value=(
@@ -53,16 +51,22 @@ def test_evaluate_namespace_health_filters_matching_datacentre():
     """Matching namespace and datacentre alerts should be considered."""
     collector = make_collector(datacentre="stfc-techops")
     namespace = make_namespace()
+    namespace_config = SimpleNamespace(ttl=None)
     alerts = [
         make_alert("ci-test", "stfc-techops"),
         make_alert("ci-test", "other-site"),
         make_alert("other-namespace", "stfc-techops"),
     ]
 
-    collector.evaluate_namespace_health(namespace, alerts)
+    collector.evaluate_namespace_health(
+        "ci-test", namespace, namespace_config, alerts
+    )
 
     collector.check_failure.assert_called_once_with(
-        namespace, [make_alert("ci-test", "stfc-techops")]
+        "ci-test",
+        namespace_config,
+        namespace,
+        [make_alert("ci-test", "stfc-techops")],
     )
 
 
@@ -70,22 +74,32 @@ def test_evaluate_namespace_health_ignores_different_datacentre():
     """Alerts from a different datacentre should be ignored."""
     collector = make_collector(datacentre="stfc-techops")
     namespace = make_namespace()
+    namespace_config = SimpleNamespace(ttl=None)
     alerts = [make_alert("ci-test", "other-site")]
 
-    collector.evaluate_namespace_health(namespace, alerts)
+    collector.evaluate_namespace_health(
+        "ci-test", namespace, namespace_config, alerts
+    )
 
-    collector.check_failure.assert_called_once_with(namespace, [])
+    collector.check_failure.assert_called_once_with(
+        "ci-test", namespace_config, namespace, []
+    )
 
 
 def test_evaluate_namespace_health_ignores_missing_datacentre():
     """Alerts without a datacentre label should not match configured ones."""
     collector = make_collector(datacentre="stfc-techops")
     namespace = make_namespace()
+    namespace_config = SimpleNamespace(ttl=None)
     alerts = [make_alert("ci-test")]
 
-    collector.evaluate_namespace_health(namespace, alerts)
+    collector.evaluate_namespace_health(
+        "ci-test", namespace, namespace_config, alerts
+    )
 
-    collector.check_failure.assert_called_once_with(namespace, [])
+    collector.check_failure.assert_called_once_with(
+        "ci-test", namespace_config, namespace, []
+    )
 
 
 def test_evaluate_namespace_health_without_datacentre():
@@ -94,15 +108,61 @@ def test_evaluate_namespace_health_without_datacentre():
     """
     collector = make_collector()
     namespace = make_namespace()
+    namespace_config = SimpleNamespace(ttl=None)
     alerts = [
         make_alert("ci-test"),
         make_alert("ci-test", "other-site"),
         make_alert("other-namespace", "stfc-techops"),
     ]
 
-    collector.evaluate_namespace_health(namespace, alerts)
+    collector.evaluate_namespace_health(
+        "ci-test", namespace, namespace_config, alerts
+    )
 
     collector.check_failure.assert_called_once_with(
+        "ci-test",
+        namespace_config,
         namespace,
         [make_alert("ci-test"), make_alert("ci-test", "other-site")],
+    )
+
+
+def test_check_namespace_resolves_config_per_invocation():
+    """Each namespace check should use its own matched namespace config."""
+    collector = NamespaceCollector.__new__(NamespaceCollector)
+    collector.prometheus_config = SimpleNamespace(enabled=False)
+    collector.get_namespace_config = MagicMock(
+        side_effect=[
+            SimpleNamespace(ttl="config-a"),
+            SimpleNamespace(ttl="config-b"),
+        ]
+    )
+    collector.evaluate_namespace_health = MagicMock(
+        side_effect=[
+            ("ok", {NamespaceAnnotations.FAILING_RESOURCES.value: "[]"}),
+            ("ok", {NamespaceAnnotations.FAILING_RESOURCES.value: "[]"}),
+        ]
+    )
+    collector.set_status = MagicMock()
+    namespace_a = make_namespace("ci-a")
+    namespace_b = make_namespace("ci-b")
+
+    collector.check_namespace("ci-a", namespace_a)
+    collector.check_namespace("ci-b", namespace_b)
+
+    assert collector.get_namespace_config.call_args_list[0].args == (
+        namespace_a,
+    )
+    assert collector.get_namespace_config.call_args_list[1].args == (
+        namespace_b,
+    )
+    assert collector.evaluate_namespace_health.call_args_list[0].args[2].ttl
+    assert collector.evaluate_namespace_health.call_args_list[1].args[2].ttl
+    assert (
+        collector.evaluate_namespace_health.call_args_list[0].args[2].ttl
+        == "config-a"
+    )
+    assert (
+        collector.evaluate_namespace_health.call_args_list[1].args[2].ttl
+        == "config-b"
     )

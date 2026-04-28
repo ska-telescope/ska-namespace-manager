@@ -59,4 +59,5 @@ if __name__ == "__main__":
     logging.info("Running '%s' for namespace '%s'", action, namespace)
 
     collector_class: NamespaceCollector = ACTIONS[action]
-    collector_class.run_action(action, namespace, CollectorConfig, kubeconfig)
+    collector = collector_class(CollectorConfig, kubeconfig)
+    collector.run_action(action, namespace)

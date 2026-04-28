@@ -50,6 +50,7 @@ class CollectController(LeaderController):
     """
 
     metrics_manager: MetricsManager
+    namespace_collector: NamespaceCollector
     namespace_check_threads: dict[str, str]
 
     def __init__(self, kubeconfig: Optional[str] = None) -> None:
@@ -65,6 +66,9 @@ class CollectController(LeaderController):
 
         self.config: CollectControllerConfig
         self.metrics_manager = MetricsManager(self.config.metrics)
+        self.namespace_collector = NamespaceCollector(
+            CollectorConfig, kubeconfig
+        )
         logging.debug(
             "Configuration: \n%s",
             yaml.safe_dump(yaml.safe_load(self.config.model_dump_json())),
@@ -139,8 +143,8 @@ class CollectController(LeaderController):
                             NamespaceAnnotations.NAMESPACE: namespace,
                         },
                     )
-                except (  # pylint: disable=broad-exception-caught
-                    Exception
+                except (
+                    Exception  # pylint: disable=broad-exception-caught
                 ) as exc:
                     logging.error(
                         "Error while managing new namespace '%s': %s\n%s",
@@ -272,11 +276,9 @@ class CollectController(LeaderController):
         """
         Run the namespace health collector in-process for a namespace.
         """
-        NamespaceCollector.run_action(
+        self.namespace_collector.run_action(
             CollectActions.CHECK_NAMESPACE,
             namespace,
-            CollectorConfig,
-            self.kubeconfig,
         )
 
     def get_namespace_thread_name(self, namespace: str) -> str:
