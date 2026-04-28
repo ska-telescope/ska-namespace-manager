@@ -201,20 +201,6 @@ class CollectController(LeaderController):
             )
             return []
 
-        if len(pod_names) == 1:
-            if pod_names[0] == self.current_pod_name:
-                return sorted(
-                    managed_namespaces, key=lambda item: item.metadata.name
-                )
-
-            logging.warning(
-                "Skipping namespace checks because current pod '%s' was not "
-                "found in the discovered replica set %s",
-                self.current_pod_name,
-                pod_names,
-            )
-            return []
-
         if self.current_pod_name not in pod_names:
             logging.warning(
                 "Skipping namespace checks because current pod '%s' was not "

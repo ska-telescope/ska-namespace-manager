@@ -3,6 +3,7 @@ Tests for generic controller and thread-manager behavior.
 """
 
 import datetime
+import signal
 import threading
 import time
 from unittest.mock import MagicMock, patch
@@ -69,8 +70,13 @@ def test_add_tasks(controller):
 
 def test_terminate(controller):
     """Terminating the controller should set the shutdown event."""
+    stop_event = threading.Event()
+    controller.task_stop_events["managed-task"] = stop_event
+
     controller.terminate()
+
     assert controller.shutdown_event.is_set()
+    assert stop_event.is_set()
 
 
 @patch("ska_ser_namespace_manager.controller.controller.logging.debug")
@@ -144,6 +150,67 @@ def test_cleanup_stops_managed_tasks(controller):
     controller.cleanup()
 
     assert stopped.wait(timeout=1)
+
+
+def test_wait_for_task_stop_times_out_without_stop(controller):
+    """Waiting should time out when neither stop condition is triggered."""
+    stop_event = threading.Event()
+
+    assert not controller.wait_for_task_stop(stop_event, 0.05)
+
+
+def test_wait_for_task_stop_wakes_on_task_stop(controller):
+    """Waiting should end promptly when the managed stop event is set."""
+    stop_event = threading.Event()
+    controller.task_stop_events["managed-task"] = stop_event
+    waiter_done = threading.Event()
+    result = {}
+
+    def waiter():
+        result["stopped"] = controller.wait_for_task_stop(stop_event, 5)
+        waiter_done.set()
+
+    wait_thread = threading.Thread(target=waiter)
+    wait_thread.start()
+    time.sleep(0.05)
+    controller.remove_task("managed-task")
+
+    assert waiter_done.wait(timeout=1)
+    wait_thread.join()
+    assert result["stopped"] is True
+
+
+def test_wait_for_task_stop_wakes_on_terminate(controller):
+    """Waiting should end promptly when the controller is terminated."""
+    stop_event = threading.Event()
+    controller.task_stop_events["managed-task"] = stop_event
+    waiter_done = threading.Event()
+    result = {}
+
+    def waiter():
+        result["stopped"] = controller.wait_for_task_stop(stop_event, 5)
+        waiter_done.set()
+
+    wait_thread = threading.Thread(target=waiter)
+    wait_thread.start()
+    time.sleep(0.05)
+    controller.terminate()
+
+    assert waiter_done.wait(timeout=1)
+    wait_thread.join()
+    assert result["stopped"] is True
+    assert stop_event.is_set()
+
+
+def test_shutdown_signal_terminates_managed_tasks(controller):
+    """Signal shutdown should apply full terminate semantics."""
+    stop_event = threading.Event()
+    controller.task_stop_events["managed-task"] = stop_event
+
+    with patch.object(controller, "terminate") as mock_terminate:
+        signal.getsignal(signal.SIGTERM)(signal.SIGTERM, None)
+
+    mock_terminate.assert_called_once()
 
 
 def test_controller_task_decorator():

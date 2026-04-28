@@ -5,7 +5,6 @@ thread_manager provides a central way of managing threaded tasks
 import logging
 import signal
 import threading
-import time
 from typing import Any, Callable, List, TypeVar
 
 T = TypeVar("T")
@@ -23,6 +22,7 @@ class ThreadManager:
         self.shutdown_event = threading.Event()
         self.threads: dict[str, threading.Thread] = {}
         self.task_stop_events: dict[str, threading.Event | None] = {}
+        self._wake = threading.Condition()
         self.is_running = False
         signal.signal(signal.SIGINT, self.__shutdown)
         signal.signal(signal.SIGTERM, self.__shutdown)
@@ -59,6 +59,8 @@ class ThreadManager:
         stop_event = self.task_stop_events.pop(task_name, None)
         if stop_event is not None:
             stop_event.set()
+            with self._wake:
+                self._wake.notify_all()
 
         thread = self.threads.pop(task_name, None)
         if thread and thread.is_alive():
@@ -71,19 +73,11 @@ class ThreadManager:
         """
         Wait until either the controller or task stop event is set.
         """
-        deadline = time.monotonic() + timeout
-        while not self.shutdown_event.is_set():
-            if stop_event.is_set():
-                return True
-
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                return False
-
-            if self.shutdown_event.wait(timeout=min(remaining, 0.5)):
-                return True
-
-        return True
+        with self._wake:
+            return self._wake.wait_for(
+                lambda: self.shutdown_event.is_set() or stop_event.is_set(),
+                timeout=timeout,
+            )
 
     def terminate(self):
         """
@@ -93,6 +87,8 @@ class ThreadManager:
         for stop_event in self.task_stop_events.values():
             if stop_event is not None:
                 stop_event.set()
+        with self._wake:
+            self._wake.notify_all()
 
     def __shutdown(
         self, signum: int, frame  # pylint: disable=unused-argument
@@ -104,7 +100,7 @@ class ThreadManager:
         :param frame: Current stack frame
         """
         logging.info("Received shutdown signal: %s [%s]", signum, frame)
-        self.shutdown_event.set()
+        self.terminate()
 
     def run(self, blocking: bool = True) -> None:
         """
