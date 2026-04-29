@@ -149,12 +149,52 @@ def test_check_new_namespaces(collect_controller):
 
 def test_get_collect_controller_pods(collect_controller):
     """Replica discovery should only include active collect-controller pods."""
+    collect_controller.config.context.stateful_set_name = None
     collect_controller.get_namespace_pods_by = MagicMock(
         return_value=[
             _make_pod("collect-1", "collect-ctl-sa"),
             _make_pod("collect-2", "collect-ctl-sa"),
             _make_pod("other", "other-sa"),
             _make_pod("terminating", "collect-ctl-sa", deleting=True),
+        ]
+    )
+
+    assert collect_controller.get_collect_controller_pods() == [
+        "collect-1",
+        "collect-2",
+    ]
+
+
+def test_get_collect_controller_pods_from_stateful_set(collect_controller):
+    """StatefulSet ordinal pod names should drive replica discovery."""
+    stateful_set = MagicMock()
+    stateful_set.spec.replicas = 3
+    collect_controller.config.context.stateful_set_name = "collect-controller"
+    collect_controller.get_namespaced_stateful_set = MagicMock(
+        return_value=stateful_set
+    )
+    collect_controller.get_namespace_pods_by = MagicMock()
+
+    assert collect_controller.get_collect_controller_pods() == [
+        "collect-controller-0",
+        "collect-controller-1",
+        "collect-controller-2",
+    ]
+    collect_controller.get_namespace_pods_by.assert_not_called()
+
+
+def test_get_collect_controller_pods_falls_back_to_live_pods(
+    collect_controller,
+):
+    """Live pod discovery should be used if the StatefulSet is unavailable."""
+    collect_controller.config.context.stateful_set_name = "collect-controller"
+    collect_controller.get_namespaced_stateful_set = MagicMock(
+        return_value=None
+    )
+    collect_controller.get_namespace_pods_by = MagicMock(
+        return_value=[
+            _make_pod("collect-1", "collect-ctl-sa"),
+            _make_pod("collect-2", "collect-ctl-sa"),
         ]
     )
 
@@ -192,6 +232,64 @@ def test_get_assigned_managed_namespaces(collect_controller):
         )
         == 0
     ]
+
+
+def test_get_assigned_managed_namespaces_uses_expected_ordinals(
+    collect_controller,
+):
+    """Missing live pods should not collapse assignments to active replicas."""
+    collect_controller.current_pod_name = "collect-controller-0"
+    stateful_set = MagicMock()
+    stateful_set.spec.replicas = 2
+    collect_controller.config.context.stateful_set_name = "collect-controller"
+    collect_controller.get_namespaced_stateful_set = MagicMock(
+        return_value=stateful_set
+    )
+    collect_controller.get_namespace_pods_by = MagicMock(
+        return_value=[_make_pod("collect-controller-0", "collect-ctl-sa")]
+    )
+    namespaces = []
+    for name in ["a", "b", "c", "d"]:
+        namespace = MagicMock()
+        namespace.metadata.name = name
+        namespaces.append(namespace)
+
+    assigned = collect_controller.get_assigned_managed_namespaces(namespaces)
+
+    assert [namespace.metadata.name for namespace in assigned] == [
+        namespace.metadata.name
+        for namespace in namespaces
+        if (
+            int(
+                hashlib.sha256(
+                    namespace.metadata.name.encode("utf-8")
+                ).hexdigest(),
+                16,
+            )
+            % 2
+        )
+        == 0
+    ]
+    collect_controller.get_namespace_pods_by.assert_not_called()
+
+
+def test_get_assigned_managed_namespaces_current_pod_outside_ordinals(
+    collect_controller,
+):
+    """No namespaces should be assigned outside the expected ordinal set."""
+    collect_controller.current_pod_name = "collect-controller-random"
+    stateful_set = MagicMock()
+    stateful_set.spec.replicas = 2
+    collect_controller.config.context.stateful_set_name = "collect-controller"
+    collect_controller.get_namespaced_stateful_set = MagicMock(
+        return_value=stateful_set
+    )
+    namespace = MagicMock()
+    namespace.metadata.name = "a"
+
+    assert (
+        collect_controller.get_assigned_managed_namespaces([namespace]) == []
+    )
 
 
 def test_get_assigned_managed_namespaces_current_pod_missing(

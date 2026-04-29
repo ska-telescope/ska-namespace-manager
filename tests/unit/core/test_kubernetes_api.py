@@ -431,6 +431,46 @@ def test_get_namespace_pods_by_failure(mock_kubernetes_api):
     assert len(pods) == 0
 
 
+def test_get_namespaced_stateful_set_success(mock_kubernetes_api):
+    mocks = mock_kubernetes_api
+    mock_apps_v1 = mocks["mock_apps_v1_api"]
+    mock_stateful_set = MagicMock()
+    mock_stateful_set.metadata.name = "collect-controller"
+    mock_apps_v1.read_namespaced_stateful_set.return_value = mock_stateful_set
+
+    api = KubernetesAPI()
+    stateful_set = api.get_namespaced_stateful_set(
+        namespace="default", name="collect-controller"
+    )
+
+    assert stateful_set.metadata.name == "collect-controller"
+    mock_apps_v1.read_namespaced_stateful_set.assert_called_once_with(
+        name="collect-controller",
+        namespace="default",
+        _request_timeout=10,
+    )
+
+
+def test_get_namespaced_stateful_set_failure(mock_kubernetes_api):
+    mocks = mock_kubernetes_api
+    mock_apps_v1 = mocks["mock_apps_v1_api"]
+    mock_apps_v1.read_namespaced_stateful_set.side_effect = Exception(
+        "Failed to fetch StatefulSet"
+    )
+
+    api = KubernetesAPI()
+    stateful_set = api.get_namespaced_stateful_set(
+        namespace="default", name="collect-controller"
+    )
+
+    assert stateful_set is None
+    mock_apps_v1.read_namespaced_stateful_set.assert_called_once_with(
+        name="collect-controller",
+        namespace="default",
+        _request_timeout=10,
+    )
+
+
 # Test patch_namespace
 
 

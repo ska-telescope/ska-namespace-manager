@@ -153,9 +153,38 @@ class CollectController(LeaderController):
                         traceback.format_exc(),
                     )
 
-    def get_collect_controller_pods(self) -> list[str]:
+    def get_collect_controller_stateful_set_pods(self) -> Optional[list[str]]:
         """
-        Get all active collect-controller pod names in the current namespace.
+        Get expected collect-controller pod names from the StatefulSet.
+        """
+        stateful_set_name = getattr(
+            self.config.context, "stateful_set_name", None
+        )
+        if not isinstance(stateful_set_name, str) or not stateful_set_name:
+            return None
+
+        stateful_set = self.get_namespaced_stateful_set(
+            namespace=self.config.context.namespace,
+            name=stateful_set_name,
+        )
+        if stateful_set is None:
+            logging.warning(
+                "Falling back to live collect-controller pod discovery: "
+                "StatefulSet '%s' is unavailable in namespace '%s'",
+                stateful_set_name,
+                self.config.context.namespace,
+            )
+            return None
+
+        replicas = getattr(getattr(stateful_set, "spec", None), "replicas", 1)
+        if replicas is None:
+            replicas = 1
+
+        return [f"{stateful_set_name}-{index}" for index in range(replicas)]
+
+    def get_active_collect_controller_pods(self) -> list[str]:
+        """
+        Get active collect-controller pod names in the current namespace.
         """
         pods = self.get_namespace_pods_by(
             namespace=self.config.context.namespace,
@@ -179,6 +208,16 @@ class CollectController(LeaderController):
             )
 
         return pod_names
+
+    def get_collect_controller_pods(self) -> list[str]:
+        """
+        Get collect-controller pod names used for namespace sharding.
+        """
+        stateful_set_pods = self.get_collect_controller_stateful_set_pods()
+        if stateful_set_pods is not None:
+            return stateful_set_pods
+
+        return self.get_active_collect_controller_pods()
 
     def get_assigned_managed_namespaces(
         self, managed_namespaces: List[V1Namespace]

@@ -26,6 +26,7 @@ def test_collect_controller_config_heartbeat_defaults():
 
     assert config.heartbeat.path == "/tmp/collect-controller-heartbeat"
     assert config.heartbeat.max_age_seconds == 60
+    assert config.context.stateful_set_name is None
 
 
 def test_collect_controller_config_heartbeat_overrides():
@@ -96,3 +97,27 @@ def test_collect_controller_config_prometheus_datacentre_override():
     )
 
     assert config.prometheus.datacentre == "stfc-techops"
+
+
+def test_collect_controller_config_stateful_set_name():
+    """Collect-controller config should load StatefulSet identity."""
+    config = CollectControllerConfig.model_validate(
+        {
+            "context": {
+                "namespace": "default",
+                "service_account": "collect-ctl-sa",
+                "image": "example/image:latest",
+                "config_path": "/etc/config",
+                "config_secret": "collect-config",
+                "stateful_set_name": "namespace-manager-collect-controller",
+            },
+            "leader_election": {
+                "enabled": True,
+            },
+        }
+    )
+
+    assert (
+        config.context.stateful_set_name
+        == "namespace-manager-collect-controller"
+    )

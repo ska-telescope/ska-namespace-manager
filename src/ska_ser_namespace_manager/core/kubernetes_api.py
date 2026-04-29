@@ -248,6 +248,32 @@ class KubernetesAPI:
             traceback.print_exception(exc)
             return []
 
+    def get_namespaced_stateful_set(
+        self, namespace: str, name: str
+    ) -> Optional[client.V1StatefulSet]:
+        """
+        Gets a namespaced StatefulSet.
+        """
+        logging.debug(
+            "Fetching StatefulSet '%s' in namespace '%s'", name, namespace
+        )
+        try:
+            return self.apps_v1.read_namespaced_stateful_set(
+                name=name,
+                namespace=namespace,
+                _request_timeout=10,
+            )
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            logging.error(
+                "Failed to read StatefulSet '%s' in namespace '%s': %s",
+                name,
+                namespace,
+                exc,
+            )
+            traceback.print_exception(exc)
+
+        return None
+
     def patch_namespace(
         self,
         namespace: str,

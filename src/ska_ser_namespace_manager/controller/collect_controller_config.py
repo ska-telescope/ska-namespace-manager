@@ -11,6 +11,9 @@ from typing import Annotated, Dict, List, Optional
 
 from pydantic import BaseModel, BeforeValidator
 
+from ska_ser_namespace_manager.controller.controller_config import (
+    KubernetesContext,
+)
 from ska_ser_namespace_manager.controller.leader_controller_config import (
     LeaderControllerConfig,
 )
@@ -174,11 +177,20 @@ class HeartbeatConfig(BaseModel):
         self.path = os.path.abspath(self.path)
 
 
+class CollectControllerContext(KubernetesContext):
+    """
+    CollectControllerContext holds collect-controller runtime identity.
+    """
+
+    stateful_set_name: Optional[str] = None
+
+
 class CollectControllerConfig(CollectConfig, LeaderControllerConfig):
     """
     CollectControllerConfig provides the configurations for the collect
     controller
     """
 
+    context: CollectControllerContext
     heartbeat: HeartbeatConfig = HeartbeatConfig()
     metrics: Optional[MetricsConfig] = MetricsConfig()
