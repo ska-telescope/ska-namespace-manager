@@ -190,7 +190,7 @@ collectController:
         ttl: 5m
         settling_period: 5m
         grace_period: 2m
-        tasks:
+        actions:
           check-namespace:
             schedule: "60s"
     people_api:
