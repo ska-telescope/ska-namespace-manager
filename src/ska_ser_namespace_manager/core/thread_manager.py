@@ -50,7 +50,8 @@ class ThreadManager:
         """
         Check if a task is already registered.
         """
-        return task_name in self.threads
+        thread = self.threads.get(task_name)
+        return thread is not None and thread.is_alive()
 
     def remove_task(self, task_name: str) -> None:
         """
@@ -124,7 +125,10 @@ class ThreadManager:
         """
         if terminate:
             self.terminate()
-        for task, thread in self.threads.items():
+        thread_items = list(
+            self.threads.items()
+        )  # iterating over a copy to avoid race conditions
+        for task, thread in thread_items:
             if thread.is_alive():
                 thread.join()
                 logging.debug("Thread for task '%s' completed", task)

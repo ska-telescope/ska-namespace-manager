@@ -128,7 +128,7 @@ class ActionController(Notifier, LeaderController):
                     ),
                 )
 
-    @controller_task(period=datetime.timedelta(seconds=1))
+    @controller_task(period=datetime.timedelta(seconds=5))
     def delete_stale_namespaces(self) -> None:
         """
         Looks for namespaces with stale status and deletes them
@@ -136,7 +136,7 @@ class ActionController(Notifier, LeaderController):
         """
         self.delete_namespaces_with_status(NamespaceStatus.STALE.value)
 
-    @controller_task(period=datetime.timedelta(seconds=1))
+    @controller_task(period=datetime.timedelta(seconds=5))
     def delete_failed_namespaces(self) -> None:
         """
         Looks for namespaces with failed status and deletes them
@@ -144,7 +144,7 @@ class ActionController(Notifier, LeaderController):
         """
         self.delete_namespaces_with_status(NamespaceStatus.FAILED.value)
 
-    @controller_task(period=datetime.timedelta(seconds=1))
+    @controller_task(period=datetime.timedelta(seconds=5))
     def notify_failing_unstable_namespaces(self) -> None:
         """
         Looks for namespaces with failing or unstable status and notifies their

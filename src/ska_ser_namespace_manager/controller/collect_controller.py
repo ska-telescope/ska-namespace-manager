@@ -387,7 +387,7 @@ class CollectController(LeaderController):
         self.remove_task(thread_name)
         logging.info("Removed namespace thread for '%s'", namespace)
 
-    @controller_task(period=datetime.timedelta(seconds=1))
+    @controller_task(period=datetime.timedelta(seconds=5))
     def check_assigned_namespaces(self) -> None:
         """
         Reconcile periodic namespace check threads for this replica.

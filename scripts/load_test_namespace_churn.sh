@@ -2,9 +2,9 @@
 
 set -euo pipefail
 
-COUNT="${COUNT:-100}"
+COUNT="${COUNT:-10}"
 PREFIX="${PREFIX:-nstest-}"
-SAMPLE_COUNT="${SAMPLE_COUNT:-40}"
+SAMPLE_COUNT="${SAMPLE_COUNT:-5}"
 SAMPLE_INTERVAL_SECONDS="${SAMPLE_INTERVAL_SECONDS:-3}"
 NSM_NAMESPACE="${NSM_NAMESPACE:-ska-ser-namespace-manager}"
 DELETE_NAMESPACES="${DELETE_NAMESPACES:-false}"
@@ -283,8 +283,8 @@ for i in $(seq 1 "${COUNT}"); do
   namespace_name="${PREFIX}${i}"
 
   kubectl create namespace "${namespace_name}" >/dev/null
-  #kubectl label namespace "${namespace_name}" "cicd.skao.int/author=j-pandeirada" --overwrite >/dev/null
-  #kubectl annotate namespace "${namespace_name}" "cicd.skao.int/authorEmail=joao.pandeirada@atlar.pt" --overwrite >/dev/null
+  kubectl label namespace "${namespace_name}" "cicd.skao.int/author=j-pandeirada" --overwrite >/dev/null
+  kubectl annotate namespace "${namespace_name}" "cicd.skao.int/authorEmail=joao.pandeirada@atlar.pt" --overwrite >/dev/null
   create_test_deployments "${namespace_name}"
 done
 CREATED_ANY="true"
