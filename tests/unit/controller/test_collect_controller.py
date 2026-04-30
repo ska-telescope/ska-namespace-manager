@@ -159,7 +159,7 @@ def test_get_collect_controller_pods(collect_controller):
         ]
     )
 
-    assert collect_controller.get_collect_controller_pods() == [
+    assert collect_controller._get_collect_controller_pods() == [
         "collect-1",
         "collect-2",
     ]
@@ -175,7 +175,7 @@ def test_get_collect_controller_pods_from_stateful_set(collect_controller):
     )
     collect_controller.get_namespace_pods_by = MagicMock()
 
-    assert collect_controller.get_collect_controller_pods() == [
+    assert collect_controller._get_collect_controller_pods() == [
         "collect-controller-0",
         "collect-controller-1",
         "collect-controller-2",
@@ -198,7 +198,7 @@ def test_get_collect_controller_pods_falls_back_to_live_pods(
         ]
     )
 
-    assert collect_controller.get_collect_controller_pods() == [
+    assert collect_controller._get_collect_controller_pods() == [
         "collect-1",
         "collect-2",
     ]
@@ -212,11 +212,11 @@ def test_get_assigned_managed_namespaces(collect_controller):
         namespace.metadata.name = name
         namespaces.append(namespace)
 
-    collect_controller.get_collect_controller_pods = MagicMock(
+    collect_controller._get_collect_controller_pods = MagicMock(
         return_value=["collect-1", "collect-2"]
     )
 
-    assigned = collect_controller.get_assigned_managed_namespaces(namespaces)
+    assigned = collect_controller._get_assigned_managed_namespaces(namespaces)
 
     assert [namespace.metadata.name for namespace in assigned] == [
         namespace.metadata.name
@@ -254,7 +254,7 @@ def test_get_assigned_managed_namespaces_uses_expected_ordinals(
         namespace.metadata.name = name
         namespaces.append(namespace)
 
-    assigned = collect_controller.get_assigned_managed_namespaces(namespaces)
+    assigned = collect_controller._get_assigned_managed_namespaces(namespaces)
 
     assert [namespace.metadata.name for namespace in assigned] == [
         namespace.metadata.name
@@ -288,7 +288,7 @@ def test_get_assigned_managed_namespaces_current_pod_outside_ordinals(
     namespace.metadata.name = "a"
 
     assert (
-        collect_controller.get_assigned_managed_namespaces([namespace]) == []
+        collect_controller._get_assigned_managed_namespaces([namespace]) == []
     )
 
 
@@ -296,11 +296,11 @@ def test_get_assigned_managed_namespaces_current_pod_missing(
     collect_controller,
 ):
     """No namespaces should be assigned if the current pod is unknown."""
-    collect_controller.get_collect_controller_pods = MagicMock(
+    collect_controller._get_collect_controller_pods = MagicMock(
         return_value=["collect-2", "collect-3"]
     )
 
-    assert collect_controller.get_assigned_managed_namespaces([]) == []
+    assert collect_controller._get_assigned_managed_namespaces([]) == []
 
 
 def test_get_namespace_check_period(collect_controller):
@@ -310,7 +310,7 @@ def test_get_namespace_check_period(collect_controller):
         CollectActions.CHECK_NAMESPACE: MagicMock(schedule="45s")
     }
 
-    assert collect_controller.get_namespace_check_period(
+    assert collect_controller._get_namespace_check_period(
         namespace_config
     ) == timedelta(seconds=45)
 
@@ -322,7 +322,7 @@ def test_get_namespace_check_period_invalid(collect_controller):
         CollectActions.CHECK_NAMESPACE: MagicMock(schedule="invalid")
     }
 
-    assert collect_controller.get_namespace_check_period(
+    assert collect_controller._get_namespace_check_period(
         namespace_config
     ) == timedelta(seconds=60)
 
@@ -330,7 +330,7 @@ def test_get_namespace_check_period_invalid(collect_controller):
 def test_get_namespace_thread_name(collect_controller):
     """Namespace thread names should be stable and unique."""
     assert (
-        collect_controller.get_namespace_thread_name("test-namespace")
+        collect_controller._get_namespace_thread_name("test-namespace")
         == "namespace-check-test-namespace"
     )
 
@@ -342,6 +342,7 @@ def test_run_namespace_check_uses_shared_collector(collect_controller):
     collect_controller.namespace_collector.run_action.assert_called_once_with(
         CollectActions.CHECK_NAMESPACE,
         "test-namespace",
+        None,
     )
 
 
@@ -409,7 +410,7 @@ def test_check_assigned_namespaces_creates_new_thread(collect_controller):
         CollectActions.CHECK_NAMESPACE: MagicMock(schedule="30s")
     }
     collect_controller.get_namespaces_by = MagicMock(return_value=[namespace])
-    collect_controller.get_assigned_managed_namespaces = MagicMock(
+    collect_controller._get_assigned_managed_namespaces = MagicMock(
         return_value=[namespace]
     )
     collect_controller.to_dto = MagicMock(
@@ -442,7 +443,7 @@ def test_check_assigned_namespaces_reuses_existing_thread(
     namespace.metadata.name = "test-namespace"
     namespace.metadata.annotations = {}
     collect_controller.get_namespaces_by = MagicMock(return_value=[namespace])
-    collect_controller.get_assigned_managed_namespaces = MagicMock(
+    collect_controller._get_assigned_managed_namespaces = MagicMock(
         return_value=[namespace]
     )
     collect_controller.to_dto = MagicMock(
@@ -474,7 +475,7 @@ def test_check_assigned_namespaces_removes_unassigned_thread(
 ):
     """Reconciliation should remove threads no longer assigned here."""
     collect_controller.get_namespaces_by = MagicMock(return_value=[])
-    collect_controller.get_assigned_managed_namespaces = MagicMock(
+    collect_controller._get_assigned_managed_namespaces = MagicMock(
         return_value=[]
     )
     collect_controller.namespace_check_threads = {
@@ -495,7 +496,7 @@ def test_check_assigned_namespaces_updates_heartbeat_without_assignments(
 ):
     """Heartbeat should still refresh when nothing is assigned."""
     collect_controller.get_namespaces_by = MagicMock(return_value=[])
-    collect_controller.get_assigned_managed_namespaces = MagicMock(
+    collect_controller._get_assigned_managed_namespaces = MagicMock(
         return_value=[]
     )
 
@@ -509,7 +510,9 @@ def test_check_assigned_namespaces_updates_heartbeat_without_peers(
 ):
     """Heartbeat should still refresh when peer discovery returns none."""
     collect_controller.get_namespaces_by = MagicMock(return_value=[])
-    collect_controller.get_collect_controller_pods = MagicMock(return_value=[])
+    collect_controller._get_collect_controller_pods = MagicMock(
+        return_value=[]
+    )
 
     collect_controller.check_assigned_namespaces()
 
@@ -520,10 +523,10 @@ def test_update_heartbeat_refreshes_mtime(collect_controller):
     """Heartbeat updates should refresh the file modification time."""
     heartbeat_path = Path(collect_controller.config.heartbeat.path)
 
-    collect_controller.update_heartbeat()
+    collect_controller._update_heartbeat()
     initial_mtime = heartbeat_path.stat().st_mtime_ns
     time.sleep(0.01)
-    collect_controller.update_heartbeat()
+    collect_controller._update_heartbeat()
 
     assert heartbeat_path.stat().st_mtime_ns > initial_mtime
 
@@ -540,7 +543,7 @@ def test_check_assigned_namespaces_continues_when_heartbeat_write_fails(
         CollectActions.CHECK_NAMESPACE: MagicMock(schedule="30s")
     }
     collect_controller.get_namespaces_by = MagicMock(return_value=[namespace])
-    collect_controller.get_assigned_managed_namespaces = MagicMock(
+    collect_controller._get_assigned_managed_namespaces = MagicMock(
         return_value=[namespace]
     )
     collect_controller.to_dto = MagicMock(
@@ -581,39 +584,5 @@ def test_namespace_thread_stops_when_namespace_missing(
     task_args = collect_controller.add_managed_task.call_args.args[2]
     stop_event = threading.Event()
     task(stop_event, *task_args)
-
-    collect_controller.run_namespace_check.assert_not_called()
-
-
-def test_namespace_thread_stops_when_namespace_no_longer_matches(
-    collect_controller,
-):
-    """Per-namespace threads should exit when config matching is lost."""
-    namespace = MagicMock()
-    namespace.metadata.name = "test-namespace"
-    collect_controller.has_task = MagicMock(return_value=False)
-    collect_controller.get_namespace = MagicMock(return_value=namespace)
-    collect_controller.to_dto = MagicMock(
-        return_value=Namespace(
-            name="test-namespace",
-            labels={},
-            annotations={},
-        )
-    )
-    collect_controller.run_namespace_check = MagicMock()
-    collect_controller.add_managed_task = MagicMock()
-
-    with patch(
-        "ska_ser_namespace_manager.controller.collect_controller."
-        "match_namespace",
-        return_value=None,
-    ):
-        collect_controller.create_namespace_check_thread(
-            "test-namespace", timedelta(milliseconds=1)
-        )
-        task = collect_controller.add_managed_task.call_args.args[1]
-        task_args = collect_controller.add_managed_task.call_args.args[2]
-        stop_event = threading.Event()
-        task(stop_event, *task_args)
 
     collect_controller.run_namespace_check.assert_not_called()

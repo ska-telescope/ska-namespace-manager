@@ -5,7 +5,6 @@ configurations and the bootstrapping of the kubernetes API
 
 from typing import Callable, Dict, Optional, TypeVar
 
-import yaml
 from kubernetes.client import V1Namespace
 
 from ska_ser_namespace_manager.collector.collector_config import (
@@ -71,12 +70,6 @@ class Collector(KubernetesAPI):
             )
             namespace_config = CollectNamespaceConfig()
 
-        logging.debug(
-            "Configuration for namespace '%s':\n%s",
-            namespace.name,
-            yaml.safe_dump(yaml.safe_load(namespace_config.model_dump_json())),
-        )
-
         return namespace_config
 
     @classmethod
@@ -92,6 +85,7 @@ class Collector(KubernetesAPI):
         self,
         action: CollectActions,
         namespace: str,
+        namespace_resource: V1Namespace = None,
     ) -> None:
         """
         Execute a supported action on this collector instance.
@@ -99,8 +93,12 @@ class Collector(KubernetesAPI):
         :param action: Action to execute
         :param namespace: Namespace to process
         """
-        namespace_resource = self.get_namespace(namespace)
         if namespace_resource is None:
+            resolved_namespace = self.get_namespace(namespace)
+        else:
+            resolved_namespace = namespace_resource
+
+        if resolved_namespace is None:
             logging.warning(
                 "Namespace '%s' no longer exists. Skipping collection.",
                 namespace,
@@ -114,4 +112,4 @@ class Collector(KubernetesAPI):
                 f"'{action}'"
             )
 
-        actions[action](self, namespace, namespace_resource)
+        actions[action](self, namespace, resolved_namespace)

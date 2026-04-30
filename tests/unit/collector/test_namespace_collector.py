@@ -25,8 +25,8 @@ def make_collector(datacentre=None):
     """Build a namespace collector without running the full initializer."""
     collector = NamespaceCollector.__new__(NamespaceCollector)
     collector.prometheus_config = SimpleNamespace(datacentre=datacentre)
-    collector.check_stale = MagicMock(return_value=(False, {}))
-    collector.check_failure = MagicMock(
+    collector._check_stale = MagicMock(return_value=(False, {}))
+    collector._check_failure = MagicMock(
         return_value=(
             "ok",
             {NamespaceAnnotations.FAILING_RESOURCES.value: "[]"},
@@ -58,11 +58,11 @@ def test_evaluate_namespace_health_filters_matching_datacentre():
         make_alert("other-namespace", "stfc-techops"),
     ]
 
-    collector.evaluate_namespace_health(
+    collector._evaluate_namespace_health(
         "ci-test", namespace, namespace_config, alerts
     )
 
-    collector.check_failure.assert_called_once_with(
+    collector._check_failure.assert_called_once_with(
         "ci-test",
         namespace_config,
         namespace,
@@ -77,27 +77,27 @@ def test_evaluate_namespace_health_ignores_different_datacentre():
     namespace_config = SimpleNamespace(ttl=None)
     alerts = [make_alert("ci-test", "other-site")]
 
-    collector.evaluate_namespace_health(
+    collector._evaluate_namespace_health(
         "ci-test", namespace, namespace_config, alerts
     )
 
-    collector.check_failure.assert_called_once_with(
+    collector._check_failure.assert_called_once_with(
         "ci-test", namespace_config, namespace, []
     )
 
 
-def test_evaluate_namespace_health_ignores_missing_datacentre():
+def test__evaluate_namespace_health_ignores_missing_datacentre():
     """Alerts without a datacentre label should not match configured ones."""
     collector = make_collector(datacentre="stfc-techops")
     namespace = make_namespace()
     namespace_config = SimpleNamespace(ttl=None)
     alerts = [make_alert("ci-test")]
 
-    collector.evaluate_namespace_health(
+    collector._evaluate_namespace_health(
         "ci-test", namespace, namespace_config, alerts
     )
 
-    collector.check_failure.assert_called_once_with(
+    collector._check_failure.assert_called_once_with(
         "ci-test", namespace_config, namespace, []
     )
 
@@ -115,11 +115,11 @@ def test_evaluate_namespace_health_without_datacentre():
         make_alert("other-namespace", "stfc-techops"),
     ]
 
-    collector.evaluate_namespace_health(
+    collector._evaluate_namespace_health(
         "ci-test", namespace, namespace_config, alerts
     )
 
-    collector.check_failure.assert_called_once_with(
+    collector._check_failure.assert_called_once_with(
         "ci-test",
         namespace_config,
         namespace,
@@ -137,13 +137,13 @@ def test_check_namespace_resolves_config_per_invocation():
             SimpleNamespace(ttl="config-b"),
         ]
     )
-    collector.evaluate_namespace_health = MagicMock(
+    collector._evaluate_namespace_health = MagicMock(
         side_effect=[
             ("ok", {NamespaceAnnotations.FAILING_RESOURCES.value: "[]"}),
             ("ok", {NamespaceAnnotations.FAILING_RESOURCES.value: "[]"}),
         ]
     )
-    collector.set_status = MagicMock()
+    collector._set_status = MagicMock()
     namespace_a = make_namespace("ci-a")
     namespace_b = make_namespace("ci-b")
 
@@ -156,13 +156,13 @@ def test_check_namespace_resolves_config_per_invocation():
     assert collector.get_namespace_config.call_args_list[1].args == (
         namespace_b,
     )
-    assert collector.evaluate_namespace_health.call_args_list[0].args[2].ttl
-    assert collector.evaluate_namespace_health.call_args_list[1].args[2].ttl
+    assert collector._evaluate_namespace_health.call_args_list[0].args[2].ttl
+    assert collector._evaluate_namespace_health.call_args_list[1].args[2].ttl
     assert (
-        collector.evaluate_namespace_health.call_args_list[0].args[2].ttl
+        collector._evaluate_namespace_health.call_args_list[0].args[2].ttl
         == "config-a"
     )
     assert (
-        collector.evaluate_namespace_health.call_args_list[1].args[2].ttl
+        collector._evaluate_namespace_health.call_args_list[1].args[2].ttl
         == "config-b"
     )

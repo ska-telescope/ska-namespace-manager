@@ -23,12 +23,13 @@ git submodule update --init --recursive
 ### Formatting, linting, and tests
 
 - Formatting, linting, and tests are provided through the repository `Makefile`.
+- Always run `make` targets through the repository Poetry environment using `poetry run make ...`.
 - Use the following commands:
 
 ```bash
-make python-format
-make python-lint
-make python-test
+poetry run make python-format
+poetry run make python-lint
+poetry run make python-test
 ```
 
 - After making changes, always run:

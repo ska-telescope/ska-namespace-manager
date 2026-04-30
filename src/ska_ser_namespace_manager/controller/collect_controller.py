@@ -12,7 +12,6 @@ import traceback
 from pathlib import Path
 from typing import List, Optional
 
-import yaml
 from kubernetes.client import V1Namespace
 
 from ska_ser_namespace_manager.collector.collector_config import (
@@ -69,10 +68,6 @@ class CollectController(LeaderController):
         self.namespace_collector = NamespaceCollector(
             CollectorConfig, kubeconfig
         )
-        logging.debug(
-            "Configuration: \n%s",
-            yaml.safe_dump(yaml.safe_load(self.config.model_dump_json())),
-        )
         self.add_tasks(
             [
                 self.check_assigned_namespaces,
@@ -85,13 +80,7 @@ class CollectController(LeaderController):
         )
         self.namespace_check_threads = {}
 
-    def is_metrics_enabled(self) -> bool:
-        """
-        Check if metrics are enabled
-        """
-        return self.config.metrics.enabled
-
-    def update_heartbeat(self) -> None:
+    def _update_heartbeat(self) -> None:
         """
         Update the local heartbeat file used by the liveness probe.
         """
@@ -105,6 +94,231 @@ class CollectController(LeaderController):
                 heartbeat_path,
                 exc,
             )
+
+    def _get_collect_controller_stateful_set_pods(self) -> Optional[list[str]]:
+        """
+        Get expected collect-controller pod names from the StatefulSet.
+        """
+        stateful_set_name = getattr(
+            self.config.context, "stateful_set_name", None
+        )
+        if not isinstance(stateful_set_name, str) or not stateful_set_name:
+            return None
+
+        stateful_set = self.get_namespaced_stateful_set(
+            namespace=self.config.context.namespace,
+            name=stateful_set_name,
+        )
+        if stateful_set is None:
+            logging.warning(
+                "Falling back to live collect-controller pod discovery: "
+                "StatefulSet '%s' is unavailable in namespace '%s'",
+                stateful_set_name,
+                self.config.context.namespace,
+            )
+            return None
+
+        replicas = getattr(getattr(stateful_set, "spec", None), "replicas", 1)
+        if replicas is None:
+            replicas = 1
+
+        return [f"{stateful_set_name}-{index}" for index in range(replicas)]
+
+    def _get_collect_controller_pods(self) -> list[str]:
+        """
+        Get collect-controller pod names used for namespace sharding.
+        """
+
+        stateful_set_pods = self._get_collect_controller_stateful_set_pods()
+        if stateful_set_pods is not None:
+            return stateful_set_pods
+
+        pods = self.get_namespace_pods_by(
+            namespace=self.config.context.namespace,
+            labels={"app.kubernetes.io/component": "collect-controller"},
+        )
+        pod_names = sorted(
+            {
+                pod.metadata.name
+                for pod in pods
+                if pod.metadata
+                and pod.metadata.name
+                and pod.metadata.deletion_timestamp is None
+                and getattr(pod.spec, "service_account_name", None)
+                == self.config.context.service_account
+            }
+        )
+        if not pod_names:
+            logging.warning(
+                "Failed to discover active collect-controller pods in '%s'",
+                self.config.context.namespace,
+            )
+
+        return pod_names
+
+    def _get_assigned_managed_namespaces(
+        self, managed_namespaces: List[V1Namespace]
+    ) -> List[V1Namespace]:
+        """
+        Get the managed namespaces assigned to the current replica.
+        """
+        pod_names = self._get_collect_controller_pods()
+        if not pod_names:
+            logging.warning(
+                "Skipping namespace checks because no collect-controller "
+                "replicas were discovered"
+            )
+            return []
+
+        if not self.current_pod_name:
+            logging.warning(
+                "Skipping namespace checks because current pod name is "
+                "unavailable"
+            )
+            return []
+
+        if self.current_pod_name not in pod_names:
+            logging.warning(
+                "Skipping namespace checks because current pod '%s' was not "
+                "found in the discovered replica set %s",
+                self.current_pod_name,
+                pod_names,
+            )
+            return []
+
+        assigned_namespaces = []
+        for namespace in sorted(
+            managed_namespaces, key=lambda item: item.metadata.name
+        ):
+            hash_index = int(
+                hashlib.sha256(
+                    namespace.metadata.name.encode("utf-8")
+                ).hexdigest(),
+                16,
+            ) % len(pod_names)
+            if pod_names[hash_index] == self.current_pod_name:
+                assigned_namespaces.append(namespace)
+
+        return assigned_namespaces
+
+    def _get_namespace_check_period(
+        self, config: CollectNamespaceConfig
+    ) -> datetime.timedelta:
+        """
+        Get the interval used for in-process namespace checks.
+        """
+        schedule = (
+            config.actions.get(CollectActions.CHECK_NAMESPACE).schedule
+            if config.actions
+            else None
+        )
+        if not schedule:
+            return datetime.timedelta(seconds=60)
+
+        try:
+            period = parse_timedelta(schedule)
+        except (TypeError, ValueError) as exc:
+            logging.warning(
+                "Invalid check schedule '%s'. Falling back to 60s: %s",
+                schedule,
+                exc,
+            )
+            return datetime.timedelta(seconds=60)
+
+        if period.total_seconds() <= 0:
+            logging.warning(
+                "Non-positive check schedule '%s'. Falling back to 60s",
+                schedule,
+            )
+            return datetime.timedelta(seconds=60)
+
+        return period
+
+    def _get_namespace_thread_name(self, namespace: str) -> str:
+        """
+        Build a stable thread name for a namespace check.
+        """
+        return f"namespace-check-{namespace}"
+
+    def is_metrics_enabled(self) -> bool:
+        """
+        Check if metrics are enabled
+        """
+        return self.config.metrics.enabled
+
+    def run_namespace_check(
+        self, namespace: str, namespace_resource: V1Namespace = None
+    ) -> None:
+        """
+        Run the namespace health collector in-process for a namespace.
+        """
+        self.namespace_collector.run_action(
+            CollectActions.CHECK_NAMESPACE, namespace, namespace_resource
+        )
+
+    def run_namespace_check_thread(
+        self,
+        stop_event: threading.Event,
+        namespace: str,
+        period: datetime.timedelta,
+    ) -> None:
+        """
+        Run a periodic namespace check thread for a namespace.
+        """
+        logging.info(
+            "Starting namespace check thread '%s' for namespace '%s' with "
+            "period '%ss'",
+            threading.current_thread().name,
+            namespace,
+            period.total_seconds(),
+        )
+        while not self.shutdown_event.is_set() and not stop_event.is_set():
+            namespace_resource = self.get_namespace(namespace)
+            if namespace_resource is None:
+                logging.info(
+                    "Stopping namespace thread for '%s' because the "
+                    "namespace no longer exists",
+                    namespace,
+                )
+                break
+
+            logging.info(
+                "Running namespace check thread '%s' for namespace '%s'",
+                threading.current_thread().name,
+                namespace,
+            )
+            self.run_namespace_check(namespace, namespace_resource)
+            if self.wait_for_task_stop(stop_event, period.total_seconds()):
+                break
+
+    def create_namespace_check_thread(
+        self, namespace: str, period: datetime.timedelta
+    ) -> None:
+        """
+        Create a periodic namespace check thread for a namespace.
+        """
+        thread_name = self._get_namespace_thread_name(namespace)
+        if self.has_task(thread_name):
+            return
+
+        self.add_managed_task(
+            thread_name, self.run_namespace_check_thread, (namespace, period)
+        )
+        self.namespace_check_threads[namespace] = thread_name
+        logging.info("Created namespace thread for '%s'", namespace)
+
+    def remove_namespace_check_thread(self, namespace: str) -> None:
+        """
+        Stop and remove a namespace check thread if it exists.
+        """
+        thread_name = self.namespace_check_threads.pop(namespace, None)
+        if thread_name is None:
+            thread_name = self._get_namespace_thread_name(namespace)
+            if not self.has_task(thread_name):
+                return
+
+        self.remove_task(thread_name)
+        logging.info("Removed namespace thread for '%s'", namespace)
 
     @conditional_controller_task(
         period=datetime.timedelta(seconds=1),
@@ -153,246 +367,12 @@ class CollectController(LeaderController):
                         traceback.format_exc(),
                     )
 
-    def get_collect_controller_stateful_set_pods(self) -> Optional[list[str]]:
-        """
-        Get expected collect-controller pod names from the StatefulSet.
-        """
-        stateful_set_name = getattr(
-            self.config.context, "stateful_set_name", None
-        )
-        if not isinstance(stateful_set_name, str) or not stateful_set_name:
-            return None
-
-        stateful_set = self.get_namespaced_stateful_set(
-            namespace=self.config.context.namespace,
-            name=stateful_set_name,
-        )
-        if stateful_set is None:
-            logging.warning(
-                "Falling back to live collect-controller pod discovery: "
-                "StatefulSet '%s' is unavailable in namespace '%s'",
-                stateful_set_name,
-                self.config.context.namespace,
-            )
-            return None
-
-        replicas = getattr(getattr(stateful_set, "spec", None), "replicas", 1)
-        if replicas is None:
-            replicas = 1
-
-        return [f"{stateful_set_name}-{index}" for index in range(replicas)]
-
-    def get_active_collect_controller_pods(self) -> list[str]:
-        """
-        Get active collect-controller pod names in the current namespace.
-        """
-        pods = self.get_namespace_pods_by(
-            namespace=self.config.context.namespace,
-            labels={"app.kubernetes.io/component": "collect-controller"},
-        )
-        pod_names = sorted(
-            {
-                pod.metadata.name
-                for pod in pods
-                if pod.metadata
-                and pod.metadata.name
-                and pod.metadata.deletion_timestamp is None
-                and getattr(pod.spec, "service_account_name", None)
-                == self.config.context.service_account
-            }
-        )
-        if not pod_names:
-            logging.warning(
-                "Failed to discover active collect-controller pods in '%s'",
-                self.config.context.namespace,
-            )
-
-        return pod_names
-
-    def get_collect_controller_pods(self) -> list[str]:
-        """
-        Get collect-controller pod names used for namespace sharding.
-        """
-        stateful_set_pods = self.get_collect_controller_stateful_set_pods()
-        if stateful_set_pods is not None:
-            return stateful_set_pods
-
-        return self.get_active_collect_controller_pods()
-
-    def get_assigned_managed_namespaces(
-        self, managed_namespaces: List[V1Namespace]
-    ) -> List[V1Namespace]:
-        """
-        Get the managed namespaces assigned to the current replica.
-        """
-        pod_names = self.get_collect_controller_pods()
-        if not pod_names:
-            logging.warning(
-                "Skipping namespace checks because no collect-controller "
-                "replicas were discovered"
-            )
-            return []
-
-        if not self.current_pod_name:
-            logging.warning(
-                "Skipping namespace checks because current pod name is "
-                "unavailable"
-            )
-            return []
-
-        if self.current_pod_name not in pod_names:
-            logging.warning(
-                "Skipping namespace checks because current pod '%s' was not "
-                "found in the discovered replica set %s",
-                self.current_pod_name,
-                pod_names,
-            )
-            return []
-
-        assigned_namespaces = []
-        for namespace in sorted(
-            managed_namespaces, key=lambda item: item.metadata.name
-        ):
-            hash_index = int(
-                hashlib.sha256(
-                    namespace.metadata.name.encode("utf-8")
-                ).hexdigest(),
-                16,
-            ) % len(pod_names)
-            if pod_names[hash_index] == self.current_pod_name:
-                assigned_namespaces.append(namespace)
-
-        return assigned_namespaces
-
-    def get_namespace_check_period(
-        self, config: CollectNamespaceConfig
-    ) -> datetime.timedelta:
-        """
-        Get the interval used for in-process namespace checks.
-        """
-        schedule = (
-            config.actions.get(CollectActions.CHECK_NAMESPACE).schedule
-            if config.actions
-            else None
-        )
-        if not schedule:
-            return datetime.timedelta(seconds=60)
-
-        try:
-            period = parse_timedelta(schedule)
-        except (TypeError, ValueError) as exc:
-            logging.warning(
-                "Invalid check schedule '%s'. Falling back to 60s: %s",
-                schedule,
-                exc,
-            )
-            return datetime.timedelta(seconds=60)
-
-        if period.total_seconds() <= 0:
-            logging.warning(
-                "Non-positive check schedule '%s'. Falling back to 60s",
-                schedule,
-            )
-            return datetime.timedelta(seconds=60)
-
-        return period
-
-    def run_namespace_check(self, namespace: str) -> None:
-        """
-        Run the namespace health collector in-process for a namespace.
-        """
-        self.namespace_collector.run_action(
-            CollectActions.CHECK_NAMESPACE,
-            namespace,
-        )
-
-    def get_namespace_thread_name(self, namespace: str) -> str:
-        """
-        Build a stable thread name for a namespace check.
-        """
-        return f"namespace-check-{namespace}"
-
-    def run_namespace_check_thread(
-        self,
-        stop_event: threading.Event,
-        namespace: str,
-        period: datetime.timedelta,
-    ) -> None:
-        """
-        Run a periodic namespace check thread for a namespace.
-        """
-        logging.info(
-            "Starting namespace check thread '%s' for namespace '%s' with "
-            "period '%ss'",
-            threading.current_thread().name,
-            namespace,
-            period.total_seconds(),
-        )
-        while not self.shutdown_event.is_set() and not stop_event.is_set():
-            namespace_resource = self.get_namespace(namespace)
-            if namespace_resource is None:
-                logging.info(
-                    "Stopping namespace thread for '%s' because the "
-                    "namespace no longer exists",
-                    namespace,
-                )
-                break
-
-            namespace_config = match_namespace(
-                self.config.namespaces, self.to_dto(namespace_resource)
-            )
-            if namespace_config is None:
-                logging.info(
-                    "Stopping namespace thread for '%s' because the "
-                    "namespace no longer matches collector configuration",
-                    namespace,
-                )
-                break
-
-            logging.info(
-                "Running namespace check thread '%s' for namespace '%s'",
-                threading.current_thread().name,
-                namespace,
-            )
-            self.run_namespace_check(namespace)
-            if self.wait_for_task_stop(stop_event, period.total_seconds()):
-                break
-
-    def create_namespace_check_thread(
-        self, namespace: str, period: datetime.timedelta
-    ) -> None:
-        """
-        Create a periodic namespace check thread for a namespace.
-        """
-        thread_name = self.get_namespace_thread_name(namespace)
-        if self.has_task(thread_name):
-            return
-
-        self.add_managed_task(
-            thread_name, self.run_namespace_check_thread, (namespace, period)
-        )
-        self.namespace_check_threads[namespace] = thread_name
-        logging.info("Created namespace thread for '%s'", namespace)
-
-    def remove_namespace_check_thread(self, namespace: str) -> None:
-        """
-        Stop and remove a namespace check thread if it exists.
-        """
-        thread_name = self.namespace_check_threads.pop(namespace, None)
-        if thread_name is None:
-            thread_name = self.get_namespace_thread_name(namespace)
-            if not self.has_task(thread_name):
-                return
-
-        self.remove_task(thread_name)
-        logging.info("Removed namespace thread for '%s'", namespace)
-
     @controller_task(period=datetime.timedelta(seconds=5))
     def check_assigned_namespaces(self) -> None:
         """
         Reconcile periodic namespace check threads for this replica.
         """
-        self.update_heartbeat()
+        self._update_heartbeat()
         managed_namespaces = [
             namespace
             for namespace in self.get_namespaces_by(
@@ -400,7 +380,7 @@ class CollectController(LeaderController):
             )
             if namespace.metadata.name not in self.forbidden_namespaces
         ]
-        assigned_namespaces = self.get_assigned_managed_namespaces(
+        assigned_namespaces = self._get_assigned_managed_namespaces(
             managed_namespaces
         )
         active_namespaces = set()
@@ -420,7 +400,7 @@ class CollectController(LeaderController):
             active_namespaces.add(namespace_name)
             self.create_namespace_check_thread(
                 namespace_name,
-                self.get_namespace_check_period(namespace_config),
+                self._get_namespace_check_period(namespace_config),
             )
 
         for namespace in list(self.namespace_check_threads):

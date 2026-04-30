@@ -43,7 +43,7 @@ class NamespaceCollector(Collector):
         """
         return {CollectActions.CHECK_NAMESPACE: cls.check_namespace}
 
-    def set_status(
+    def _set_status(
         self,
         namespace: V1Namespace,
         namespace_config: CollectNamespaceConfig,
@@ -116,33 +116,7 @@ class NamespaceCollector(Collector):
 
         self.patch_namespace(namespace.metadata.name, annotations=annotations)
 
-    def check_namespace(
-        self, namespace_name: str, namespace: V1Namespace
-    ) -> None:
-        """
-        Check the namespace for staleness and failures throught Prometheus
-        alerts or fallback to kubernetes API.
-        """
-        logging.info("Starting check for namespace '%s'", namespace_name)
-        namespace_config = self.get_namespace_config(namespace)
-
-        alerts = None
-        if self.prometheus_config.enabled:
-            alerts = self.fetch_prometheus_alerts()
-
-        new_status, new_annotations = self.evaluate_namespace_health(
-            namespace_name, namespace, namespace_config, alerts
-        )
-        self.set_status(
-            namespace,
-            namespace_config,
-            new_status,
-            new_annotations,
-        )
-
-        logging.debug("Completed check for namespace: '%s", namespace_name)
-
-    def fetch_prometheus_alerts(self) -> list:
+    def _fetch_prometheus_alerts(self) -> list:
         """
         Fetch alerts from Prometheus.
 
@@ -164,37 +138,6 @@ class NamespaceCollector(Collector):
             logging.error(f"Error fetching alerts from Prometheus: {e}")
             return []
 
-    def evaluate_namespace_health(
-        self,
-        namespace_name: str,
-        namespace: V1Namespace,
-        namespace_config: CollectNamespaceConfig,
-        alerts: Optional[list] = None,
-    ) -> Tuple[NamespaceStatus, dict]:
-        """
-        Evaluate namespace health based on Prometheus alerts or
-        Kubernetes API fallback.
-
-        Returns:
-            bool: True if the namespace is healthy, False if there are issues.
-        """
-        matching_alerts = alerts
-
-        if alerts:
-            matching_alerts = [
-                alert
-                for alert in alerts
-                if self._matches_alert_labels(namespace, alert)
-            ]
-
-        stale, annotations = self.check_stale(namespace, namespace_config)
-        if stale:
-            return NamespaceStatus.STALE, annotations
-
-        return self.check_failure(
-            namespace_name, namespace_config, namespace, matching_alerts
-        )
-
     def _matches_alert_labels(
         self, namespace: V1Namespace, alert: dict
     ) -> bool:
@@ -212,7 +155,7 @@ class NamespaceCollector(Collector):
 
         return labels.get("datacentre") == datacentre
 
-    def check_stale(
+    def _check_stale(
         self,
         namespace: V1Namespace,
         namespace_config: CollectNamespaceConfig,
@@ -243,158 +186,6 @@ class NamespaceCollector(Collector):
             }
 
         return is_stale, annotations
-
-    def check_failure(
-        self,
-        namespace_name: str,
-        namespace_config: CollectNamespaceConfig,
-        namespace: V1Namespace,
-        alerts: Optional[list] = None,
-    ) -> bool:
-        """
-        Check for failures in the namespace using the alerts from Prometheus,
-        with Kubernetes API as a fallback for checking Deployment, StatefulSet,
-        or ReplicaSet
-
-        :param namespace: Namespace to check
-        :param alerts: List of alerts from Prometheus (default is None)
-        :return: True if there are failures, False otherwise.
-        """
-        annotations = namespace.metadata.annotations or {}
-
-        if alerts is None:
-            failing_resources = self.get_k8s_failing_resources(namespace_name)
-        else:
-            failing_resources = self.process_alerts(alerts)
-
-        new_annotations = {
-            NamespaceAnnotations.FAILING_RESOURCES.value: json.dumps(
-                failing_resources
-            )
-        }
-        if len(failing_resources) == 0:
-            return NamespaceStatus.OK, new_annotations
-
-        return (
-            self.transition_namespace_status(annotations, namespace_config),
-            new_annotations,
-        )
-
-    def get_k8s_failing_resources(self, namespace: str) -> List[str]:
-        """Helper to get failing resources from Kubernetes API."""
-        resource_types = ["deployment", "statefulset", "replicaset"]
-        return list(
-            set(
-                resource
-                for resource_type in resource_types
-                for resource in self._check_resource_status(
-                    namespace, resource_type
-                )
-            )
-        )
-
-    def process_alerts(self, alerts: list) -> List[dict]:
-        """Helper method to process alerts."""
-        alerts_processed = []
-        for alert in alerts:
-            alert_identifier = alert["labels"].get("alertname")
-            if not alert_identifier:
-                logging.warning("Alert missing 'alertname', skipping it.")
-                continue
-
-            if self.validate_alert(alert):
-                alert_data = {
-                    "labels": alert["labels"],
-                    "annotations": {
-                        "runbook_url": alert["annotations"].get(
-                            "runbook_url", ""
-                        ),
-                    },
-                }
-                alerts_processed.append(dict(alert_data))
-
-        return alerts_processed
-
-    def validate_alert(self, alert: dict) -> bool:
-        """Helper method to process individual alert resources."""
-
-        alert_identifier = alert["labels"].get("alertname")
-        if alert_identifier in self.prometheus_config.whitelisted_alerts:
-            severity = alert["labels"].get("severity", "unknown")
-
-            if severity != "critical":
-                logging.warning(
-                    "Alert '%s' is whitelisted with severity '%s', skipping.",
-                    alert_identifier,
-                    severity,
-                )
-                return False
-        else:
-            logging.warning("Alert '%s' is firing.", alert_identifier)
-        return True
-
-    def transition_namespace_status(
-        self,
-        annotations: dict,
-        namespace_config: CollectNamespaceConfig,
-    ) -> bool:
-        """
-        Helper to update the namespace status based on the alerts
-        or resource checks.
-        """
-        current_status = NamespaceStatus.from_string(
-            annotations.get(NamespaceAnnotations.STATUS.value)
-        )
-        if current_status in [
-            NamespaceStatus.OK,
-            NamespaceStatus.UNKNOWN,
-        ]:
-            return NamespaceStatus.UNSTABLE
-
-        if (
-            current_status == NamespaceStatus.UNSTABLE
-            and self._is_after_period(
-                "settling_period", annotations, namespace_config
-            )
-        ):
-            return NamespaceStatus.FAILING
-
-        if (
-            current_status == NamespaceStatus.FAILING
-            and self._is_after_period(
-                "grace_period", annotations, namespace_config
-            )
-        ):
-            return NamespaceStatus.FAILED
-
-        return current_status
-
-    def _is_after_period(
-        self,
-        period_type: str,
-        annotations: Dict[str, str],
-        namespace_config: CollectNamespaceConfig,
-    ) -> bool:
-        status_timestamp = parse(
-            annotations.get(NamespaceAnnotations.STATUS_TS.value, utc())
-        ).replace(tzinfo=None)
-
-        try:
-            period = getattr(namespace_config, period_type)
-        except AttributeError as e:
-            logging.error(
-                "Namespace configuration has no %s attribute.", period_type
-            )
-            raise AttributeError from e
-
-        time_instant = status_timestamp + period
-        logging.debug(
-            "Status Timestamp: %s; %s Timestamp: %s",
-            status_timestamp,
-            period_type,
-            time_instant,
-        )
-        return datetime.now() > time_instant
 
     def _check_resource_status(
         self, namespace: str, resource_type: str
@@ -446,3 +237,212 @@ class NamespaceCollector(Collector):
             traceback.print_exception(exc)
 
         return failing_resources
+
+    def _get_k8s_failing_resources(self, namespace: str) -> List[str]:
+        """Helper to get failing resources from Kubernetes API."""
+        resource_types = ["deployment", "statefulset", "replicaset"]
+        return list(
+            set(
+                resource
+                for resource_type in resource_types
+                for resource in self._check_resource_status(
+                    namespace, resource_type
+                )
+            )
+        )
+
+    def _validate_alert(self, alert: dict) -> bool:
+        """Helper method to process individual alert resources."""
+
+        alert_identifier = alert["labels"].get("alertname")
+        if alert_identifier in self.prometheus_config.whitelisted_alerts:
+            severity = alert["labels"].get("severity", "unknown")
+
+            if severity != "critical":
+                logging.warning(
+                    "Alert '%s' is whitelisted with severity '%s', skipping.",
+                    alert_identifier,
+                    severity,
+                )
+                return False
+        else:
+            logging.warning("Alert '%s' is firing.", alert_identifier)
+        return True
+
+    def _process_alerts(self, alerts: list) -> List[dict]:
+        """Helper method to process alerts."""
+        alerts_processed = []
+        for alert in alerts:
+            alert_identifier = alert["labels"].get("alertname")
+            if not alert_identifier:
+                logging.warning("Alert missing 'alertname', skipping it.")
+                continue
+
+            if self._validate_alert(alert):
+                alert_data = {
+                    "labels": alert["labels"],
+                    "annotations": {
+                        "runbook_url": alert["annotations"].get(
+                            "runbook_url", ""
+                        ),
+                    },
+                }
+                alerts_processed.append(dict(alert_data))
+
+        return alerts_processed
+
+    def _is_after_period(
+        self,
+        period_type: str,
+        annotations: Dict[str, str],
+        namespace_config: CollectNamespaceConfig,
+    ) -> bool:
+        status_timestamp = parse(
+            annotations.get(NamespaceAnnotations.STATUS_TS.value, utc())
+        ).replace(tzinfo=None)
+
+        try:
+            period = getattr(namespace_config, period_type)
+        except AttributeError as e:
+            logging.error(
+                "Namespace configuration has no %s attribute.", period_type
+            )
+            raise AttributeError from e
+
+        time_instant = status_timestamp + period
+        logging.debug(
+            "Status Timestamp: %s; %s Timestamp: %s",
+            status_timestamp,
+            period_type,
+            time_instant,
+        )
+        return datetime.now() > time_instant
+
+    def _transition_namespace_status(
+        self,
+        annotations: dict,
+        namespace_config: CollectNamespaceConfig,
+    ) -> bool:
+        """
+        Helper to update the namespace status based on the alerts
+        or resource checks.
+        """
+        current_status = NamespaceStatus.from_string(
+            annotations.get(NamespaceAnnotations.STATUS.value)
+        )
+        if current_status in [
+            NamespaceStatus.OK,
+            NamespaceStatus.UNKNOWN,
+        ]:
+            return NamespaceStatus.UNSTABLE
+
+        if (
+            current_status == NamespaceStatus.UNSTABLE
+            and self._is_after_period(
+                "settling_period", annotations, namespace_config
+            )
+        ):
+            return NamespaceStatus.FAILING
+
+        if (
+            current_status == NamespaceStatus.FAILING
+            and self._is_after_period(
+                "grace_period", annotations, namespace_config
+            )
+        ):
+            return NamespaceStatus.FAILED
+
+        return current_status
+
+    def _check_failure(
+        self,
+        namespace_name: str,
+        namespace_config: CollectNamespaceConfig,
+        namespace: V1Namespace,
+        alerts: Optional[list] = None,
+    ) -> bool:
+        """
+        Check for failures in the namespace using the alerts from Prometheus,
+        with Kubernetes API as a fallback for checking Deployment, StatefulSet,
+        or ReplicaSet
+
+        :param namespace: Namespace to check
+        :param alerts: List of alerts from Prometheus (default is None)
+        :return: True if there are failures, False otherwise.
+        """
+        annotations = namespace.metadata.annotations or {}
+
+        if alerts is None:
+            failing_resources = self._get_k8s_failing_resources(namespace_name)
+        else:
+            failing_resources = self._process_alerts(alerts)
+
+        new_annotations = {
+            NamespaceAnnotations.FAILING_RESOURCES.value: json.dumps(
+                failing_resources
+            )
+        }
+        if len(failing_resources) == 0:
+            return NamespaceStatus.OK, new_annotations
+
+        return (
+            self._transition_namespace_status(annotations, namespace_config),
+            new_annotations,
+        )
+
+    def _evaluate_namespace_health(
+        self,
+        namespace_name: str,
+        namespace: V1Namespace,
+        namespace_config: CollectNamespaceConfig,
+        alerts: Optional[list] = None,
+    ) -> Tuple[NamespaceStatus, dict]:
+        """
+        Evaluate namespace health based on Prometheus alerts or
+        Kubernetes API fallback.
+
+        Returns:
+            bool: True if the namespace is healthy, False if there are issues.
+        """
+        matching_alerts = alerts
+
+        if alerts:
+            matching_alerts = [
+                alert
+                for alert in alerts
+                if self._matches_alert_labels(namespace, alert)
+            ]
+
+        stale, annotations = self._check_stale(namespace, namespace_config)
+        if stale:
+            return NamespaceStatus.STALE, annotations
+
+        return self._check_failure(
+            namespace_name, namespace_config, namespace, matching_alerts
+        )
+
+    def check_namespace(
+        self, namespace_name: str, namespace: V1Namespace
+    ) -> None:
+        """
+        Check the namespace for staleness and failures throught Prometheus
+        alerts or fallback to kubernetes API.
+        """
+        logging.info("Starting check for namespace '%s'", namespace_name)
+        namespace_config = self.get_namespace_config(namespace)
+
+        alerts = None
+        if self.prometheus_config.enabled:
+            alerts = self._fetch_prometheus_alerts()
+
+        new_status, new_annotations = self._evaluate_namespace_health(
+            namespace_name, namespace, namespace_config, alerts
+        )
+        self._set_status(
+            namespace,
+            namespace_config,
+            new_status,
+            new_annotations,
+        )
+
+        logging.debug("Completed check for namespace: '%s", namespace_name)

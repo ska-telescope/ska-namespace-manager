@@ -85,7 +85,10 @@ class ThreadManager:
         Signal the manager to terminate.
         """
         self.shutdown_event.set()
-        for stop_event in self.task_stop_events.values():
+        stop_event_values = list(
+            self.task_stop_events.values()
+        )  # iterating over a copy to avoid race conditions
+        for stop_event in stop_event_values:
             if stop_event is not None:
                 stop_event.set()
         with self._wake:
