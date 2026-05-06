@@ -1,8 +1,10 @@
 """leader_lock implements a filelock based leader election lock"""
 
 import datetime
+import fcntl
 import os
 import traceback
+from contextlib import suppress
 from pathlib import Path
 
 from filelock import FileLock, Timeout
@@ -39,6 +41,27 @@ class LeaderLock:
         self.timeout = timeout
         self.rethrow_exception = rethrow_exception
 
+    def _drop_stale_handle(self) -> None:
+        """
+        Drops a stale local file descriptor without unlinking
+        the current shared lock path.
+        """
+        context = (
+            self.file_lock._context  # pylint: disable=protected-access  # noqa: E501
+        )
+        fd = context.lock_file_fd
+        if fd is None:
+            return
+
+        context.lock_file_fd = None
+        context.lock_counter = 0
+        with suppress(OSError):
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        with suppress(OSError):
+            os.close(fd)
+
+        self.file_lock = FileLock(self.lock_path, thread_local=False)
+
     def acquire_lease(self):
         """
         Attempts to acquire lease and in case of failure, tries to
@@ -51,10 +74,11 @@ class LeaderLock:
             if self.is_leader():
                 self.renew_lease()
             else:
-                # Release before trying a lock on a new file
+                # Drop the stale local handle before trying the
+                # current shared lock path again.
                 if self.file_lock.is_locked:
-                    logging.warning("Releasing stale lock ...")
-                    self.file_lock.release(force=True)
+                    logging.warning("Dropping stale lock handle ...")
+                    self._drop_stale_handle()
 
                 self.file_lock.acquire(timeout=self.timeout)
                 logging.info("Acquired leader lock")

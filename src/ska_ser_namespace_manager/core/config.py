@@ -72,9 +72,6 @@ class ConfigLoader(metaclass=Singleton):
         if config_data is None:
             raise ValueError("Unable to load a valid configuration")
 
-        # Debug output to check what is being loaded
-        logging.debug(f"Loaded config data: {config_data}")
-
         # Initialize the configuration class
         self.configs[clazz] = clazz(**config_data)
         return self.configs[clazz]

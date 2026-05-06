@@ -15,6 +15,7 @@ from ska_ser_namespace_manager.controller.leader_controller import (
 from ska_ser_namespace_manager.core.namespace import Namespace
 from ska_ser_namespace_manager.core.notifier import Notifier
 from ska_ser_namespace_manager.core.types import (
+    CicdAnnotations,
     NamespaceAnnotations,
     NamespaceStatus,
 )
@@ -107,80 +108,50 @@ def action_controller(
         yield action_controller_instance
 
 
-def test_action_controller_init(
-    mock_notifier_init,
-    mock_leader_controller_init,
-    mock_action_controller_config,
-):
-    with patch(
-        "ska_ser_namespace_manager.controller.controller.ConfigLoader"
-    ) as mock_config_loader, patch(
-        "ska_ser_namespace_manager.core.logging.logging.debug"
-    ), patch(
-        "ska_ser_namespace_manager.controller.action_controller.yaml.safe_dump"
-    ) as mock_yaml_dump, patch(
-        "ska_ser_namespace_manager.controller.action_controller.yaml.safe_load"
-    ) as mock_yaml_load, patch.object(
-        LeaderController, "__init__", return_value=None
+def test_action_controller_init():
+    action_controller_config = MagicMock()
+    action_controller_config.notifier.token = "test-token"
+
+    def set_controller_config(controller, config_class, tasks, kubeconfig):
+        controller.config = action_controller_config
+        controller.tasks = tasks
+        controller.kubeconfig = kubeconfig
+        controller.config_class = config_class
+
+    with patch.object(
+        LeaderController, "__init__", autospec=True
     ) as mock_leader_init, patch.object(
-        Notifier, "__init__", return_value=None
-    ) as mock_notifier_init:
-
-        mock_config_loader.return_value.load.return_value = (
-            mock_action_controller_config
-        )
-        mock_yaml_load.return_value = {}
-        mock_yaml_dump.return_value = "config dump"
-
-        action_controller_instance = ActionController.__new__(ActionController)
-        action_controller_instance.config = mock_action_controller_config
-
-        LeaderController.__init__(
-            action_controller_instance,
-            ActionControllerConfig,
-            [
-                action_controller_instance.delete_stale_namespaces,
-                action_controller_instance.delete_failed_namespaces,
-            ],
-            None,
-        )
-        Notifier.__init__(
-            action_controller_instance,
-            action_controller_instance.config.notifier.token,
-        )
-
-        action_controller_instance.forbidden_namespaces = []
-        action_controller_instance.leader_lock = MagicMock()
-        action_controller_instance.shutdown_event = MagicMock()
-        action_controller_instance.shutdown_event.is_set = MagicMock(
-            return_value=False
-        )
+        Notifier, "__init__", autospec=True, return_value=None
+    ) as notifier_init:
+        mock_leader_init.side_effect = set_controller_config
+        action_controller_instance = ActionController()
 
         assert isinstance(action_controller_instance, ActionController)
         assert isinstance(action_controller_instance, LeaderController)
         assert isinstance(action_controller_instance, Notifier)
-        assert (
-            action_controller_instance.config == mock_action_controller_config
-        )
+        assert action_controller_instance.config == action_controller_config
 
-        mock_leader_init.assert_called_once_with(
-            action_controller_instance,
-            ActionControllerConfig,
-            [
-                action_controller_instance.delete_stale_namespaces,
-                action_controller_instance.delete_failed_namespaces,
-            ],
-            None,
+        mock_leader_init.assert_called_once()
+        controller, config_class, tasks, kubeconfig = (
+            mock_leader_init.call_args.args
         )
-        mock_notifier_init.assert_called_once_with(
+        assert controller == action_controller_instance
+        assert config_class == ActionControllerConfig
+        assert [task.__name__ for task in tasks] == [
+            "delete_stale_namespaces",
+            "delete_failed_namespaces",
+            "notify_failing_unstable_namespaces",
+        ]
+        assert kubeconfig is None
+        notifier_init.assert_called_once_with(
             action_controller_instance,
-            mock_action_controller_config.notifier.token,
+            action_controller_config.notifier.token,
         )
 
 
 def test_delete_namespaces_with_status_no_match(action_controller):
     action_controller.get_namespaces_by = MagicMock(return_value=[])
-    action_controller.delete_namespaces_with_status("stale")
+    action_controller._delete_namespaces_with_status("stale")
     action_controller.get_namespaces_by.assert_called_once_with(
         annotations={
             NamespaceAnnotations.MANAGED.value: "true",
@@ -223,7 +194,7 @@ def test_delete_namespaces_with_status_match(action_controller):
         "ska_ser_namespace_manager.controller.action_controller.getattr",
         return_value=phase_config,
     ):
-        action_controller.delete_namespaces_with_status(
+        action_controller._delete_namespaces_with_status(
             NamespaceStatus.STALE.value
         )
 
@@ -265,7 +236,7 @@ def test_delete_namespaces_with_status_match_no_notify(action_controller):
         "ska_ser_namespace_manager.controller.action_controller.getattr",
         return_value=phase_config,
     ):
-        action_controller.delete_namespaces_with_status("stale")
+        action_controller._delete_namespaces_with_status("stale")
 
     action_controller.delete_namespace.assert_called_once_with(
         "test-namespace"
@@ -305,7 +276,7 @@ def test_delete_namespaces_with_status_match_no_delete(action_controller):
         "ska_ser_namespace_manager.controller.action_controller.getattr",
         return_value=phase_config,
     ):
-        action_controller.delete_namespaces_with_status("stale")
+        action_controller._delete_namespaces_with_status("stale")
 
     action_controller.delete_namespace.assert_not_called()
     action_controller.notify_user.assert_not_called()
@@ -345,7 +316,7 @@ def test_delete_namespaces_with_status_terminating(action_controller):
         "ska_ser_namespace_manager.controller.action_controller.getattr",
         return_value=phase_config,
     ):
-        action_controller.delete_namespaces_with_status(
+        action_controller._delete_namespaces_with_status(
             NamespaceStatus.STALE.value
         )
 
@@ -354,17 +325,17 @@ def test_delete_namespaces_with_status_terminating(action_controller):
 
 
 def test_delete_stale_namespaces(action_controller):
-    action_controller.delete_namespaces_with_status = MagicMock()
+    action_controller._delete_namespaces_with_status = MagicMock()
     action_controller.delete_stale_namespaces()
-    action_controller.delete_namespaces_with_status.assert_called_once_with(
+    action_controller._delete_namespaces_with_status.assert_called_once_with(
         NamespaceStatus.STALE.value
     )
 
 
 def test_delete_failed_namespaces(action_controller):
-    action_controller.delete_namespaces_with_status = MagicMock()
+    action_controller._delete_namespaces_with_status = MagicMock()
     action_controller.delete_failed_namespaces()
-    action_controller.delete_namespaces_with_status.assert_called_once_with(
+    action_controller._delete_namespaces_with_status.assert_called_once_with(
         NamespaceStatus.FAILED.value
     )
 
@@ -376,7 +347,7 @@ def test_notify_failing_unstable_namespaces_no_match(action_controller):
         annotations={
             NamespaceAnnotations.MANAGED.value: "true",
             NamespaceAnnotations.STATUS.value: "(failing|unstable)",
-            NamespaceAnnotations.OWNER.value: ".+",
+            CicdAnnotations.NOTIFICATION_ADDRESS.value: ".+",
         },
         exclude_annotations={NamespaceAnnotations.NOTIFIED_TS.value: ".+"},
     )
@@ -387,7 +358,7 @@ def test_notify_failing_unstable_namespaces_match(action_controller):
     mock_namespace.metadata.name = "test-namespace"
     mock_namespace.metadata.annotations = {
         NamespaceAnnotations.STATUS.value: NamespaceStatus.FAILING.value,
-        NamespaceAnnotations.OWNER.value: "test-owner",
+        CicdAnnotations.NOTIFICATION_ADDRESS.value: "test-address",
     }
     action_controller.get_namespaces_by = MagicMock(
         return_value=[mock_namespace]
@@ -398,7 +369,7 @@ def test_notify_failing_unstable_namespaces_match(action_controller):
             labels={},
             annotations={
                 NamespaceAnnotations.STATUS.value: NamespaceStatus.FAILING.value,  # pylint: disable=line-too-long # noqa: E501
-                NamespaceAnnotations.OWNER.value: "test-owner",
+                CicdAnnotations.NOTIFICATION_ADDRESS.value: "test-address",
             },
         )
     )
@@ -427,7 +398,7 @@ def test_notify_failing_unstable_namespaces_match_no_notify(action_controller):
     mock_namespace.metadata.name = "test-namespace"
     mock_namespace.metadata.annotations = {
         NamespaceAnnotations.STATUS.value: "failing",
-        NamespaceAnnotations.OWNER.value: "test-owner",
+        CicdAnnotations.NOTIFICATION_ADDRESS.value: "test-address",
     }
     action_controller.get_namespaces_by = MagicMock(
         return_value=[mock_namespace]
@@ -438,7 +409,7 @@ def test_notify_failing_unstable_namespaces_match_no_notify(action_controller):
             labels={},
             annotations={
                 NamespaceAnnotations.STATUS.value: "failing",
-                NamespaceAnnotations.OWNER.value: "test-owner",
+                CicdAnnotations.NOTIFICATION_ADDRESS.value: "test-address",
             },
         )
     )

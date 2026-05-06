@@ -20,6 +20,10 @@
 {{- printf "%s-collect-ctl-config" (include "ska-ser-namespace-manager.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{- define "ska-ser-namespace-manager.collect-controller.serviceName" -}}
+{{- printf "%s-collect-ctl" (include "ska-ser-namespace-manager.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
 {{- define "ska-ser-namespace-manager.collect-controller.serviceAccount" -}}
 {{- printf "%s-collect-ctl-sa" (include "ska-ser-namespace-manager.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
@@ -53,6 +57,7 @@ context:
   config_secret: {{ template "ska-ser-namespace-manager.collect-controller.configName" . }}
   config_path: {{ template "ska-ser-namespace-manager.collect-controller.configPath" . }}
   image: {{ include "ska-ser-namespace-manager.image" (list . .Values.collectController) }}
+  stateful_set_name: {{ template "ska-ser-namespace-manager.collect-controller.name" . }}
 people_api:
 {{- if .Values.api.service.https.enabled }}
   url: https://{{ include "ska-ser-namespace-manager.api.serviceName" . }}.{{ .Release.Namespace }}.svc:{{ .Values.api.service.https.port }}

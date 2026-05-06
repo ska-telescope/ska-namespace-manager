@@ -1,4 +1,4 @@
-FROM artefact.skao.int/ska-build-python:0.3.2 as requirements
+FROM artefact.skao.int/ska-build-python:0.4.1 as requirements
 
 RUN mkdir -p /opt/ska_ser_namespace_manager
 WORKDIR /opt/ska_ser_namespace_manager
@@ -14,7 +14,7 @@ ENV POETRY_VIRTUALENVS_CREATE=1
 #not the code under development
 RUN poetry install --no-root
 
-FROM artefact.skao.int/ska-python:0.2.4
+FROM artefact.skao.int/ska-python:0.3.1
 
 WORKDIR /opt/ska_ser_namespace_manager
 #Adding the virtualenv binaries

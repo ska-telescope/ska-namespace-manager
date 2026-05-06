@@ -4,12 +4,16 @@ for the collect controller component
 """
 
 import datetime
+import os
 import tempfile
 from enum import Enum
 from typing import Annotated, Dict, List, Optional
 
 from pydantic import BaseModel, BeforeValidator
 
+from ska_ser_namespace_manager.controller.controller_config import (
+    KubernetesContext,
+)
 from ska_ser_namespace_manager.controller.leader_controller_config import (
     LeaderControllerConfig,
 )
@@ -25,7 +29,6 @@ class CollectActions(str, Enum):
     """
 
     CHECK_NAMESPACE = "check-namespace"
-    GET_OWNER_INFO = "get-owner-info"
 
     def __str__(self):
         return self.value
@@ -34,11 +37,11 @@ class CollectActions(str, Enum):
 class CollectTaskConfig(BaseModel):
     """
     CollectTaskConfig holds the configurations for the collect controller
-    tasks. Properties below are the ones we can set for cronjobs or jobs in
-    the Kubernetes API
+    tasks. The schedule uses interval syntax for in-process namespace checks,
+    while the remaining properties are used for Kubernetes Jobs.
     """
 
-    schedule: Optional[str] = "*/1 * * * *"
+    schedule: Optional[str] = "60s"
     successful_jobs_history_limit: Optional[int] = 1
     failed_jobs_history_limit: Optional[int] = None
     concurrency_policy: Optional[str] = "Forbid"
@@ -123,12 +126,14 @@ class PrometheusConfig(BaseModel):
     * ca: CA certificate of Prometheus
     * ca_path: Path to the CA certificate file
     * insecure: True to ignore the SSL certificate
+    * datacentre: Optional alert label filter for Prometheus alerts
     """
 
     url: Optional[str] = None
     ca: Optional[str] = None
     ca_path: Optional[str] = None
     insecure: Optional[bool] = False
+    datacentre: Optional[str] = None
     enabled: Optional[bool] = True
     whitelisted_alerts: Optional[list] = []
 
@@ -159,10 +164,33 @@ class CollectConfig(BaseModel):
             self.namespaces = []
 
 
+class HeartbeatConfig(BaseModel):
+    """
+    HeartbeatConfig holds configurations for the collect-controller
+    liveness heartbeat file.
+    """
+
+    path: str = "/tmp/collect-controller-heartbeat"
+    max_age_seconds: int = 60
+
+    def model_post_init(self, _):
+        self.path = os.path.abspath(self.path)
+
+
+class CollectControllerContext(KubernetesContext):
+    """
+    CollectControllerContext holds collect-controller runtime identity.
+    """
+
+    stateful_set_name: Optional[str] = None
+
+
 class CollectControllerConfig(CollectConfig, LeaderControllerConfig):
     """
     CollectControllerConfig provides the configurations for the collect
     controller
     """
 
+    context: CollectControllerContext
+    heartbeat: HeartbeatConfig = HeartbeatConfig()
     metrics: Optional[MetricsConfig] = MetricsConfig()

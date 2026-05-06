@@ -177,6 +177,9 @@ api:
 
 collectController:
   config:
+    heartbeat:
+      path: /tmp/collect-controller-heartbeat
+      max_age_seconds: 60
     leader_election:
       enabled: true
       path: /etc/leader
@@ -187,9 +190,9 @@ collectController:
         ttl: 5m
         settling_period: 5m
         grace_period: 2m
-        tasks:
+        actions:
           check-namespace:
-            schedule: "*/1 * * * *"
+            schedule: "60s"
     people_api:
       url:
       ca:
@@ -199,6 +202,7 @@ collectController:
       ca:
       enabled: true
       insecure: true
+      datacentre:
       whitelisted_alerts:
 
   image:
@@ -206,7 +210,7 @@ collectController:
     pullPolicy:
     tag:
 
-  replicas: 1
+  replicas: 3
 
   pvc:
     leaderElection:
@@ -217,10 +221,9 @@ collectController:
   annotations: {}
 
   updateStrategy:
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 40%
     type: RollingUpdate
+
+  podManagementPolicy: OrderedReady
 
   dnsPolicy: ClusterFirst
 
@@ -241,6 +244,20 @@ collectController:
   startupProbe:
 
   livenessProbe:
+    exec:
+      command:
+        - /bin/sh
+        - -ec
+        - >-
+          heartbeat_path='{{ .Values.collectController.config.heartbeat.path }}';
+          max_age='{{ .Values.collectController.config.heartbeat.max_age_seconds }}';
+          test -f "$heartbeat_path" &&
+          [ $(( $(date +%s) - $(stat -c %Y "$heartbeat_path") )) -lt "$max_age" ]
+    initialDelaySeconds: 15
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+    successThreshold: 1
 
   readinessProbe:
 
@@ -386,4 +403,3 @@ actionController:
   extraArgs: []
 
   extraEnvVars: []
-

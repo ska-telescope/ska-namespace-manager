@@ -5,7 +5,38 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
 
-## [Unreleased] - 2024-07-18
+## 0.2.0 - 2026-04-29
+
+- **Collect-controller namespace checks run in-process**
+  - replaced namespace check CronJobs with periodic in-process threads managed by the collect-controller
+  - distributed namespace checks across collect-controller replicas and increased the default replica count to `3`
+  - changed the default `check-namespace` schedule format from cron syntax to interval syntax, defaulting to `60s`
+  - corrected the default collect-controller chart configuration key from `tasks` to `actions`
+  - removed the Kubernetes Job-based ownership collection path and its collect-controller RBAC permissions
+  - reused a shared `NamespaceCollector` instance across namespace checks instead of instantiating a collector per action
+
+- **Collect-controller StatefulSet migration**
+  - changed the collect-controller workload from a Deployment to a StatefulSet with stable ordinal pod names
+  - added a headless governing Service and rendered StatefulSet context for collect-controller configuration
+
+- **Collect-controller liveness probe support**
+  - added heartbeat-based liveness configuration for collect-controller pods
+  - updated the controller to refresh a heartbeat file used by the Helm chart liveness probe
+
+- **Prometheus alert filtering fix**
+  - fixed namespace alert matching so Prometheus alerts can also be filtered by optional `datacentre` label
+  - added Helm values and configuration support for the Prometheus `datacentre` filter
+
+- **Notification annotation update**
+  - replaced the manager-owned namespace owner annotation with the CI/CD notification address annotation for user notifications
+  - updated stale, failed, failing, and unstable namespace notifications to use `cicd.skao.int/notificationAddress`
+
+- **Leader election**
+  - fixed stale leader lock handling for the upgraded `filelock` dependency without unlinking the shared lock path
+
+- **Dependency and runtime image updates**
+  - update ska base images as part of the monthly ST security patches
+  - updated python dependencies
 
 ## 0.1.6 - 2025-09-11
 

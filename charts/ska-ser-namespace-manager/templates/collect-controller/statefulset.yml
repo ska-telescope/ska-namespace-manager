@@ -1,6 +1,7 @@
 {{- $appConfig := fromYaml (include "ska-ser-namespace-manager.collect-controller.config" .) -}}
+{{- $podManagementPolicy := default "OrderedReady" .Values.collectController.podManagementPolicy -}}
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: {{ template "ska-ser-namespace-manager.collect-controller.name" . }}
   namespace: {{ template "ska-ser-namespace-manager.namespace" . }}
@@ -9,9 +10,11 @@ metadata:
   annotations:
     skao.int/configVersion: {{ include "ska-ser-namespace-manager.collect-controller.configVersion" . }}
 spec:
+  serviceName: {{ template "ska-ser-namespace-manager.collect-controller.serviceName" . }}
+  podManagementPolicy: {{ $podManagementPolicy }}
   replicas: {{ .Values.collectController.replicas }}
   {{- with .Values.collectController.updateStrategy }}
-  strategy:
+  updateStrategy:
     {{- toYaml . | nindent 4 }}
   {{- end }}
   selector:
@@ -24,7 +27,7 @@ spec:
         {{- with .Values.collectController.labels }}
         {{- tpl (toYaml .) $ | nindent 8 }}
         {{- end }}
-      annotations: 
+      annotations:
         skao.int/configVersion: {{ include "ska-ser-namespace-manager.collect-controller.configVersion" . }}
         {{- with .Values.collectController.annotations }}
         {{- tpl (toYaml .) $ | nindent 8 }}
