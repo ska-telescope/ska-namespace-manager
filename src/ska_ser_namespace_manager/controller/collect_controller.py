@@ -104,6 +104,13 @@ class CollectController(LeaderController):
                 exc,
             )
 
+    def cleanup(self, terminate: bool = True) -> None:
+        """
+        Cleanup collect-controller resources.
+        """
+        super().cleanup(terminate=terminate)
+        self.namespace_collector.gitlab_pipeline_client.close()
+
     def _get_collect_controller_stateful_set_pods(self) -> Optional[list[str]]:
         """
         Get expected collect-controller pod names from the StatefulSet.

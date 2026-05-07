@@ -73,9 +73,9 @@ Currently, the SKA Namespace Manager provides the following capabilities:
 - [x] Notify namespace owners of their namespaces' status changes with detailed info regarding the resources affected
 
 #### Namespace Status
-There are two parallel processes checking for `Failure` and `Staleness` of namespaces.
-Notification os status change happen when reaching the `FAILING`, `FAILED` and `STALE` statuses.
-Once a namespace's status is set to `FAILED` or `STALE` it is deleted by a periodic task.
+There are parallel processes checking for `Failure`, `Staleness`, and originating GitLab pipeline cancellation/deletion of namespaces.
+Notifications on status change happen when reaching the `FAILING`, `FAILED`, `STALE`, and `CANCELLED` statuses.
+Once a namespace's status is set to `FAILED`, `STALE`, or `CANCELLED` it is deleted by a periodic task.
 The status changes follow the state diagram:
 <div align="center">
 <img src="./docs/src/_static/images/state_diagram.png" align="center">

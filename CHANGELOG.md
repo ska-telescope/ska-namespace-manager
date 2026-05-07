@@ -4,7 +4,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
-## 0.3.0 - 2026-05-18
+## 0.3.0 - 2026-05-19
+
+- **Delete duplicate deployments**
+  - Query pipeline status to detect cancelled pipelines and deem the namespace 'cancelled'
+  - Notify and delete users of 'cancelled' pipelines
 
 - **Metrics management refactor**
   - refactored metrics handling around per-process Prometheus registries persisted as owner-specific `.prom` files
@@ -26,7 +30,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   - added a leader-only collect-controller task to delete metrics files for inactive namespace-manager pods
   - discover active API, collect-controller, and action-controller pods before reconciling shared metrics files
   - removed time-based stale metrics file filtering in favour of active pod reconciliation
-
 
 ## 0.2.0 - 2026-04-29
 

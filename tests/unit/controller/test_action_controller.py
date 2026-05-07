@@ -8,6 +8,7 @@ from ska_ser_namespace_manager.controller.action_controller import (
 )
 from ska_ser_namespace_manager.controller.action_controller_config import (
     ActionControllerConfig,
+    ActionNamespaceConfig,
 )
 from ska_ser_namespace_manager.controller.leader_controller import (
     LeaderController,
@@ -156,7 +157,8 @@ def test_action_controller_init():
         assert [task.__name__ for task in tasks] == [
             "delete_stale_namespaces",
             "delete_failed_namespaces",
-            "notify_failing_unstable_namespaces",
+            "delete_cancelled_namespaces",
+            "notify_status_namespaces",
         ]
         assert kubeconfig is None
         assert action_controller_instance.current_pod_name == (
@@ -441,20 +443,37 @@ def test_delete_failed_namespaces(action_controller):
     )
 
 
-def test_notify_failing_unstable_namespaces_no_match(action_controller):
+def test_delete_cancelled_namespaces(action_controller):
+    action_controller._delete_namespaces_with_status = MagicMock()
+    action_controller.delete_cancelled_namespaces()
+    action_controller._delete_namespaces_with_status.assert_called_once_with(
+        NamespaceStatus.CANCELLED.value
+    )
+
+
+def test_action_namespace_config_cancelled_defaults():
+    """Cancelled action configuration should notify and delete by default."""
+    config = ActionNamespaceConfig(names=["ci-*"])
+
+    assert config.cancelled.delete is True
+    assert config.cancelled.notify_on_delete is True
+    assert config.cancelled.notify_on_status is True
+
+
+def test_notify_status_namespaces_no_match(action_controller):
     action_controller.get_namespaces_by = MagicMock(return_value=[])
-    action_controller.notify_failing_unstable_namespaces()
+    action_controller.notify_status_namespaces()
     action_controller.get_namespaces_by.assert_called_once_with(
         annotations={
             NamespaceAnnotations.MANAGED.value: "true",
-            NamespaceAnnotations.STATUS.value: "(failing|unstable)",
+            NamespaceAnnotations.STATUS.value: "(failing|unstable|cancelled)",
             CicdAnnotations.NOTIFICATION_ADDRESS.value: ".+",
         },
         exclude_annotations={NamespaceAnnotations.NOTIFIED_TS.value: ".+"},
     )
 
 
-def test_notify_failing_unstable_namespaces_match(action_controller):
+def test_notify_status_namespaces_match(action_controller):
     mock_namespace = MagicMock()
     mock_namespace.metadata.name = "test-namespace"
     mock_namespace.metadata.annotations = {
@@ -488,13 +507,56 @@ def test_notify_failing_unstable_namespaces_match(action_controller):
         "ska_ser_namespace_manager.controller.action_controller.getattr",
         return_value=phase_config,
     ):
-        action_controller.notify_failing_unstable_namespaces()
+        action_controller.notify_status_namespaces()
 
     action_controller.notify_user.assert_called_once()
     action_controller.patch_namespace.assert_called_once()
 
 
-def test_notify_failing_unstable_namespaces_match_no_notify(action_controller):
+def test_notify_status_namespaces_cancelled(action_controller):
+    """Cancelled status should use the cancelled notification template."""
+    mock_namespace = MagicMock()
+    mock_namespace.metadata.name = "test-namespace"
+    mock_namespace.metadata.annotations = {
+        NamespaceAnnotations.STATUS.value: NamespaceStatus.CANCELLED.value,
+        CicdAnnotations.NOTIFICATION_ADDRESS.value: "test-address",
+    }
+    action_controller.get_namespaces_by = MagicMock(
+        return_value=[mock_namespace]
+    )
+    action_controller.to_dto = MagicMock(
+        return_value=Namespace(
+            name="test-namespace",
+            labels={},
+            annotations={
+                NamespaceAnnotations.STATUS.value: NamespaceStatus.CANCELLED.value,  # pylint: disable=line-too-long # noqa: E501
+                CicdAnnotations.NOTIFICATION_ADDRESS.value: "test-address",
+            },
+        )
+    )
+    phase_config = MagicMock()
+    phase_config.notify_on_status = True
+    action_controller.notify_user = MagicMock(return_value=True)
+    action_controller.patch_namespace = MagicMock()
+
+    with patch(
+        "ska_ser_namespace_manager.controller.action_controller.match_namespace",  # pylint: disable=line-too-long # noqa: E501
+        return_value=True,
+    ), patch(
+        "ska_ser_namespace_manager.controller.action_controller.getattr",
+        return_value=phase_config,
+    ):
+        action_controller.notify_status_namespaces()
+
+    action_controller.notify_user.assert_called_once()
+    assert (
+        action_controller.notify_user.call_args.kwargs["template"]
+        == "cancelled-namespace-notification.j2"
+    )
+    action_controller.patch_namespace.assert_called_once()
+
+
+def test_notify_status_namespaces_match_no_notify(action_controller):
     mock_namespace = MagicMock()
     mock_namespace.metadata.name = "test-namespace"
     mock_namespace.metadata.annotations = {
@@ -529,7 +591,7 @@ def test_notify_failing_unstable_namespaces_match_no_notify(action_controller):
         "ska_ser_namespace_manager.controller.action_controller.getattr",
         return_value=phase_config,
     ):
-        action_controller.notify_failing_unstable_namespaces()
+        action_controller.notify_status_namespaces()
 
     action_controller.notify_user.assert_not_called()
     action_controller.patch_namespace.assert_not_called()

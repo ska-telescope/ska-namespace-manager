@@ -149,6 +149,35 @@ class PrometheusConfig(BaseModel):
                 )
 
 
+class GitLabConfig(BaseModel):
+    """
+    GitLabConfig holds configuration for GitLab pipeline status lookups.
+
+    * enabled: True to query GitLab for originating pipeline status
+    * api_base: GitLab instance base URL
+    * requester: GitLab API requester identity
+    * private_token: GitLab private token
+    * cache_ttl: Time to cache pipeline status responses
+    * cache_max_entries: Maximum cached pipeline statuses
+    """
+
+    enabled: Optional[bool] = False
+    api_base: Optional[str] = "https://gitlab.com"
+    requester: Optional[str] = ""
+    private_token: Optional[str] = None
+    cache_ttl: Annotated[
+        datetime.timedelta, BeforeValidator(parse_timedelta)
+    ] = datetime.timedelta(minutes=5)
+    cache_max_entries: int = 10000
+
+    def model_post_init(self, _):
+        if self.enabled and not self.private_token:
+            raise ValueError(
+                "GitLab private_token must be configured when GitLab "
+                "pipeline checks are enabled"
+            )
+
+
 class CollectConfig(BaseModel):
     """
     CollectConfig holds the configurations governing collection of
@@ -158,6 +187,7 @@ class CollectConfig(BaseModel):
     namespaces: Optional[List[CollectNamespaceConfig]] = None
     people_api: PeopleAPIConfig = PeopleAPIConfig()
     prometheus: PrometheusConfig = PrometheusConfig()
+    gitlab: GitLabConfig = GitLabConfig()
 
     def model_post_init(self, _):
         if self.namespaces is None:

@@ -204,6 +204,13 @@ collectController:
       insecure: true
       datacentre:
       whitelisted_alerts:
+    gitlab:
+      enabled: false
+      api_base: https://gitlab.com
+      requester:
+      private_token:
+      cache_ttl: 5m
+      cache_max_entries: 10000
 
   image:
     repository:
@@ -314,6 +321,10 @@ actionController:
     namespaces:
       - names:
           - ci-*
+        cancelled:
+          delete: true
+          notify_on_delete: true
+          notify_on_status: true
     notifier:
       token:
 

@@ -50,7 +50,8 @@ class ActionController(Notifier, LeaderController):
             [
                 self.delete_stale_namespaces,
                 self.delete_failed_namespaces,
-                self.notify_failing_unstable_namespaces,
+                self.delete_cancelled_namespaces,
+                self.notify_status_namespaces,
             ],
             kubeconfig,
         )
@@ -224,10 +225,17 @@ class ActionController(Notifier, LeaderController):
         self._delete_namespaces_with_status(NamespaceStatus.FAILED.value)
 
     @controller_task(period=datetime.timedelta(seconds=5))
-    def notify_failing_unstable_namespaces(self) -> None:
+    def delete_cancelled_namespaces(self) -> None:
         """
-        Looks for namespaces with failing or unstable status and notifies their
-        owners
+        Looks for namespaces with cancelled status and deletes them
+        :return:
+        """
+        self._delete_namespaces_with_status(NamespaceStatus.CANCELLED.value)
+
+    @controller_task(period=datetime.timedelta(seconds=5))
+    def notify_status_namespaces(self) -> None:
+        """
+        Looks for namespaces with notifiable status and notifies their owners
         :return:
         """
         namespaces = [
@@ -235,7 +243,9 @@ class ActionController(Notifier, LeaderController):
             for namespace in self.get_namespaces_by(
                 annotations={
                     NamespaceAnnotations.MANAGED.value: "true",
-                    NamespaceAnnotations.STATUS.value: "(failing|unstable)",
+                    NamespaceAnnotations.STATUS.value: (
+                        "(failing|unstable|cancelled)"
+                    ),
                     CicdAnnotations.NOTIFICATION_ADDRESS.value: ".+",
                 },
                 exclude_annotations={

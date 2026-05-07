@@ -38,6 +38,7 @@ class ActionNamespaceConfig(NamespaceMatcher):
     * failed: Configuration on how to act on failed namespaces
     * failing: Configuration on how to act on failing namespaces
     * unstable: Configuration on how to act on unstable namespaces
+    * cancelled: Configuration on how to act on cancelled namespaces
     """
 
     stale: ActionNamespacePhaseConfig = ActionNamespacePhaseConfig()
@@ -47,6 +48,9 @@ class ActionNamespaceConfig(NamespaceMatcher):
     )
     unstable: ActionNamespacePhaseConfig = ActionNamespacePhaseConfig(
         delete=False, notify_on_delete=False, notify_on_status=True
+    )
+    cancelled: ActionNamespacePhaseConfig = ActionNamespacePhaseConfig(
+        delete=True, notify_on_delete=True, notify_on_status=True
     )
 
 

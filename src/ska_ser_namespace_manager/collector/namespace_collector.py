@@ -15,12 +15,17 @@ from humanfriendly import format_timespan
 from kubernetes.client import V1Namespace
 
 from ska_ser_namespace_manager.collector.collector import Collector
+from ska_ser_namespace_manager.collector.gitlab_pipeline_client import (
+    CANCELED_STATUS,
+    NOT_FOUND_STATUS,
+)
 from ska_ser_namespace_manager.controller.collect_controller_config import (
     CollectActions,
     CollectNamespaceConfig,
 )
 from ska_ser_namespace_manager.core.logging import logging
 from ska_ser_namespace_manager.core.types import (
+    CicdAnnotations,
     NamespaceAnnotations,
     NamespaceStatus,
 )
@@ -42,6 +47,39 @@ class NamespaceCollector(Collector):
         :return: Dict of actions for this collector
         """
         return {CollectActions.CHECK_NAMESPACE: cls.check_namespace}
+
+    def _check_cancelled_pipeline(
+        self, namespace: V1Namespace
+    ) -> Optional[NamespaceStatus]:
+        """
+        Check whether the originating GitLab pipeline is cancelled or gone.
+        """
+        if not self.gitlab_config.enabled:
+            return None
+
+        labels = namespace.metadata.labels or {}
+        project_id = labels.get(CicdAnnotations.PROJECT_ID.value)
+        pipeline_id = labels.get(CicdAnnotations.PIPELINE_ID.value)
+        if not project_id or not pipeline_id:
+            logging.info(
+                "Skipping GitLab pipeline lookup for namespace '%s' because "
+                "project or pipeline annotations are missing",
+                namespace.metadata.name,
+            )
+            return None
+
+        pipeline_status = self.gitlab_pipeline_client.get_pipeline_status(
+            project_id, pipeline_id
+        )
+        if pipeline_status in [CANCELED_STATUS, NOT_FOUND_STATUS]:
+            logging.info(
+                "Namespace '%s' originated from a cancelled or deleted "
+                "pipeline",
+                namespace.metadata.name,
+            )
+            return NamespaceStatus.CANCELLED
+
+        return None
 
     def _set_status(
         self,
@@ -405,6 +443,18 @@ class NamespaceCollector(Collector):
             bool: True if the namespace is healthy, False if there are issues.
         """
         matching_alerts = alerts
+        annotations = namespace.metadata.annotations or {}
+
+        cancelled_status = self._check_cancelled_pipeline(namespace)
+        if cancelled_status is not None:
+            return cancelled_status, annotations
+
+        if (
+            annotations.get(NamespaceAnnotations.STATUS.value)
+            == NamespaceStatus.CANCELLED.value
+        ):
+            # Retain cancelled once it is there
+            return NamespaceStatus.CANCELLED, annotations
 
         if alerts:
             matching_alerts = [

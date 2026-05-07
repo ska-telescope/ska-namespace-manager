@@ -56,6 +56,7 @@ class NamespaceStatus(Enum):
     FAILING = "failing"
     FAILED = "failed"
     UNSTABLE = "unstable"
+    CANCELLED = "cancelled"
     UNKNOWN = "unknown"
 
     @property
@@ -69,6 +70,7 @@ class NamespaceStatus(Enum):
             NamespaceStatus.FAILING: 2,
             NamespaceStatus.FAILED: 3,
             NamespaceStatus.UNSTABLE: 4,
+            NamespaceStatus.CANCELLED: 5,
             NamespaceStatus.UNKNOWN: -1,
         }
         return status_values[self]

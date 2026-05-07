@@ -10,9 +10,13 @@ from kubernetes.client import V1Namespace
 from ska_ser_namespace_manager.collector.collector_config import (
     CollectorConfig,
 )
+from ska_ser_namespace_manager.collector.gitlab_pipeline_client import (
+    GitLabPipelineClient,
+)
 from ska_ser_namespace_manager.controller.collect_controller_config import (
     CollectActions,
     CollectNamespaceConfig,
+    GitLabConfig,
     PrometheusConfig,
 )
 from ska_ser_namespace_manager.core.config import ConfigLoader
@@ -34,6 +38,8 @@ class Collector(KubernetesAPI):
 
     config: T
     prometheus_config: PrometheusConfig
+    gitlab_config: GitLabConfig
+    gitlab_pipeline_client: GitLabPipelineClient
 
     def __init__(
         self, config_class: T, kubeconfig: Optional[str] = None
@@ -47,7 +53,9 @@ class Collector(KubernetesAPI):
         super().__init__(kubeconfig=kubeconfig)
         self.config: T = ConfigLoader().load(config_class)
 
-        self.prometheus_config = self.config.prometheus
+        self.prometheus_config: PrometheusConfig = self.config.prometheus
+        self.gitlab_config: GitLabConfig = self.config.gitlab
+        self.gitlab_pipeline_client = GitLabPipelineClient(self.gitlab_config)
 
     def get_namespace_config(
         self, namespace_resource: V1Namespace
