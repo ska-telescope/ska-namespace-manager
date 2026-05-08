@@ -7,6 +7,7 @@ import threading
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -15,14 +16,17 @@ from ska_ser_namespace_manager.controller.collect_controller import (
     CollectController,
 )
 from ska_ser_namespace_manager.controller.collect_controller_config import (
+    CheckOptions,
     CollectActions,
     CollectControllerConfig,
+    CollectNamespaceConfig,
 )
 from ska_ser_namespace_manager.controller.leader_controller import (
     LeaderController,
 )
 from ska_ser_namespace_manager.core.namespace import Namespace
 from ska_ser_namespace_manager.core.types import (
+    CicdAnnotations,
     NamespaceAnnotations,
     NamespaceStatus,
 )
@@ -45,6 +49,39 @@ def _make_pod(
     pod.spec = MagicMock()
     pod.spec.service_account_name = service_account_name
     return pod
+
+
+def _make_namespace(
+    name: str,
+    created: datetime,
+    labels: dict | None = None,
+    annotations: dict | None = None,
+    phase: str = "Active",
+):
+    """Build a namespace-like object for controller tests."""
+    return SimpleNamespace(
+        metadata=SimpleNamespace(
+            name=name,
+            creation_timestamp=created,
+            labels=labels or {},
+            annotations=annotations
+            or {NamespaceAnnotations.STATUS.value: NamespaceStatus.OK.value},
+        ),
+        status=SimpleNamespace(phase=phase),
+    )
+
+
+def _ci_labels(project_id="123", branch="main", mr_id=None):
+    """Build CI labels used for superseded detection."""
+    labels = {
+        CicdAnnotations.PROJECT_ID.value: project_id,
+    }
+    if branch is not None:
+        labels[CicdAnnotations.BRANCH.value] = branch
+    if mr_id is not None:
+        labels[CicdAnnotations.MR_ID.value] = mr_id
+
+    return labels
 
 
 @pytest.fixture(name="mock_leader_controller_init", autouse=True)
@@ -97,7 +134,10 @@ def collect_controller_fixture(mock_collect_controller_config, tmp_path):
         LeaderController.__init__(
             collect_controller_instance,
             CollectControllerConfig,
-            [collect_controller_instance.check_new_namespaces],
+            [
+                collect_controller_instance.check_new_namespaces,
+                collect_controller_instance.check_superseded_namespaces,
+            ],
             None,
         )
 
@@ -154,6 +194,201 @@ def test_check_new_namespaces(collect_controller):
             NamespaceAnnotations.NAMESPACE: "test-namespace",
         },
     )
+
+
+def test_check_superseded_namespaces_groups_by_mr(collect_controller):
+    """Namespaces with the same project and MR should supersede by age."""
+    base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    old_namespace = _make_namespace(
+        "ci-old",
+        base_time,
+        labels=_ci_labels(branch="feature-a", mr_id="42"),
+    )
+    new_namespace = _make_namespace(
+        "ci-new",
+        base_time + timedelta(minutes=1),
+        labels=_ci_labels(branch="feature-b", mr_id="42"),
+    )
+    collect_controller.config.namespaces = [
+        CollectNamespaceConfig(
+            names=["ci-*"], checks=CheckOptions(superseded=True)
+        )
+    ]
+    collect_controller.get_namespaces_by = MagicMock(
+        return_value=[old_namespace, new_namespace]
+    )
+    collect_controller.patch_namespace = MagicMock()
+
+    collect_controller.check_superseded_namespaces()
+
+    collect_controller.patch_namespace.assert_called_once()
+    assert collect_controller.patch_namespace.call_args.args == ("ci-old",)
+    annotations = collect_controller.patch_namespace.call_args.kwargs[
+        "annotations"
+    ]
+    assert (
+        annotations[NamespaceAnnotations.STATUS.value]
+        == NamespaceStatus.SUPERSEDED.value
+    )
+    assert NamespaceAnnotations.STATUS_TS.value in annotations
+    assert annotations[NamespaceAnnotations.NOTIFIED_TS.value] is None
+    assert annotations[NamespaceAnnotations.NOTIFIED_STATUS.value] is None
+
+
+def test_check_superseded_namespaces_groups_by_branch(collect_controller):
+    """Namespaces without MR labels should group by project and branch."""
+    base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    old_namespace = _make_namespace(
+        "ci-old", base_time, labels=_ci_labels(branch="main")
+    )
+    new_namespace = _make_namespace(
+        "ci-new",
+        base_time + timedelta(minutes=1),
+        labels=_ci_labels(branch="main"),
+    )
+    collect_controller.config.namespaces = [
+        CollectNamespaceConfig(
+            names=["ci-*"], checks=CheckOptions(superseded=True)
+        )
+    ]
+    collect_controller.get_namespaces_by = MagicMock(
+        return_value=[old_namespace, new_namespace]
+    )
+    collect_controller.patch_namespace = MagicMock()
+
+    collect_controller.check_superseded_namespaces()
+
+    collect_controller.patch_namespace.assert_called_once()
+    assert collect_controller.patch_namespace.call_args.args == ("ci-old",)
+
+
+def test_check_superseded_namespaces_is_opt_in(collect_controller):
+    """Superseded detection should do nothing unless checks enable it."""
+    base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    collect_controller.config.namespaces = [
+        CollectNamespaceConfig(names=["ci-*"])
+    ]
+    collect_controller.get_namespaces_by = MagicMock(
+        return_value=[
+            _make_namespace("ci-old", base_time, labels=_ci_labels()),
+            _make_namespace(
+                "ci-new",
+                base_time + timedelta(minutes=1),
+                labels=_ci_labels(),
+            ),
+        ]
+    )
+    collect_controller.patch_namespace = MagicMock()
+
+    collect_controller.check_superseded_namespaces()
+
+    collect_controller.patch_namespace.assert_not_called()
+
+
+def test_check_superseded_namespaces_keeps_newest(collect_controller):
+    """Only the newest namespace in a CI group should remain current."""
+    base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    collect_controller.config.namespaces = [
+        CollectNamespaceConfig(
+            names=["ci-*"], checks=CheckOptions(superseded=True)
+        )
+    ]
+    collect_controller.get_namespaces_by = MagicMock(
+        return_value=[
+            _make_namespace("ci-old", base_time, labels=_ci_labels()),
+            _make_namespace(
+                "ci-middle",
+                base_time + timedelta(minutes=1),
+                labels=_ci_labels(),
+            ),
+            _make_namespace(
+                "ci-new",
+                base_time + timedelta(minutes=2),
+                labels=_ci_labels(),
+            ),
+        ]
+    )
+    collect_controller.patch_namespace = MagicMock()
+
+    collect_controller.check_superseded_namespaces()
+
+    assert [
+        call.args[0]
+        for call in collect_controller.patch_namespace.call_args_list
+    ] == ["ci-old", "ci-middle"]
+
+
+def test_check_superseded_namespaces_skips_missing_labels(
+    collect_controller,
+):
+    """Namespaces missing CI identity labels should not be grouped."""
+    base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    collect_controller.config.namespaces = [
+        CollectNamespaceConfig(
+            names=["ci-*"], checks=CheckOptions(superseded=True)
+        )
+    ]
+    collect_controller.get_namespaces_by = MagicMock(
+        return_value=[
+            _make_namespace("ci-missing-project", base_time, labels={}),
+            _make_namespace(
+                "ci-missing-branch",
+                base_time + timedelta(minutes=1),
+                labels=_ci_labels(branch=None),
+            ),
+        ]
+    )
+    collect_controller.patch_namespace = MagicMock()
+
+    collect_controller.check_superseded_namespaces()
+
+    collect_controller.patch_namespace.assert_not_called()
+
+
+def test_check_superseded_namespaces_patches_older_active_only(
+    collect_controller,
+):
+    """Only older active namespaces should be patched as superseded."""
+    base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    collect_controller.config.namespaces = [
+        CollectNamespaceConfig(
+            names=["ci-*"], checks=CheckOptions(superseded=True)
+        )
+    ]
+    collect_controller.get_namespaces_by = MagicMock(
+        return_value=[
+            _make_namespace("ci-old", base_time, labels=_ci_labels()),
+            _make_namespace(
+                "ci-terminating",
+                base_time + timedelta(seconds=30),
+                labels=_ci_labels(),
+                phase="Terminating",
+            ),
+            _make_namespace(
+                "ci-cancelled",
+                base_time + timedelta(seconds=45),
+                labels=_ci_labels(),
+                annotations={
+                    NamespaceAnnotations.STATUS.value: (
+                        NamespaceStatus.CANCELLED.value
+                    )
+                },
+            ),
+            _make_namespace(
+                "ci-new",
+                base_time + timedelta(minutes=1),
+                labels=_ci_labels(),
+            ),
+        ]
+    )
+    collect_controller.patch_namespace = MagicMock()
+
+    collect_controller.check_superseded_namespaces()
+
+    assert [
+        call.args[0]
+        for call in collect_controller.patch_namespace.call_args_list
+    ] == ["ci-old"]
 
 
 def test_get_collect_controller_pods(collect_controller):

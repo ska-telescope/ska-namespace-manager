@@ -63,9 +63,10 @@ class NamespaceCollector(Collector):
         if not project_id or not pipeline_id:
             logging.info(
                 "Skipping GitLab pipeline lookup for namespace '%s' because "
-                "project or pipeline annotations are missing",
+                "project or pipeline labels are missing",
                 namespace.metadata.name,
             )
+
             return None
 
         pipeline_status = self.gitlab_pipeline_client.get_pipeline_status(
@@ -77,6 +78,7 @@ class NamespaceCollector(Collector):
                 "pipeline",
                 namespace.metadata.name,
             )
+
             return NamespaceStatus.CANCELLED
 
         return None
@@ -445,16 +447,17 @@ class NamespaceCollector(Collector):
         matching_alerts = alerts
         annotations = namespace.metadata.annotations or {}
 
-        cancelled_status = self._check_cancelled_pipeline(namespace)
-        if cancelled_status is not None:
-            return cancelled_status, annotations
+        previous_status = annotations.get(NamespaceAnnotations.STATUS.value)
+        if previous_status in [
+            NamespaceStatus.CANCELLED.value,
+            NamespaceStatus.SUPERSEDED.value,
+        ]:
+            return NamespaceStatus.from_string(previous_status), annotations
 
-        if (
-            annotations.get(NamespaceAnnotations.STATUS.value)
-            == NamespaceStatus.CANCELLED.value
-        ):
-            # Retain cancelled once it is there
-            return NamespaceStatus.CANCELLED, annotations
+        if namespace_config.checks.cancelled:
+            cancelled_status = self._check_cancelled_pipeline(namespace)
+            if cancelled_status is not None:
+                return cancelled_status, annotations
 
         if alerts:
             matching_alerts = [

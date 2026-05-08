@@ -43,8 +43,34 @@ def test_cancelled_namespace_templates_render():
     )
 
     assert "ci-test" in status_message
-    assert "superseded by another namespace" in status_message
-    assert "manually deleted, or cancelled" in delete_message
+    assert "manually deleted, or cancelled" in status_message
+    assert "manually deleted or cancelled" in delete_message
+
+
+def test_superseded_namespace_templates_render():
+    """Superseded namespace notifications should render."""
+    factory = TemplateFactory()
+
+    status_message = factory.render(
+        "superseded-namespace-notification.j2",
+        user="marvin",
+        target_namespace="ci-test",
+        status="superseded",
+        job_url="https://gitlab.example/job",
+        quote="Life.",
+    )
+    delete_message = factory.render(
+        "namespace-deleted-notification.j2",
+        user="marvin",
+        target_namespace="ci-test",
+        status="superseded",
+        job_url="https://gitlab.example/job",
+        quote="Life.",
+    )
+
+    assert "ci-test" in status_message
+    assert "newer deployment" in status_message
+    assert "newer deployment" in delete_message
 
 
 @pytest.fixture()

@@ -86,6 +86,7 @@ class Notifier:
             NamespaceStatus.FAILED.value,
             NamespaceStatus.STALE.value,
             NamespaceStatus.CANCELLED.value,
+            NamespaceStatus.SUPERSEDED.value,
         ]:
             return random.choice(
                 [

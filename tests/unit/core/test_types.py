@@ -3,6 +3,7 @@ import pytest
 from ska_ser_namespace_manager.core.types import (
     CicdAnnotations,
     NamespaceAnnotations,
+    NamespaceStatus,
 )
 
 
@@ -51,6 +52,8 @@ def test_namespace_annotations_values(member, expected):
         (CicdAnnotations.PROJECT, "cicd.skao.int/project"),
         (CicdAnnotations.TEAM, "cicd.skao.int/team"),
         (CicdAnnotations.AUTHOR, "cicd.skao.int/author"),
+        (CicdAnnotations.BRANCH, "cicd.skao.int/branch"),
+        (CicdAnnotations.MR_ID, "cicd.skao.int/mrId"),
         (CicdAnnotations.PIPELINE_ID, "cicd.skao.int/pipelineId"),
         (CicdAnnotations.PROJECT_ID, "cicd.skao.int/projectId"),
         (
@@ -61,3 +64,9 @@ def test_namespace_annotations_values(member, expected):
 )
 def test_cicd_annotations_values(member, expected):
     assert str(member) == expected, "Enum value does not match expected string"
+
+
+def test_namespace_status_superseded_value():
+    """Superseded should be a first-class namespace status."""
+    assert NamespaceStatus.SUPERSEDED.value == "superseded"
+    assert NamespaceStatus.SUPERSEDED.value_numeric == 6

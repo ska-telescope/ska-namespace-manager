@@ -12,6 +12,7 @@ import traceback
 from pathlib import Path
 from typing import List, Optional
 
+from humanfriendly import format_timespan
 from kubernetes.client import V1Namespace
 
 from ska_ser_namespace_manager.collector.collector_config import (
@@ -35,10 +36,14 @@ from ska_ser_namespace_manager.controller.leader_controller import (
 from ska_ser_namespace_manager.core.logging import logging
 from ska_ser_namespace_manager.core.namespace import match_namespace
 from ska_ser_namespace_manager.core.types import (
+    CicdAnnotations,
     NamespaceAnnotations,
     NamespaceStatus,
 )
-from ska_ser_namespace_manager.core.utils import parse_timedelta
+from ska_ser_namespace_manager.core.utils import (
+    format_utc,
+    parse_timedelta,
+)
 from ska_ser_namespace_manager.metrics.metrics import MetricsManager
 
 
@@ -65,7 +70,7 @@ class CollectController(LeaderController):
         LeaderController.__init__(
             self,
             CollectControllerConfig,
-            [self.check_new_namespaces],
+            [self.check_new_namespaces, self.check_superseded_namespaces],
             kubeconfig,
         )
 
@@ -256,6 +261,59 @@ class CollectController(LeaderController):
         """
         return f"namespace-check-{namespace}"
 
+    def _is_active_namespace(self, namespace: V1Namespace) -> bool:
+        """
+        Check whether a namespace is in the Kubernetes Active phase.
+        """
+        return (
+            getattr(getattr(namespace, "status", None), "phase", None)
+            == "Active"
+        )
+
+    def _can_mark_superseded(self, namespace: V1Namespace) -> bool:
+        """
+        Check whether a namespace should be patched to superseded.
+        """
+        if not self._is_active_namespace(namespace):
+            return False
+
+        annotations = namespace.metadata.annotations or {}
+        return annotations.get(NamespaceAnnotations.STATUS.value) not in [
+            NamespaceStatus.CANCELLED.value,
+            NamespaceStatus.SUPERSEDED.value,
+        ]
+
+    def _get_superseded_group_key(
+        self, namespace: V1Namespace
+    ) -> tuple[str, str, str] | None:
+        """
+        Resolve the CI identity used to compare namespace deployments.
+        """
+        labels = namespace.metadata.labels or {}
+        project_id = labels.get(CicdAnnotations.PROJECT_ID.value)
+        if not project_id:
+            logging.debug(
+                "Skipping superseded check for namespace '%s' because "
+                "projectId label is missing",
+                namespace.metadata.name,
+            )
+            return None
+
+        mr_id = labels.get(CicdAnnotations.MR_ID.value)
+        if mr_id:
+            return ("mr", project_id, mr_id)
+
+        branch = labels.get(CicdAnnotations.BRANCH.value)
+        if not branch:
+            logging.debug(
+                "Skipping superseded check for namespace '%s' because "
+                "branch label is missing",
+                namespace.metadata.name,
+            )
+            return None
+
+        return ("branch", project_id, branch)
+
     def is_metrics_enabled(self) -> bool:
         """
         Check if metrics are enabled
@@ -375,24 +433,100 @@ class CollectController(LeaderController):
                     "Managing new namespace '%s'",
                     namespace,
                 )
-                try:
-                    self.patch_namespace(
-                        namespace,
-                        annotations={
-                            NamespaceAnnotations.STATUS: NamespaceStatus.UNKNOWN.value,  # pylint: disable=line-too-long  # noqa: E501
-                            NamespaceAnnotations.MANAGED: "true",
-                            NamespaceAnnotations.NAMESPACE: namespace,
-                        },
-                    )
-                except (
-                    Exception  # pylint: disable=broad-exception-caught
-                ) as exc:
-                    logging.error(
-                        "Error while managing new namespace '%s': %s\n%s",
-                        namespace,
-                        str(exc),
-                        traceback.format_exc(),
-                    )
+                self.patch_namespace(
+                    namespace,
+                    annotations={
+                        NamespaceAnnotations.STATUS: NamespaceStatus.UNKNOWN.value,  # pylint: disable=line-too-long  # noqa: E501
+                        NamespaceAnnotations.MANAGED: "true",
+                        NamespaceAnnotations.NAMESPACE: namespace,
+                    },
+                )
+
+    @conditional_controller_task(
+        period=datetime.timedelta(seconds=5),
+        run_if=LeaderController.is_leader,
+    )
+    def check_superseded_namespaces(self) -> None:
+        """
+        Mark older deployments for the same CI identity as superseded.
+        """
+        grouped_namespaces: dict[tuple[str, str, str], list[V1Namespace]] = {}
+        managed_namespaces = [
+            namespace
+            for namespace in self.get_namespaces_by(
+                annotations={NamespaceAnnotations.MANAGED.value: "true"}
+            )
+            if namespace.metadata.name not in self.forbidden_namespaces
+            and getattr(getattr(namespace, "status", None), "phase", None)
+            != "Terminating"
+        ]
+
+        for namespace in managed_namespaces:
+            namespace_config = match_namespace(
+                self.config.namespaces, self.to_dto(namespace)
+            )
+            if (
+                namespace_config is None
+                or not namespace_config.checks.superseded
+            ):
+                continue
+
+            group_key = self._get_superseded_group_key(namespace)
+            if group_key is None:
+                continue
+
+            if namespace.metadata.creation_timestamp is None:
+                logging.debug(
+                    "Skipping superseded check for namespace '%s' because "
+                    "creationTimestamp is missing",
+                    namespace.metadata.name,
+                )
+                continue
+
+            grouped_namespaces.setdefault(group_key, []).append(namespace)
+
+        for namespaces in grouped_namespaces.values():
+            if len(namespaces) < 2:
+                continue
+
+            newest_namespace = max(
+                namespaces,
+                key=lambda namespace: namespace.metadata.creation_timestamp,
+            )
+            for namespace in namespaces:
+                if namespace == newest_namespace:
+                    continue
+
+                if not self._can_mark_superseded(namespace):
+                    continue
+
+                logging.info(
+                    "Marking namespace '%s' as superseded by newer namespace "
+                    "'%s'",
+                    namespace.metadata.name,
+                    newest_namespace.metadata.name,
+                )
+                status_timestamp = datetime.datetime.now(datetime.timezone.utc)
+                time_to_delete = datetime.timedelta(seconds=5)
+                self.patch_namespace(
+                    namespace.metadata.name,
+                    annotations={
+                        NamespaceAnnotations.STATUS.value: (
+                            NamespaceStatus.SUPERSEDED.value
+                        ),
+                        NamespaceAnnotations.STATUS_TS.value: format_utc(
+                            status_timestamp
+                        ),
+                        NamespaceAnnotations.STATUS_FINALIZE_AT.value: format_utc(  # pylint: disable=line-too-long  # noqa: E501
+                            status_timestamp + time_to_delete
+                        ),
+                        NamespaceAnnotations.STATUS_TIMEFRAME.value: format_timespan(  # pylint: disable=line-too-long  # noqa: E501
+                            time_to_delete
+                        ),
+                        NamespaceAnnotations.NOTIFIED_TS.value: None,
+                        NamespaceAnnotations.NOTIFIED_STATUS.value: None,
+                    },
+                )
 
     @controller_task(period=datetime.timedelta(seconds=5))
     def check_assigned_namespaces(self) -> None:

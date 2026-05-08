@@ -1,7 +1,9 @@
 Hello {{ user }} :marvin:
 
 {%- if status == "cancelled" %}
-Alas, the universe has erased your namespace `{{ target_namespace }}` because its originating pipeline was superseded by another namespace, manually deleted, or cancelled.
+Alas, the universe has erased your namespace `{{ target_namespace }}` because its originating pipeline was manually deleted or cancelled.
+{%- elif status == "superseded" %}
+Alas, the universe has erased your namespace `{{ target_namespace }}` because a newer deployment for the same CI work has replaced it.
 {%- else %}
 Alas, the universe has whimsically erased your namespace `{{ target_namespace }}` for being `{{ status }}` [{{ status_timeframe }}].
 {%- endif %}

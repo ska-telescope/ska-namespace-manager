@@ -126,6 +126,62 @@ def test_collect_controller_config_stateful_set_name():
     )
 
 
+def test_collect_controller_config_namespace_check_defaults():
+    """Collect-controller namespace config should expose check defaults."""
+    config = CollectControllerConfig.model_validate(
+        {
+            "context": {
+                "namespace": "default",
+                "service_account": "collect-ctl-sa",
+                "image": "example/image:latest",
+                "config_path": "/etc/config",
+                "config_secret": "collect-config",
+            },
+            "leader_election": {
+                "enabled": True,
+            },
+            "namespaces": [
+                {
+                    "names": ["ci-*"],
+                },
+            ],
+        }
+    )
+
+    assert config.namespaces[0].checks.cancelled is False
+    assert config.namespaces[0].checks.superseded is False
+
+
+def test_collect_controller_config_namespace_check_overrides():
+    """Collect-controller namespace config should load check overrides."""
+    config = CollectControllerConfig.model_validate(
+        {
+            "context": {
+                "namespace": "default",
+                "service_account": "collect-ctl-sa",
+                "image": "example/image:latest",
+                "config_path": "/etc/config",
+                "config_secret": "collect-config",
+            },
+            "leader_election": {
+                "enabled": True,
+            },
+            "namespaces": [
+                {
+                    "names": ["ci-*"],
+                    "checks": {
+                        "cancelled": True,
+                        "superseded": True,
+                    },
+                },
+            ],
+        }
+    )
+
+    assert config.namespaces[0].checks.cancelled is True
+    assert config.namespaces[0].checks.superseded is True
+
+
 def test_collect_controller_config_gitlab_defaults():
     """Collect-controller config should expose GitLab defaults."""
     config = CollectControllerConfig.model_validate(

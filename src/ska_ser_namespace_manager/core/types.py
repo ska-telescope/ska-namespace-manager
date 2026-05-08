@@ -16,6 +16,8 @@ class CicdAnnotations(str, Enum):
     PROJECT = "cicd.skao.int/project"
     TEAM = "cicd.skao.int/team"
     AUTHOR = "cicd.skao.int/author"
+    BRANCH = "cicd.skao.int/branch"
+    MR_ID = "cicd.skao.int/mrId"
     PIPELINE_ID = "cicd.skao.int/pipelineId"
     PROJECT_ID = "cicd.skao.int/projectId"
     NOTIFICATION_ADDRESS = "cicd.skao.int/notificationAddress"
@@ -57,6 +59,7 @@ class NamespaceStatus(Enum):
     FAILED = "failed"
     UNSTABLE = "unstable"
     CANCELLED = "cancelled"
+    SUPERSEDED = "superseded"
     UNKNOWN = "unknown"
 
     @property
@@ -71,6 +74,7 @@ class NamespaceStatus(Enum):
             NamespaceStatus.FAILED: 3,
             NamespaceStatus.UNSTABLE: 4,
             NamespaceStatus.CANCELLED: 5,
+            NamespaceStatus.SUPERSEDED: 6,
             NamespaceStatus.UNKNOWN: -1,
         }
         return status_values[self]

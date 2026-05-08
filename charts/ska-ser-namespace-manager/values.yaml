@@ -190,6 +190,9 @@ collectController:
         ttl: 5m
         settling_period: 5m
         grace_period: 2m
+        checks:
+          cancelled: false
+          superseded: false
         actions:
           check-namespace:
             schedule: "60s"
@@ -322,6 +325,10 @@ actionController:
       - names:
           - ci-*
         cancelled:
+          delete: true
+          notify_on_delete: true
+          notify_on_status: true
+        superseded:
           delete: true
           notify_on_delete: true
           notify_on_status: true

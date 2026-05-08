@@ -51,6 +51,7 @@ class ActionController(Notifier, LeaderController):
                 self.delete_stale_namespaces,
                 self.delete_failed_namespaces,
                 self.delete_cancelled_namespaces,
+                self.delete_superseded_namespaces,
                 self.notify_status_namespaces,
             ],
             kubeconfig,
@@ -233,6 +234,14 @@ class ActionController(Notifier, LeaderController):
         self._delete_namespaces_with_status(NamespaceStatus.CANCELLED.value)
 
     @controller_task(period=datetime.timedelta(seconds=5))
+    def delete_superseded_namespaces(self) -> None:
+        """
+        Looks for namespaces with superseded status and deletes them
+        :return:
+        """
+        self._delete_namespaces_with_status(NamespaceStatus.SUPERSEDED.value)
+
+    @controller_task(period=datetime.timedelta(seconds=5))
     def notify_status_namespaces(self) -> None:
         """
         Looks for namespaces with notifiable status and notifies their owners
@@ -244,7 +253,7 @@ class ActionController(Notifier, LeaderController):
                 annotations={
                     NamespaceAnnotations.MANAGED.value: "true",
                     NamespaceAnnotations.STATUS.value: (
-                        "(failing|unstable|cancelled)"
+                        "(failing|unstable|cancelled|superseded)"
                     ),
                     CicdAnnotations.NOTIFICATION_ADDRESS.value: ".+",
                 },

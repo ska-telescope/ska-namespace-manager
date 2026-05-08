@@ -50,6 +50,18 @@ class CollectTaskConfig(BaseModel):
     parallelism: Optional[int] = None
 
 
+class CheckOptions(BaseModel):
+    """
+    CheckOptions holds optional namespace lifecycle checks.
+
+    * cancelled: Whether to check originating GitLab pipeline status
+    * superseded: Whether to check older deployments for the same CI identity
+    """
+
+    cancelled: bool = False
+    superseded: bool = False
+
+
 class CollectNamespaceConfig(NamespaceMatcher):
     """
     CollectNamespaceConfig holds the configurations indicating how to
@@ -58,6 +70,7 @@ class CollectNamespaceConfig(NamespaceMatcher):
     * ttl: Namespace ttl to become stale
     * settling_period: Period to mark unstable namespace as failing
     * grace_period: Grace period to mark a failing namespace as failed
+    * checks: Optional namespace lifecycle checks
     """
 
     ttl: (
@@ -69,6 +82,7 @@ class CollectNamespaceConfig(NamespaceMatcher):
     grace_period: (
         Annotated[datetime.timedelta, BeforeValidator(parse_timedelta)] | None
     ) = datetime.timedelta(minutes=1)
+    checks: CheckOptions = CheckOptions()
     actions: Optional[Dict[CollectActions, CollectTaskConfig]] = None
 
     def model_post_init(self, _):

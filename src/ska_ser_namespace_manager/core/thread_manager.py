@@ -95,8 +95,8 @@ class ThreadManager:
             self._wake.notify_all()
 
     def __shutdown(
-        self, signum: int, frame  # pylint: disable=unused-argument
-    ) -> None:
+        self, signum: int, frame
+    ) -> None:  # pylint: disable=unused-argument
         """
         Handle the shutdown signal.
 

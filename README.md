@@ -69,13 +69,13 @@ Currently, the SKA Namespace Manager provides the following capabilities:
 
 - [x] Cleanup CI namespaces after their pre-defined or default TTL
 - [x] Terminate failing CI namespaces
-- [ ] Terminate duplicate CI namespaces (same commit or merge request)
+- [x] Terminate superseded CI namespaces (same branch or merge request)
 - [x] Notify namespace owners of their namespaces' status changes with detailed info regarding the resources affected
 
 #### Namespace Status
-There are parallel processes checking for `Failure`, `Staleness`, and originating GitLab pipeline cancellation/deletion of namespaces.
-Notifications on status change happen when reaching the `FAILING`, `FAILED`, `STALE`, and `CANCELLED` statuses.
-Once a namespace's status is set to `FAILED`, `STALE`, or `CANCELLED` it is deleted by a periodic task.
+There are parallel processes checking for `Failure`, `Staleness`, originating GitLab pipeline cancellation/deletion, and superseded namespace deployments.
+Notifications on status change happen when reaching the `FAILING`, `FAILED`, `STALE`, `CANCELLED`, and `SUPERSEDED` statuses.
+Once a namespace's status is set to `FAILED`, `STALE`, `CANCELLED`, or `SUPERSEDED` it is deleted by a periodic task.
 The status changes follow the state diagram:
 <div align="center">
 <img src="./docs/src/_static/images/state_diagram.png" align="center">

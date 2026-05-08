@@ -133,9 +133,8 @@ def conditional_controller_task(
                         f"Starting conditional task {wrapped.__name__}"
                     )
                     wrapped(*args, **kwargs)
-                except (
-                    Exception  # pylint: disable=broad-exception-caught
-                ) as exc:
+                # pylint: disable-next=broad-exception-caught
+                except Exception as exc:
                     logging.error(
                         "Failure in task '%s': %s", wrapped.__name__, exc
                     )
