@@ -486,18 +486,20 @@ class CollectController(LeaderController):
             grouped_namespaces.setdefault(group_key, []).append(namespace)
 
         for namespaces in grouped_namespaces.values():
-            if len(namespaces) < 2:
+            active_namespaces = [
+                namespace
+                for namespace in namespaces
+                if self._can_mark_superseded(namespace)
+            ]
+            if len(active_namespaces) < 2:
                 continue
 
             newest_namespace = max(
-                namespaces,
+                active_namespaces,
                 key=lambda namespace: namespace.metadata.creation_timestamp,
             )
-            for namespace in namespaces:
+            for namespace in active_namespaces:
                 if namespace == newest_namespace:
-                    continue
-
-                if not self._can_mark_superseded(namespace):
                     continue
 
                 logging.info(

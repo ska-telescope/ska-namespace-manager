@@ -391,6 +391,38 @@ def test_check_superseded_namespaces_patches_older_active_only(
     ] == ["ci-old"]
 
 
+def test_check_superseded_namespaces_ignores_newer_cancelled_namespace(
+    collect_controller,
+):
+    """Cancelled namespaces should not supersede older active namespaces."""
+    base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    collect_controller.config.namespaces = [
+        CollectNamespaceConfig(
+            names=["ci-*"], checks=CheckOptions(superseded=True)
+        )
+    ]
+    collect_controller.get_namespaces_by = MagicMock(
+        return_value=[
+            _make_namespace("ci-old", base_time, labels=_ci_labels()),
+            _make_namespace(
+                "ci-cancelled",
+                base_time + timedelta(minutes=1),
+                labels=_ci_labels(),
+                annotations={
+                    NamespaceAnnotations.STATUS.value: (
+                        NamespaceStatus.CANCELLED.value
+                    )
+                },
+            ),
+        ]
+    )
+    collect_controller.patch_namespace = MagicMock()
+
+    collect_controller.check_superseded_namespaces()
+
+    collect_controller.patch_namespace.assert_not_called()
+
+
 def test_get_collect_controller_pods(collect_controller):
     """Replica discovery should only include active collect-controller pods."""
     collect_controller.config.context.stateful_set_name = None
