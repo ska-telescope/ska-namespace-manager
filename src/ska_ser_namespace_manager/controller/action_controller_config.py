@@ -51,10 +51,10 @@ class ActionNamespaceConfig(NamespaceMatcher):
         delete=False, notify_on_delete=False, notify_on_status=True
     )
     cancelled: ActionNamespacePhaseConfig = ActionNamespacePhaseConfig(
-        delete=True, notify_on_delete=True, notify_on_status=True
+        delete=True, notify_on_delete=False, notify_on_status=True
     )
     superseded: ActionNamespacePhaseConfig = ActionNamespacePhaseConfig(
-        delete=True, notify_on_delete=True, notify_on_status=True
+        delete=True, notify_on_delete=False, notify_on_status=True
     )
 
 

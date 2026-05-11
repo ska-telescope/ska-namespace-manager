@@ -468,10 +468,10 @@ def test_action_namespace_config_terminal_defaults():
     config = ActionNamespaceConfig(names=["ci-*"])
 
     assert config.cancelled.delete is True
-    assert config.cancelled.notify_on_delete is True
+    assert config.cancelled.notify_on_delete is False
     assert config.cancelled.notify_on_status is True
     assert config.superseded.delete is True
-    assert config.superseded.notify_on_delete is True
+    assert config.superseded.notify_on_delete is False
     assert config.superseded.notify_on_status is True
 
 
