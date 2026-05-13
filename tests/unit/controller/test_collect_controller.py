@@ -22,7 +22,10 @@ from ska_ser_namespace_manager.controller.leader_controller import (
     LeaderController,
 )
 from ska_ser_namespace_manager.core.namespace import Namespace
-from ska_ser_namespace_manager.core.types import NamespaceAnnotations
+from ska_ser_namespace_manager.core.types import (
+    NamespaceAnnotations,
+    NamespaceStatus,
+)
 
 
 def _make_pod(name: str, service_account_name: str, deleting=False):
@@ -517,6 +520,40 @@ def test_check_assigned_namespaces_updates_heartbeat_without_peers(
     collect_controller.check_assigned_namespaces()
 
     assert Path(collect_controller.config.heartbeat.path).exists()
+
+
+def test_generate_metrics_updates_assigned_namespaces(collect_controller):
+    """
+    Metrics generation should only write this replica's assigned namespaces.
+    """
+    assigned_namespace = MagicMock()
+    assigned_namespace.metadata.name = "assigned-namespace"
+    assigned_namespace.metadata.annotations = {
+        NamespaceAnnotations.STATUS.value: NamespaceStatus.OK.value
+    }
+    unassigned_namespace = MagicMock()
+    unassigned_namespace.metadata.name = "unassigned-namespace"
+    unassigned_namespace.metadata.annotations = {
+        NamespaceAnnotations.STATUS.value: NamespaceStatus.FAILING.value
+    }
+    collect_controller.config.metrics.enabled = True
+    collect_controller.get_namespaces_by = MagicMock(
+        return_value=[assigned_namespace, unassigned_namespace]
+    )
+    collect_controller._get_assigned_managed_namespaces = MagicMock(
+        return_value=[assigned_namespace]
+    )
+    collect_controller.metrics_manager = MagicMock()
+
+    collect_controller.generate_metrics()
+
+    collect_controller.metrics_manager.delete_stale_metrics.assert_called_once_with(  # pylint: disable=line-too-long # noqa: E501
+        ["assigned-namespace"]
+    )
+    collect_controller.metrics_manager.update_namespace_metrics.assert_called_once_with(  # pylint: disable=line-too-long # noqa: E501
+        assigned_namespace
+    )
+    collect_controller.metrics_manager.save_metrics.assert_called_once_with()
 
 
 def test_update_heartbeat_refreshes_mtime(collect_controller):

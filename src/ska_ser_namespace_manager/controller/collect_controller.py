@@ -64,7 +64,12 @@ class CollectController(LeaderController):
         )
 
         self.config: CollectControllerConfig
-        self.metrics_manager = MetricsManager(self.config.metrics)
+        self.current_pod_name = os.environ.get(
+            "HOSTNAME", os.environ.get("POD_NAME", f"local-{os.getpid()}")
+        )
+        self.metrics_manager = MetricsManager(
+            self.config.metrics, owner=self.current_pod_name
+        )
         self.namespace_collector = NamespaceCollector(
             CollectorConfig, kubeconfig
         )
@@ -75,9 +80,6 @@ class CollectController(LeaderController):
             ]
         )
 
-        self.current_pod_name = os.environ.get(
-            "HOSTNAME", os.environ.get("POD_NAME", "")
-        )
         self.namespace_check_threads = {}
 
     def _update_heartbeat(self) -> None:
@@ -409,12 +411,11 @@ class CollectController(LeaderController):
 
     @conditional_controller_task(
         period=datetime.timedelta(seconds=5),
-        run_if=lambda instance: LeaderController.is_leader(instance)
-        and instance.is_metrics_enabled(),
+        run_if=lambda instance: instance.is_metrics_enabled(),
     )
     def generate_metrics(self) -> None:
         """
-        Generates metrics on the managed namespaces
+        Generate metrics for the namespaces assigned to this replica.
         """
         managed_namespaces = [
             namespace
@@ -423,11 +424,14 @@ class CollectController(LeaderController):
             )
             if namespace.metadata.name not in self.forbidden_namespaces
         ]
+        assigned_namespaces = self._get_assigned_managed_namespaces(
+            managed_namespaces
+        )
         self.metrics_manager.delete_stale_metrics(
-            [ns.metadata.name for ns in managed_namespaces]
+            [ns.metadata.name for ns in assigned_namespaces]
         )
 
-        for ns in managed_namespaces:
+        for ns in assigned_namespaces:
             self.metrics_manager.update_namespace_metrics(ns)
 
         self.metrics_manager.save_metrics()

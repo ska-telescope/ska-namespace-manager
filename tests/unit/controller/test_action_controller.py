@@ -19,6 +19,7 @@ from ska_ser_namespace_manager.core.types import (
     NamespaceAnnotations,
     NamespaceStatus,
 )
+from ska_ser_namespace_manager.metrics.metrics_config import MetricsConfig
 
 
 @pytest.fixture
@@ -65,6 +66,7 @@ def mock_action_controller_config():
         mock_config_instance.leader_election.lease_path = "/mock/lease/path"
         mock_config_instance.leader_election.lease_ttl = timedelta(seconds=30)
         mock_config_instance.namespaces = []
+        mock_config_instance.metrics = MagicMock()
         yield mock_config_instance
 
 
@@ -111,6 +113,10 @@ def action_controller(
 def test_action_controller_init():
     action_controller_config = MagicMock()
     action_controller_config.notifier.token = "test-token"
+    action_controller_config.metrics = MagicMock()
+
+    def mock_environ_get(key, default=None):
+        return "action-controller-0" if key == "HOSTNAME" else default
 
     def set_controller_config(controller, config_class, tasks, kubeconfig):
         controller.config = action_controller_config
@@ -122,7 +128,15 @@ def test_action_controller_init():
         LeaderController, "__init__", autospec=True
     ) as mock_leader_init, patch.object(
         Notifier, "__init__", autospec=True, return_value=None
-    ) as notifier_init:
+    ) as notifier_init, patch(
+        "ska_ser_namespace_manager.controller.action_controller."
+        "os.environ.get",
+        side_effect=mock_environ_get,
+    ), patch(
+        "ska_ser_namespace_manager.controller.action_controller."
+        "MetricsManager",
+        autospec=True,
+    ) as metrics_manager:
         mock_leader_init.side_effect = set_controller_config
         action_controller_instance = ActionController()
 
@@ -143,10 +157,36 @@ def test_action_controller_init():
             "notify_failing_unstable_namespaces",
         ]
         assert kubeconfig is None
+        assert action_controller_instance.current_pod_name == (
+            "action-controller-0"
+        )
+        metrics_manager.assert_called_once_with(
+            action_controller_config.metrics,
+            owner="action-controller-0",
+        )
         notifier_init.assert_called_once_with(
             action_controller_instance,
             action_controller_config.notifier.token,
         )
+
+
+def test_action_controller_config_has_metrics_default():
+    """
+    Action controller config should include metrics configuration.
+    """
+    config = ActionControllerConfig(
+        namespaces=[],
+        context={
+            "namespace": "default-namespace",
+            "service_account": "action-ctl-sa",
+            "image": "test-image",
+            "config_path": "/etc/config",
+            "config_secret": "action-config",
+        },
+        leader_election={},
+    )
+
+    assert isinstance(config.metrics, MetricsConfig)
 
 
 def test_delete_namespaces_with_status_no_match(action_controller):

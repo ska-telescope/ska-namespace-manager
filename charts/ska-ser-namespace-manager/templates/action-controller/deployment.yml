@@ -118,6 +118,10 @@ spec:
               mountPath: {{ .Values.actionController.config.leader_election.path }}
               readOnly: true
           {{- end }}
+          {{- if $appConfig.metrics.enabled }}
+            - name: metrics-volume
+              mountPath: {{ $appConfig.metrics.registry_path }}
+          {{- end }}
       volumes:
         - name: config
           secret:
@@ -126,4 +130,9 @@ spec:
         - name: leader-election
           persistentVolumeClaim:
             claimName: {{ template "ska-ser-namespace-manager.action-controller.leaderElectionVol" . }}
+      {{- end }}
+      {{- if $appConfig.metrics.enabled }}
+        - name: metrics-volume
+          persistentVolumeClaim:
+            claimName: {{ include "ska-ser-namespace-manager.name" . }}-metrics-registry
       {{- end }}
