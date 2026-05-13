@@ -108,6 +108,19 @@ def namespace_status_sample(namespace: str, status: float):
     )
 
 
+def namespace_check_result_sample(owner: str, result: str, count: float):
+    """
+    Create the expected parsed namespace check result counter sample tuple.
+    """
+    return (
+        (
+            "namespace_manager_namespace_check_total",
+            tuple(sorted({"owner": owner, "result": result}.items())),
+        ),
+        count,
+    )
+
+
 def test_update_metrics(metrics_manager):
     """
     Namespace metric updates should set the expected status sample.
@@ -147,6 +160,35 @@ def test_update_metrics(metrics_manager):
         == expected_labels
     )
     assert parsed_metrics["namespace_manager_ns_status"]["value"] == 2.0
+
+
+def test_record_namespace_check_result(metrics_manager):
+    """
+    Namespace check result updates should increment the expected counter.
+    """
+    metrics_manager.record_namespace_check_result("success")
+    metrics_manager.record_namespace_check_result("failure")
+
+    samples = parse_metric_samples(generate_latest(metrics_manager.registry))
+    success_key, success_value = namespace_check_result_sample(
+        "collect-controller-0", "success", 1.0
+    )
+    failure_key, failure_value = namespace_check_result_sample(
+        "collect-controller-0", "failure", 1.0
+    )
+
+    assert samples[success_key] == success_value
+    assert samples[failure_key] == failure_value
+
+
+def test_record_namespace_check_result_rejects_invalid_result(
+    metrics_manager,
+):
+    """
+    Namespace check result updates should reject unknown result labels.
+    """
+    with pytest.raises(ValueError, match="Invalid namespace check result"):
+        metrics_manager.record_namespace_check_result("unknown")
 
 
 def test_save_metrics(metrics_manager, temp_metrics_path):
@@ -271,6 +313,33 @@ def test_metrics_manager_restores_metrics_on_instantiation(
     assert samples[key] == value
 
 
+def test_metrics_manager_restores_namespace_check_results(
+    metrics_manager, temp_metrics_path
+):
+    """
+    A new manager for the same owner should restore check result counters.
+    """
+    metrics_manager.record_namespace_check_result("success")
+    metrics_manager.record_namespace_check_result("success")
+    metrics_manager.record_namespace_check_result("failure")
+    metrics_manager.save_metrics()
+
+    restored_manager = MetricsManager(
+        MetricsConfig(registry_path=temp_metrics_path),
+        owner="collect-controller-0",
+    )
+    samples = parse_metric_samples(generate_latest(restored_manager.registry))
+    success_key, success_value = namespace_check_result_sample(
+        "collect-controller-0", "success", 2.0
+    )
+    failure_key, failure_value = namespace_check_result_sample(
+        "collect-controller-0", "failure", 1.0
+    )
+
+    assert samples[success_key] == success_value
+    assert samples[failure_key] == failure_value
+
+
 def test_delete_stale_metrics_removes_unassigned_namespace(metrics_manager):
     """
     Stale local namespace metrics should be removed from the registry.
@@ -361,13 +430,50 @@ def test_get_merged_metrics_reads_multiple_fresh_files(temp_metrics_path):
         )
     )
     manager_one.update_namespace_metrics(namespace_one)
+    manager_one.record_namespace_check_result("success")
     manager_two.update_namespace_metrics(namespace_two)
+    manager_two.record_namespace_check_result("failure")
     manager_one.save_metrics()
     manager_two.save_metrics()
 
     samples = parse_metric_samples(MetricsManager(config).get_merged_metrics())
     first_key, first_value = namespace_status_sample("first-namespace", 0.0)
     second_key, second_value = namespace_status_sample("second-namespace", 2.0)
+    success_key, success_value = namespace_check_result_sample(
+        "collect-controller-0", "success", 1.0
+    )
+    failure_key, failure_value = namespace_check_result_sample(
+        "collect-controller-1", "failure", 1.0
+    )
+
+    assert samples[first_key] == first_value
+    assert samples[second_key] == second_value
+    assert samples[success_key] == success_value
+    assert samples[failure_key] == failure_value
+
+
+def test_get_merged_metrics_keeps_owner_labelled_result_counters(
+    temp_metrics_path,
+):
+    """
+    Result counters from different owners should remain distinct.
+    """
+    config = MetricsConfig(registry_path=temp_metrics_path)
+    manager_one = MetricsManager(config, owner="collect-controller-0")
+    manager_two = MetricsManager(config, owner="collect-controller-1")
+    manager_one.record_namespace_check_result("success")
+    manager_one.record_namespace_check_result("success")
+    manager_two.record_namespace_check_result("success")
+    manager_one.save_metrics()
+    manager_two.save_metrics()
+
+    samples = parse_metric_samples(MetricsManager(config).get_merged_metrics())
+    first_key, first_value = namespace_check_result_sample(
+        "collect-controller-0", "success", 2.0
+    )
+    second_key, second_value = namespace_check_result_sample(
+        "collect-controller-1", "success", 1.0
+    )
 
     assert samples[first_key] == first_value
     assert samples[second_key] == second_value

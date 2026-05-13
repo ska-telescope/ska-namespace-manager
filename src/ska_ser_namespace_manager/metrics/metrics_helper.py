@@ -44,7 +44,8 @@ class PrometheusMetricsHelper:
 
     @staticmethod
     def restore_metrics_file(
-        metrics: Dict[str, Collector], metrics_file: str | Path
+        metrics: Dict[str, Collector],
+        metrics_file: str | Path,
     ) -> None:
         """
         Restore metrics from a Prometheus textfile.
@@ -65,7 +66,8 @@ class PrometheusMetricsHelper:
 
     @staticmethod
     def restore_metrics(
-        metrics: Dict[str, Collector], metrics_content: str
+        metrics: Dict[str, Collector],
+        metrics_content: str,
     ) -> None:
         """
         Restore known metric samples from Prometheus text content.

@@ -289,7 +289,18 @@ class CollectController(LeaderController):
                 threading.current_thread().name,
                 namespace,
             )
-            self.run_namespace_check(namespace, namespace_resource)
+            try:
+                self.run_namespace_check(namespace, namespace_resource)
+                self.metrics_manager.record_namespace_check_result("success")
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                logging.error(
+                    "Namespace check thread failed for namespace '%s': %s\n%s",
+                    namespace,
+                    exc,
+                    traceback.format_exc(),
+                )
+                self.metrics_manager.record_namespace_check_result("failure")
+
             if self.wait_for_task_stop(stop_event, period.total_seconds()):
                 break
 

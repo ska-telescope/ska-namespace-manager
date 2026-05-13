@@ -611,6 +611,7 @@ def test_namespace_thread_stops_when_namespace_missing(
     collect_controller.has_task = MagicMock(return_value=False)
     collect_controller.get_namespace = MagicMock(return_value=None)
     collect_controller.run_namespace_check = MagicMock()
+    collect_controller.metrics_manager = MagicMock()
     collect_controller.add_managed_task = MagicMock()
 
     collect_controller.create_namespace_check_thread(
@@ -623,3 +624,61 @@ def test_namespace_thread_stops_when_namespace_missing(
     task(stop_event, *task_args)
 
     collect_controller.run_namespace_check.assert_not_called()
+    record_result = (
+        collect_controller.metrics_manager.record_namespace_check_result
+    )
+    record_result.assert_not_called()
+
+
+def test_namespace_thread_records_successful_check(
+    collect_controller,
+):
+    """Successful per-namespace checks should record a success result."""
+    namespace_resource = MagicMock()
+    stop_event = threading.Event()
+    collect_controller.get_namespace = MagicMock(
+        return_value=namespace_resource
+    )
+    collect_controller.run_namespace_check = MagicMock()
+    collect_controller.metrics_manager = MagicMock()
+    collect_controller.wait_for_task_stop = MagicMock(return_value=True)
+
+    collect_controller.run_namespace_check_thread(
+        stop_event, "test-namespace", timedelta(milliseconds=1)
+    )
+
+    collect_controller.run_namespace_check.assert_called_once_with(
+        "test-namespace", namespace_resource
+    )
+    collect_controller.metrics_manager.record_namespace_check_result.assert_called_once_with(  # pylint: disable=line-too-long # noqa: E501
+        "success"
+    )
+
+
+def test_namespace_thread_records_failed_check(collect_controller, caplog):
+    """Failed per-namespace checks should record a failure result."""
+    namespace_resource = MagicMock()
+    stop_event = threading.Event()
+    collect_controller.get_namespace = MagicMock(
+        return_value=namespace_resource
+    )
+    collect_controller.run_namespace_check = MagicMock(
+        side_effect=RuntimeError("collector failed")
+    )
+    collect_controller.metrics_manager = MagicMock()
+    collect_controller.wait_for_task_stop = MagicMock(return_value=True)
+
+    collect_controller.run_namespace_check_thread(
+        stop_event, "test-namespace", timedelta(milliseconds=1)
+    )
+
+    collect_controller.run_namespace_check.assert_called_once_with(
+        "test-namespace", namespace_resource
+    )
+    collect_controller.metrics_manager.record_namespace_check_result.assert_called_once_with(  # pylint: disable=line-too-long # noqa: E501
+        "failure"
+    )
+    assert (
+        "Namespace check thread failed for namespace 'test-namespace'"
+        in caplog.text
+    )

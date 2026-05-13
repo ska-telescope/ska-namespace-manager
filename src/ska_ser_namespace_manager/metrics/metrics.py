@@ -9,7 +9,12 @@ from threading import RLock
 from typing import Dict
 
 from kubernetes.client import V1Namespace
-from prometheus_client import CollectorRegistry, Gauge, generate_latest
+from prometheus_client import (
+    CollectorRegistry,
+    Counter,
+    Gauge,
+    generate_latest,
+)
 from prometheus_client.registry import Collector
 
 from ska_ser_namespace_manager.core.logging import logging
@@ -29,6 +34,10 @@ class MetricsManager:
 
     metrics: Dict[str, Collector]
     NAMESPACE_STATUS_METRIC_NAME: str = "namespace_manager_ns_status"
+    NAMESPACE_CHECK_RESULT_METRIC_NAME: str = (
+        "namespace_manager_namespace_check_total"
+    )
+    NAMESPACE_CHECK_RESULTS: tuple[str, str] = ("success", "failure")
 
     def __init__(self, config: MetricsConfig, owner: str | None = None):
         self.config = config
@@ -65,6 +74,14 @@ class MetricsManager:
                 "projectId",
                 "namespace",
             ],
+            registry=registry,
+        )
+        metrics[MetricsManager.NAMESPACE_CHECK_RESULT_METRIC_NAME] = Counter(
+            name=MetricsManager.NAMESPACE_CHECK_RESULT_METRIC_NAME,
+            documentation=(
+                "Number of periodic namespace check executions by result"
+            ),
+            labelnames=["owner", "result"],
             registry=registry,
         )
 
@@ -149,6 +166,27 @@ class MetricsManager:
             f"Updated metrics for namespace '{namespace.metadata.name}' - "
             f"Status: {status}"
         )
+
+    def record_namespace_check_result(self, result: str) -> None:
+        """
+        Record a periodic namespace check execution result.
+
+        :param result: One of success or failure
+        """
+        if result not in MetricsManager.NAMESPACE_CHECK_RESULTS:
+            raise ValueError(
+                f"Invalid namespace check result '{result}'. Expected one of "
+                f"{MetricsManager.NAMESPACE_CHECK_RESULTS}"
+            )
+
+        with self._lock:
+            metric = self.metrics.get(
+                MetricsManager.NAMESPACE_CHECK_RESULT_METRIC_NAME
+            )
+            metric.labels(
+                owner=self.owner,
+                result=result,
+            ).inc()
 
     def get_metrics(self) -> None:
         """
