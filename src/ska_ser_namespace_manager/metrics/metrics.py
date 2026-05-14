@@ -35,9 +35,10 @@ class MetricsManager:
     metrics: Dict[str, Collector]
     NAMESPACE_STATUS_METRIC_NAME: str = "namespace_manager_ns_status"
     NAMESPACE_CHECK_RESULT_METRIC_NAME: str = (
-        "namespace_manager_namespace_check_total"
+        "namespace_manager_ns_check_total"
     )
     NAMESPACE_CHECK_RESULTS: tuple[str, str] = ("success", "failure")
+    NAMESPACE_DELETE_METRIC_NAME: str = "namespace_manager_ns_delete_total"
 
     def __init__(self, config: MetricsConfig, owner: str | None = None):
         self.config = config
@@ -82,6 +83,12 @@ class MetricsManager:
                 "Number of periodic namespace check executions by result"
             ),
             labelnames=["owner", "result"],
+            registry=registry,
+        )
+        metrics[MetricsManager.NAMESPACE_DELETE_METRIC_NAME] = Counter(
+            name=MetricsManager.NAMESPACE_DELETE_METRIC_NAME,
+            documentation="Number of namespaces deleted by status",
+            labelnames=["owner", "status"],
             registry=registry,
         )
 
@@ -186,6 +193,23 @@ class MetricsManager:
             metric.labels(
                 owner=self.owner,
                 result=result,
+            ).inc()
+
+    def record_namespace_deletion(self, status: str) -> None:
+        """
+        Record a namespace deletion by namespace status.
+
+        :param status: Namespace status that caused the deletion
+        """
+        namespace_status = NamespaceStatus.from_string(status)
+
+        with self._lock:
+            metric = self.metrics.get(
+                MetricsManager.NAMESPACE_DELETE_METRIC_NAME
+            )
+            metric.labels(
+                owner=self.owner,
+                status=namespace_status.value,
             ).inc()
 
     def get_metrics(self) -> None:

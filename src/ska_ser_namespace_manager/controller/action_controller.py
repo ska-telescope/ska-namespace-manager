@@ -63,6 +63,12 @@ class ActionController(Notifier, LeaderController):
         )
         Notifier.__init__(self, self.config.notifier.token)
 
+    def is_metrics_enabled(self) -> bool:
+        """
+        Check if metrics are enabled.
+        """
+        return self.config.metrics.enabled
+
     def _format_labels_resources(self, labels: dict) -> str:
         """
         Formats string based on the labels.
@@ -180,6 +186,9 @@ class ActionController(Notifier, LeaderController):
             self.delete_namespace(
                 namespace.metadata.name,
             )
+            if self.is_metrics_enabled():
+                self.metrics_manager.record_namespace_deletion(status)
+                self.metrics_manager.save_metrics()
 
             annotations = namespace.metadata.annotations or {}
             if phase_config.notify_on_delete:

@@ -114,8 +114,21 @@ def namespace_check_result_sample(owner: str, result: str, count: float):
     """
     return (
         (
-            "namespace_manager_namespace_check_total",
+            "namespace_manager_ns_check_total",
             tuple(sorted({"owner": owner, "result": result}.items())),
+        ),
+        count,
+    )
+
+
+def namespace_deletion_sample(owner: str, status: str, count: float):
+    """
+    Create the expected parsed namespace deletion counter sample tuple.
+    """
+    return (
+        (
+            "namespace_manager_ns_delete_total",
+            tuple(sorted({"owner": owner, "status": status}.items())),
         ),
         count,
     )
@@ -189,6 +202,34 @@ def test_record_namespace_check_result_rejects_invalid_result(
     """
     with pytest.raises(ValueError, match="Invalid namespace check result"):
         metrics_manager.record_namespace_check_result("unknown")
+
+
+def test_record_namespace_deletion(metrics_manager):
+    """
+    Namespace deletion updates should increment the expected counter.
+    """
+    metrics_manager.record_namespace_deletion(NamespaceStatus.STALE.value)
+    metrics_manager.record_namespace_deletion(NamespaceStatus.STALE.value)
+    metrics_manager.record_namespace_deletion(NamespaceStatus.FAILED.value)
+
+    samples = parse_metric_samples(generate_latest(metrics_manager.registry))
+    stale_key, stale_value = namespace_deletion_sample(
+        "collect-controller-0", NamespaceStatus.STALE.value, 2.0
+    )
+    failed_key, failed_value = namespace_deletion_sample(
+        "collect-controller-0", NamespaceStatus.FAILED.value, 1.0
+    )
+
+    assert samples[stale_key] == stale_value
+    assert samples[failed_key] == failed_value
+
+
+def test_record_namespace_deletion_rejects_invalid_status(metrics_manager):
+    """
+    Namespace deletion updates should reject unknown namespace statuses.
+    """
+    with pytest.raises(ValueError, match="not-a-status"):
+        metrics_manager.record_namespace_deletion("not-a-status")
 
 
 def test_save_metrics(metrics_manager, temp_metrics_path):
@@ -340,6 +381,33 @@ def test_metrics_manager_restores_namespace_check_results(
     assert samples[failure_key] == failure_value
 
 
+def test_metrics_manager_restores_namespace_deletions(
+    metrics_manager, temp_metrics_path
+):
+    """
+    A new manager for the same owner should restore deletion counters.
+    """
+    metrics_manager.record_namespace_deletion(NamespaceStatus.STALE.value)
+    metrics_manager.record_namespace_deletion(NamespaceStatus.STALE.value)
+    metrics_manager.record_namespace_deletion(NamespaceStatus.FAILED.value)
+    metrics_manager.save_metrics()
+
+    restored_manager = MetricsManager(
+        MetricsConfig(registry_path=temp_metrics_path),
+        owner="collect-controller-0",
+    )
+    samples = parse_metric_samples(generate_latest(restored_manager.registry))
+    stale_key, stale_value = namespace_deletion_sample(
+        "collect-controller-0", NamespaceStatus.STALE.value, 2.0
+    )
+    failed_key, failed_value = namespace_deletion_sample(
+        "collect-controller-0", NamespaceStatus.FAILED.value, 1.0
+    )
+
+    assert samples[stale_key] == stale_value
+    assert samples[failed_key] == failed_value
+
+
 def test_delete_stale_metrics_removes_unassigned_namespace(metrics_manager):
     """
     Stale local namespace metrics should be removed from the registry.
@@ -473,6 +541,33 @@ def test_get_merged_metrics_keeps_owner_labelled_result_counters(
     )
     second_key, second_value = namespace_check_result_sample(
         "collect-controller-1", "success", 1.0
+    )
+
+    assert samples[first_key] == first_value
+    assert samples[second_key] == second_value
+
+
+def test_get_merged_metrics_keeps_owner_labelled_delete_counters(
+    temp_metrics_path,
+):
+    """
+    Deletion counters from different owners should remain distinct.
+    """
+    config = MetricsConfig(registry_path=temp_metrics_path)
+    manager_one = MetricsManager(config, owner="action-controller-0")
+    manager_two = MetricsManager(config, owner="action-controller-1")
+    manager_one.record_namespace_deletion(NamespaceStatus.STALE.value)
+    manager_one.record_namespace_deletion(NamespaceStatus.STALE.value)
+    manager_two.record_namespace_deletion(NamespaceStatus.STALE.value)
+    manager_one.save_metrics()
+    manager_two.save_metrics()
+
+    samples = parse_metric_samples(MetricsManager(config).get_merged_metrics())
+    first_key, first_value = namespace_deletion_sample(
+        "action-controller-0", NamespaceStatus.STALE.value, 2.0
+    )
+    second_key, second_value = namespace_deletion_sample(
+        "action-controller-1", NamespaceStatus.STALE.value, 1.0
     )
 
     assert samples[first_key] == first_value
