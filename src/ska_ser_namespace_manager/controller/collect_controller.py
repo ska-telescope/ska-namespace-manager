@@ -51,6 +51,12 @@ class CollectController(LeaderController):
     metrics_manager: MetricsManager
     namespace_collector: NamespaceCollector
     namespace_check_threads: dict[str, str]
+    NAMESPACE_MANAGER_INSTANCE: str = "ska-ser-namespace-manager"
+    NAMESPACE_MANAGER_COMPONENTS: tuple[str, str, str] = (
+        "api",
+        "collect-controller",
+        "action-controller",
+    )
 
     def __init__(self, kubeconfig: Optional[str] = None) -> None:
         """
@@ -77,6 +83,7 @@ class CollectController(LeaderController):
             [
                 self.check_assigned_namespaces,
                 self.generate_metrics,
+                self.reconcile_metrics_files,
             ]
         )
 
@@ -446,3 +453,39 @@ class CollectController(LeaderController):
             self.metrics_manager.update_namespace_metrics(ns)
 
         self.metrics_manager.save_metrics()
+
+    @conditional_controller_task(
+        period=datetime.timedelta(seconds=60),
+        run_if=LeaderController.is_leader,
+    )
+    def reconcile_metrics_files(self) -> None:
+        """
+        Get active namespace-manager pod names with shared metrics files.
+        Delete metrics files that do not match active namespace-manager pods.
+        """
+
+        pods = self.get_namespace_pods_by(
+            namespace=self.config.context.namespace,
+            labels={
+                "app.kubernetes.io/instance": (self.NAMESPACE_MANAGER_INSTANCE)
+            },
+        )
+        pod_names = sorted(
+            {
+                pod.metadata.name
+                for pod in pods
+                if pod.metadata.deletion_timestamp is None
+                and (pod.metadata.labels or {}).get(
+                    "app.kubernetes.io/component"
+                )
+                in self.NAMESPACE_MANAGER_COMPONENTS
+            }
+        )
+        if not pod_names:
+            logging.warning(
+                "Skipping metrics file reconciliation because no active "
+                "namespace-manager pods were discovered"
+            )
+            return
+
+        self.metrics_manager.delete_stale_metrics_files(pod_names)

@@ -4,6 +4,8 @@ Tests for metrics persistence, restoration, and merging.
 
 import os
 import time
+from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from kubernetes.client import V1Namespace, V1ObjectMeta
@@ -456,6 +458,70 @@ def test_delete_stale_metrics_removes_unassigned_namespace(metrics_manager):
     assert stale_key not in samples
 
 
+def test_delete_stale_metrics_files_removes_inactive_pod_files(
+    metrics_manager, temp_metrics_path
+):
+    """
+    Stale pod metrics files should be removed from the registry path.
+    """
+    registry_path = Path(temp_metrics_path)
+    active_api_file = registry_path / "api-1.prom"
+    active_collect_file = registry_path / "collect-1.prom"
+    stale_file = registry_path / "old-pod.prom"
+    ignored_file = registry_path / "notes.txt"
+    for metrics_file in [
+        active_api_file,
+        active_collect_file,
+        stale_file,
+        ignored_file,
+    ]:
+        metrics_file.write_text("test", encoding="utf-8")
+
+    deleted_files = metrics_manager.delete_stale_metrics_files(
+        ["api-1", "collect-1"]
+    )
+
+    assert deleted_files == ["old-pod.prom"]
+    assert active_api_file.exists()
+    assert active_collect_file.exists()
+    assert ignored_file.exists()
+    assert not stale_file.exists()
+
+
+def test_delete_stale_metrics_files_ignores_missing_files(
+    metrics_manager, temp_metrics_path
+):
+    """
+    Already removed stale metrics files should not fail reconciliation.
+    """
+    stale_file = Path(temp_metrics_path) / "old-pod.prom"
+    stale_file.write_text("test", encoding="utf-8")
+
+    with patch.object(Path, "unlink", side_effect=FileNotFoundError):
+        deleted_files = metrics_manager.delete_stale_metrics_files(["api-1"])
+
+    assert deleted_files == []
+
+
+def test_delete_stale_metrics_files_logs_delete_errors(
+    metrics_manager, temp_metrics_path, caplog
+):
+    """
+    Metrics file delete errors should be logged without aborting cleanup.
+    """
+    stale_file = Path(temp_metrics_path) / "old-pod.prom"
+    stale_file.write_text("test", encoding="utf-8")
+
+    with patch.object(
+        Path, "unlink", side_effect=OSError("permission denied")
+    ):
+        deleted_files = metrics_manager.delete_stale_metrics_files(["api-1"])
+
+    assert deleted_files == []
+    assert "Failed to delete stale prometheus metrics file" in caplog.text
+    assert "permission denied" in caplog.text
+
+
 def test_get_merged_metrics_reads_multiple_fresh_files(temp_metrics_path):
     """
     The merge helper should combine fresh metrics files.
@@ -572,62 +638,6 @@ def test_get_merged_metrics_keeps_owner_labelled_delete_counters(
 
     assert samples[first_key] == first_value
     assert samples[second_key] == second_value
-
-
-def test_get_merged_metrics_ignores_stale_files(temp_metrics_path):
-    """
-    The merge helper should ignore old owner files.
-    """
-    config = MetricsConfig(
-        registry_path=temp_metrics_path, file_stale_after_seconds=1
-    )
-    fresh_manager = MetricsManager(config, owner="collect-controller-0")
-    stale_manager = MetricsManager(config, owner="collect-controller-1")
-    fresh_namespace = V1Namespace(
-        metadata=V1ObjectMeta(
-            name="fresh-namespace",
-            labels={
-                CicdAnnotations.ENV_TIER.value: "dev",
-                CicdAnnotations.PROJECT.value: "marvin",
-                CicdAnnotations.TEAM.value: "system",
-                CicdAnnotations.AUTHOR.value: "marvin",
-                CicdAnnotations.PIPELINE_ID.value: "123456",
-                CicdAnnotations.PROJECT_ID.value: "654321",
-            },
-            annotations={
-                NamespaceAnnotations.STATUS.value: NamespaceStatus.OK.value
-            },
-        )
-    )
-    stale_namespace = V1Namespace(
-        metadata=V1ObjectMeta(
-            name="stale-namespace",
-            labels={
-                CicdAnnotations.ENV_TIER.value: "dev",
-                CicdAnnotations.PROJECT.value: "marvin",
-                CicdAnnotations.TEAM.value: "system",
-                CicdAnnotations.AUTHOR.value: "marvin",
-                CicdAnnotations.PIPELINE_ID.value: "123456",
-                CicdAnnotations.PROJECT_ID.value: "654321",
-            },
-            annotations={
-                NamespaceAnnotations.STATUS.value: NamespaceStatus.FAILED.value
-            },
-        )
-    )
-    fresh_manager.update_namespace_metrics(fresh_namespace)
-    stale_manager.update_namespace_metrics(stale_namespace)
-    fresh_manager.save_metrics()
-    stale_manager.save_metrics()
-    old_timestamp = time.time() - 120
-    os.utime(stale_manager.metrics_file, (old_timestamp, old_timestamp))
-
-    samples = parse_metric_samples(MetricsManager(config).get_merged_metrics())
-    fresh_key, fresh_value = namespace_status_sample("fresh-namespace", 0.0)
-    stale_key, _ = namespace_status_sample("stale-namespace", 4.0)
-
-    assert samples[fresh_key] == fresh_value
-    assert stale_key not in samples
 
 
 def test_get_merged_metrics_uses_newest_duplicate_sample(temp_metrics_path):

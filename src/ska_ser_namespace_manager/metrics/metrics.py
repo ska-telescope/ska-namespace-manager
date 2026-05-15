@@ -3,7 +3,6 @@ Module for managing the metrics reported by the Prometheus Exporter.
 """
 
 import os
-import time
 from pathlib import Path
 from threading import RLock
 from typing import Dict
@@ -136,6 +135,40 @@ class MetricsManager:
                         ]
                     )
 
+    def delete_stale_metrics_files(self, pod_names: list[str]) -> list[str]:
+        """
+        Delete metrics files that do not match active pod names.
+        """
+        deleted_files = []
+        expected_files = {f"{pod_name}.prom" for pod_name in pod_names}
+        registry_path = Path(self.config.registry_path)
+        if not registry_path.exists():
+            return deleted_files
+
+        with self._lock:
+            for metrics_file in registry_path.glob("*.prom"):
+                if metrics_file.name in expected_files:
+                    continue
+
+                try:
+                    metrics_file.unlink()
+                    deleted_files.append(metrics_file.name)
+                    logging.info(
+                        "Deleted stale prometheus metrics file '%s'",
+                        metrics_file,
+                    )
+                except FileNotFoundError:
+                    continue
+                except OSError as exc:
+                    logging.error(
+                        "Failed to delete stale prometheus metrics file "
+                        "'%s': %s",
+                        metrics_file,
+                        exc,
+                    )
+
+        return deleted_files
+
     def update_namespace_metrics(self, namespace: V1Namespace):
         """
         Update namespace metric on namespaces that no longer exist
@@ -250,19 +283,11 @@ class MetricsManager:
         if not registry_path.exists():
             return generate_latest(registry)
 
-        now = time.time()
         files = sorted(
             registry_path.glob("*.prom"),
             key=lambda metrics_file: metrics_file.stat().st_mtime,
         )
         for metrics_file in files:
-            if (
-                now - metrics_file.stat().st_mtime
-                > self.config.file_stale_after_seconds
-            ):
-                logging.debug("Skipping stale metrics file '%s'", metrics_file)
-                continue
-
             logging.debug("Merging prometheus metrics from '%s'", metrics_file)
             PrometheusMetricsHelper.restore_metrics_file(metrics, metrics_file)
 

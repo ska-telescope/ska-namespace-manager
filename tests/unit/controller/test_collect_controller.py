@@ -28,11 +28,17 @@ from ska_ser_namespace_manager.core.types import (
 )
 
 
-def _make_pod(name: str, service_account_name: str, deleting=False):
+def _make_pod(
+    name: str,
+    service_account_name: str,
+    deleting=False,
+    labels=None,
+):
     """Build a pod-like mock for replica discovery tests."""
     pod = MagicMock()
     pod.metadata = MagicMock()
     pod.metadata.name = name
+    pod.metadata.labels = labels or {}
     pod.metadata.deletion_timestamp = (
         datetime.now(timezone.utc) if deleting else None
     )
@@ -166,6 +172,81 @@ def test_get_collect_controller_pods(collect_controller):
         "collect-1",
         "collect-2",
     ]
+
+
+def test_reconcile_metrics_files_filters_active_app_components(
+    collect_controller,
+):
+    """Metrics reconciliation should target active namespace-manager pods."""
+    instance_label = {
+        "app.kubernetes.io/instance": "ska-ser-namespace-manager",
+    }
+    collect_controller.get_namespace_pods_by = MagicMock(
+        return_value=[
+            _make_pod(
+                "api-1",
+                "api-sa",
+                labels={
+                    **instance_label,
+                    "app.kubernetes.io/component": "api",
+                },
+            ),
+            _make_pod(
+                "collect-1",
+                "collect-ctl-sa",
+                labels={
+                    **instance_label,
+                    "app.kubernetes.io/component": "collect-controller",
+                },
+            ),
+            _make_pod(
+                "action-1",
+                "action-sa",
+                labels={
+                    **instance_label,
+                    "app.kubernetes.io/component": "action-controller",
+                },
+            ),
+            _make_pod(
+                "terminating",
+                "collect-ctl-sa",
+                deleting=True,
+                labels={
+                    **instance_label,
+                    "app.kubernetes.io/component": "collect-controller",
+                },
+            ),
+            _make_pod(
+                "unrelated-component",
+                "other-sa",
+                labels={
+                    **instance_label,
+                    "app.kubernetes.io/component": "other",
+                },
+            ),
+            _make_pod(
+                "missing-component",
+                "other-sa",
+                labels=instance_label,
+            ),
+        ]
+    )
+    collect_controller.config.metrics.enabled = True
+    collect_controller.leader_lock.is_leader.return_value = True
+    collect_controller.metrics_manager = MagicMock()
+
+    collect_controller.reconcile_metrics_files()
+
+    collect_controller.get_namespace_pods_by.assert_called_once_with(
+        namespace="default-namespace",
+        labels={"app.kubernetes.io/instance": "ska-ser-namespace-manager"},
+    )
+    delete_metrics_files = (
+        collect_controller.metrics_manager.delete_stale_metrics_files
+    )
+    delete_metrics_files.assert_called_once_with(
+        ["action-1", "api-1", "collect-1"]
+    )
 
 
 def test_get_collect_controller_pods_from_stateful_set(collect_controller):
@@ -554,6 +635,64 @@ def test_generate_metrics_updates_assigned_namespaces(collect_controller):
         assigned_namespace
     )
     collect_controller.metrics_manager.save_metrics.assert_called_once_with()
+
+
+def test_reconcile_metrics_files_deletes_files_for_inactive_pods(
+    collect_controller,
+):
+    """Metrics reconciliation should keep files for active pods only."""
+    collect_controller.get_namespace_pods_by = MagicMock(
+        return_value=[
+            _make_pod(
+                "api-1",
+                "api-sa",
+                labels={"app.kubernetes.io/component": "api"},
+            ),
+            _make_pod(
+                "collect-1",
+                "collect-ctl-sa",
+                labels={"app.kubernetes.io/component": "collect-controller"},
+            ),
+            _make_pod(
+                "action-1",
+                "action-sa",
+                labels={"app.kubernetes.io/component": "action-controller"},
+            ),
+        ]
+    )
+    collect_controller.config.metrics.enabled = True
+    collect_controller.leader_lock.is_leader.return_value = True
+    collect_controller.metrics_manager = MagicMock()
+
+    collect_controller.reconcile_metrics_files()
+
+    delete_metrics_files = (
+        collect_controller.metrics_manager.delete_stale_metrics_files
+    )
+    delete_metrics_files.assert_called_once_with(
+        ["action-1", "api-1", "collect-1"]
+    )
+
+
+def test_reconcile_metrics_files_skips_when_no_active_pods(
+    collect_controller, caplog
+):
+    """Metrics reconciliation should not delete files without pod data."""
+    collect_controller.get_namespace_pods_by = MagicMock(return_value=[])
+    collect_controller.config.metrics.enabled = True
+    collect_controller.leader_lock.is_leader.return_value = True
+    collect_controller.metrics_manager = MagicMock()
+
+    collect_controller.reconcile_metrics_files()
+
+    delete_metrics_files = (
+        collect_controller.metrics_manager.delete_stale_metrics_files
+    )
+    delete_metrics_files.assert_not_called()
+    assert (
+        "Skipping metrics file reconciliation because no active "
+        "namespace-manager pods were discovered"
+    ) in caplog.text
 
 
 def test_update_heartbeat_refreshes_mtime(collect_controller):
