@@ -3,7 +3,6 @@ Tests for metrics persistence, restoration, and merging.
 """
 
 import os
-import time
 from pathlib import Path
 from unittest.mock import patch
 
@@ -640,55 +639,17 @@ def test_get_merged_metrics_keeps_owner_labelled_delete_counters(
     assert samples[second_key] == second_value
 
 
-def test_get_merged_metrics_uses_newest_duplicate_sample(temp_metrics_path):
+def test_get_merged_metrics_ignores_missing_prometheus_files(
+    temp_metrics_path, caplog
+):
     """
-    Duplicate samples should keep the value from the newest metrics file.
+    Missing metrics files should not stop metric merging.
     """
     config = MetricsConfig(registry_path=temp_metrics_path)
-    old_manager = MetricsManager(config, owner="collect-controller-0")
-    new_manager = MetricsManager(config, owner="collect-controller-1")
-    old_namespace = V1Namespace(
-        metadata=V1ObjectMeta(
-            name="test-namespace",
-            labels={
-                CicdAnnotations.ENV_TIER.value: "dev",
-                CicdAnnotations.PROJECT.value: "marvin",
-                CicdAnnotations.TEAM.value: "system",
-                CicdAnnotations.AUTHOR.value: "marvin",
-                CicdAnnotations.PIPELINE_ID.value: "123456",
-                CicdAnnotations.PROJECT_ID.value: "654321",
-            },
-            annotations={
-                NamespaceAnnotations.STATUS.value: NamespaceStatus.OK.value
-            },
-        )
-    )
-    new_namespace = V1Namespace(
-        metadata=V1ObjectMeta(
-            name="test-namespace",
-            labels={
-                CicdAnnotations.ENV_TIER.value: "dev",
-                CicdAnnotations.PROJECT.value: "marvin",
-                CicdAnnotations.TEAM.value: "system",
-                CicdAnnotations.AUTHOR.value: "marvin",
-                CicdAnnotations.PIPELINE_ID.value: "123456",
-                CicdAnnotations.PROJECT_ID.value: "654321",
-            },
-            annotations={
-                NamespaceAnnotations.STATUS.value: (
-                    NamespaceStatus.FAILING.value
-                )
-            },
-        )
-    )
-    old_manager.update_namespace_metrics(old_namespace)
-    new_manager.update_namespace_metrics(new_namespace)
-    old_manager.save_metrics()
-    new_manager.save_metrics()
-    old_timestamp = time.time() - 10
-    os.utime(old_manager.metrics_file, (old_timestamp, old_timestamp))
+    missing_file = Path(temp_metrics_path) / "missing.prom"
+    caplog.set_level("DEBUG")
 
-    samples = parse_metric_samples(MetricsManager(config).get_merged_metrics())
-    key, value = namespace_status_sample("test-namespace", 2.0)
+    with patch("pathlib.Path.glob", return_value=[missing_file]):
+        MetricsManager(config).get_merged_metrics()
 
-    assert samples[key] == value
+    assert "Prometheus metrics file not found" in caplog.text

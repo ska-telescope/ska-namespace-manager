@@ -29,77 +29,6 @@ class PrometheusMetricsHelper:
     """
 
     @staticmethod
-    def get_metric_family_name(collector: Collector) -> str:
-        """
-        Get the Prometheus metric family name for a registered collector.
-        """
-        return next(iter(collector.collect())).name
-
-    @staticmethod
-    def get_label_names(metric: Collector) -> tuple[str, ...]:
-        """
-        Get configured collector label names.
-        """
-        return tuple(getattr(metric, "_labelnames", ()))
-
-    @staticmethod
-    def restore_metrics_file(
-        metrics: Dict[str, Collector],
-        metrics_file: str | Path,
-    ) -> None:
-        """
-        Restore metrics from a Prometheus textfile.
-        """
-        with open(metrics_file, "r", encoding="utf-8") as file_handle:
-            PrometheusMetricsHelper.restore_metrics(
-                metrics, file_handle.read()
-            )
-
-    @staticmethod
-    def write_metrics_file(
-        registry: CollectorRegistry, metrics_file: str | Path
-    ) -> None:
-        """
-        Write a registry to a Prometheus textfile.
-        """
-        write_to_textfile(str(metrics_file), registry)
-
-    @staticmethod
-    def restore_metrics(
-        metrics: Dict[str, Collector],
-        metrics_content: str,
-    ) -> None:
-        """
-        Restore known metric samples from Prometheus text content.
-        """
-        restore_map = PrometheusMetricsHelper._build_metric_restore_map(
-            metrics
-        )
-        for family in text_string_to_metric_families(metrics_content):
-            if family.name.endswith("_created"):
-                base_name = family.name[: -len("_created")]
-                if base_name in restore_map:
-                    continue
-
-            metric_definition = restore_map.get(family.name)
-            if metric_definition is None:
-                logging.warning(
-                    "Unrecognized or unsupported metric: %s", family.name
-                )
-                continue
-
-            metric, expected_type = metric_definition
-            if family.type != expected_type:
-                logging.warning(
-                    "Unsupported metric type '%s' for metric '%s'",
-                    family.type,
-                    family.name,
-                )
-                continue
-
-            PrometheusMetricsHelper._restore_metric_samples(metric, family)
-
-    @staticmethod
     def _build_metric_restore_map(
         metrics: Dict[str, Collector],
     ) -> Dict[str, tuple[Collector, str]]:
@@ -328,3 +257,74 @@ class PrometheusMetricsHelper:
             type(metric).__name__,
             family.name,
         )
+
+    @staticmethod
+    def get_metric_family_name(collector: Collector) -> str:
+        """
+        Get the Prometheus metric family name for a registered collector.
+        """
+        return next(iter(collector.collect())).name
+
+    @staticmethod
+    def get_label_names(metric: Collector) -> tuple[str, ...]:
+        """
+        Get configured collector label names.
+        """
+        return tuple(getattr(metric, "_labelnames", ()))
+
+    @staticmethod
+    def restore_metrics(
+        metrics: Dict[str, Collector],
+        metrics_content: str,
+    ) -> None:
+        """
+        Restore known metric samples from Prometheus text content.
+        """
+        restore_map = PrometheusMetricsHelper._build_metric_restore_map(
+            metrics
+        )
+        for family in text_string_to_metric_families(metrics_content):
+            if family.name.endswith("_created"):
+                base_name = family.name[: -len("_created")]
+                if base_name in restore_map:
+                    continue
+
+            metric_definition = restore_map.get(family.name)
+            if metric_definition is None:
+                logging.warning(
+                    "Unrecognized or unsupported metric: %s", family.name
+                )
+                continue
+
+            metric, expected_type = metric_definition
+            if family.type != expected_type:
+                logging.warning(
+                    "Unsupported metric type '%s' for metric '%s'",
+                    family.type,
+                    family.name,
+                )
+                continue
+
+            PrometheusMetricsHelper._restore_metric_samples(metric, family)
+
+    @staticmethod
+    def restore_metrics_file(
+        metrics: Dict[str, Collector],
+        metrics_file: str | Path,
+    ) -> None:
+        """
+        Restore metrics from a Prometheus textfile.
+        """
+        with open(metrics_file, "r", encoding="utf-8") as file_handle:
+            PrometheusMetricsHelper.restore_metrics(
+                metrics, file_handle.read()
+            )
+
+    @staticmethod
+    def write_metrics_file(
+        registry: CollectorRegistry, metrics_file: str | Path
+    ) -> None:
+        """
+        Write a registry to a Prometheus textfile.
+        """
+        write_to_textfile(str(metrics_file), registry)

@@ -245,7 +245,7 @@ class MetricsManager:
                 status=namespace_status.value,
             ).inc()
 
-    def get_metrics(self) -> None:
+    def get_metrics(self) -> bytes:
         """
         Generate the latest metrics from the Prometheus registry.
 
@@ -276,19 +276,22 @@ class MetricsManager:
 
     def get_merged_metrics(self) -> bytes:
         """
-        Merge fresh metrics files into a single Prometheus text response.
+        Merge metrics files into a single Prometheus text response.
         """
         registry, metrics = MetricsManager.build_registry()
         registry_path = Path(self.config.registry_path)
         if not registry_path.exists():
             return generate_latest(registry)
 
-        files = sorted(
-            registry_path.glob("*.prom"),
-            key=lambda metrics_file: metrics_file.stat().st_mtime,
-        )
-        for metrics_file in files:
+        for metrics_file in registry_path.glob("*.prom"):
             logging.debug("Merging prometheus metrics from '%s'", metrics_file)
-            PrometheusMetricsHelper.restore_metrics_file(metrics, metrics_file)
+            try:
+                PrometheusMetricsHelper.restore_metrics_file(
+                    metrics, metrics_file
+                )
+            except FileNotFoundError:
+                logging.debug(
+                    "Prometheus metrics file not found: '%s'", metrics_file
+                )
 
         return generate_latest(registry)
