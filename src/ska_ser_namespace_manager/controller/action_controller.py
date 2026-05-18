@@ -6,6 +6,7 @@ resources
 
 import datetime
 import json
+import os
 from typing import Optional
 
 from slack_bolt import App
@@ -27,6 +28,7 @@ from ska_ser_namespace_manager.core.types import (
     NamespaceStatus,
 )
 from ska_ser_namespace_manager.core.utils import ALERT_SUGGESTIONS, utc
+from ska_ser_namespace_manager.metrics.metrics import MetricsManager
 
 
 class ActionController(Notifier, LeaderController):
@@ -36,6 +38,7 @@ class ActionController(Notifier, LeaderController):
     """
 
     slack_client: App
+    metrics_manager: MetricsManager
 
     def __init__(self, kubeconfig: Optional[str] = None) -> None:
         """
@@ -52,7 +55,19 @@ class ActionController(Notifier, LeaderController):
             kubeconfig,
         )
         self.config: ActionControllerConfig
+        self.current_pod_name = os.environ.get(
+            "HOSTNAME", os.environ.get("POD_NAME", f"local-{os.getpid()}")
+        )
+        self.metrics_manager = MetricsManager(
+            self.config.metrics, owner=self.current_pod_name
+        )
         Notifier.__init__(self, self.config.notifier.token)
+
+    def is_metrics_enabled(self) -> bool:
+        """
+        Check if metrics are enabled.
+        """
+        return self.config.metrics.enabled
 
     def _format_labels_resources(self, labels: dict) -> str:
         """
@@ -171,6 +186,9 @@ class ActionController(Notifier, LeaderController):
             self.delete_namespace(
                 namespace.metadata.name,
             )
+            if self.is_metrics_enabled():
+                self.metrics_manager.record_namespace_deletion(status)
+                self.metrics_manager.save_metrics()
 
             annotations = namespace.metadata.annotations or {}
             if phase_config.notify_on_delete:

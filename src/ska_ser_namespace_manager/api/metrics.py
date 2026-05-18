@@ -31,4 +31,4 @@ class Metrics(metaclass=Singleton):  # pragma: no cover
         """
         Get the latest metrics
         """
-        return self.metrics_manager.get_metrics()
+        return self.metrics_manager.get_merged_metrics()

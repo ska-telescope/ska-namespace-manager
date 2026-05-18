@@ -11,6 +11,7 @@ from ska_ser_namespace_manager.controller.leader_controller_config import (
     LeaderControllerConfig,
 )
 from ska_ser_namespace_manager.core.namespace import NamespaceMatcher
+from ska_ser_namespace_manager.metrics.metrics_config import MetricsConfig
 
 
 class ActionNamespacePhaseConfig(BaseModel):
@@ -68,3 +69,4 @@ class ActionControllerConfig(LeaderControllerConfig):
 
     namespaces: List[ActionNamespaceConfig]
     notifier: NotifierConfig = NotifierConfig()
+    metrics: Optional[MetricsConfig] = MetricsConfig()

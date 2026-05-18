@@ -22,14 +22,23 @@ from ska_ser_namespace_manager.controller.leader_controller import (
     LeaderController,
 )
 from ska_ser_namespace_manager.core.namespace import Namespace
-from ska_ser_namespace_manager.core.types import NamespaceAnnotations
+from ska_ser_namespace_manager.core.types import (
+    NamespaceAnnotations,
+    NamespaceStatus,
+)
 
 
-def _make_pod(name: str, service_account_name: str, deleting=False):
+def _make_pod(
+    name: str,
+    service_account_name: str,
+    deleting=False,
+    labels=None,
+):
     """Build a pod-like mock for replica discovery tests."""
     pod = MagicMock()
     pod.metadata = MagicMock()
     pod.metadata.name = name
+    pod.metadata.labels = labels or {}
     pod.metadata.deletion_timestamp = (
         datetime.now(timezone.utc) if deleting else None
     )
@@ -163,6 +172,81 @@ def test_get_collect_controller_pods(collect_controller):
         "collect-1",
         "collect-2",
     ]
+
+
+def test_reconcile_metrics_files_filters_active_app_components(
+    collect_controller,
+):
+    """Metrics reconciliation should target active namespace-manager pods."""
+    instance_label = {
+        "app.kubernetes.io/instance": "ska-ser-namespace-manager",
+    }
+    collect_controller.get_namespace_pods_by = MagicMock(
+        return_value=[
+            _make_pod(
+                "api-1",
+                "api-sa",
+                labels={
+                    **instance_label,
+                    "app.kubernetes.io/component": "api",
+                },
+            ),
+            _make_pod(
+                "collect-1",
+                "collect-ctl-sa",
+                labels={
+                    **instance_label,
+                    "app.kubernetes.io/component": "collect-controller",
+                },
+            ),
+            _make_pod(
+                "action-1",
+                "action-sa",
+                labels={
+                    **instance_label,
+                    "app.kubernetes.io/component": "action-controller",
+                },
+            ),
+            _make_pod(
+                "terminating",
+                "collect-ctl-sa",
+                deleting=True,
+                labels={
+                    **instance_label,
+                    "app.kubernetes.io/component": "collect-controller",
+                },
+            ),
+            _make_pod(
+                "unrelated-component",
+                "other-sa",
+                labels={
+                    **instance_label,
+                    "app.kubernetes.io/component": "other",
+                },
+            ),
+            _make_pod(
+                "missing-component",
+                "other-sa",
+                labels=instance_label,
+            ),
+        ]
+    )
+    collect_controller.config.metrics.enabled = True
+    collect_controller.leader_lock.is_leader.return_value = True
+    collect_controller.metrics_manager = MagicMock()
+
+    collect_controller.reconcile_metrics_files()
+
+    collect_controller.get_namespace_pods_by.assert_called_once_with(
+        namespace="default-namespace",
+        labels={"app.kubernetes.io/instance": "ska-ser-namespace-manager"},
+    )
+    delete_metrics_files = (
+        collect_controller.metrics_manager.delete_stale_metrics_files
+    )
+    delete_metrics_files.assert_called_once_with(
+        ["action-1", "api-1", "collect-1"]
+    )
 
 
 def test_get_collect_controller_pods_from_stateful_set(collect_controller):
@@ -519,6 +603,98 @@ def test_check_assigned_namespaces_updates_heartbeat_without_peers(
     assert Path(collect_controller.config.heartbeat.path).exists()
 
 
+def test_generate_metrics_updates_assigned_namespaces(collect_controller):
+    """
+    Metrics generation should only write this replica's assigned namespaces.
+    """
+    assigned_namespace = MagicMock()
+    assigned_namespace.metadata.name = "assigned-namespace"
+    assigned_namespace.metadata.annotations = {
+        NamespaceAnnotations.STATUS.value: NamespaceStatus.OK.value
+    }
+    unassigned_namespace = MagicMock()
+    unassigned_namespace.metadata.name = "unassigned-namespace"
+    unassigned_namespace.metadata.annotations = {
+        NamespaceAnnotations.STATUS.value: NamespaceStatus.FAILING.value
+    }
+    collect_controller.config.metrics.enabled = True
+    collect_controller.get_namespaces_by = MagicMock(
+        return_value=[assigned_namespace, unassigned_namespace]
+    )
+    collect_controller._get_assigned_managed_namespaces = MagicMock(
+        return_value=[assigned_namespace]
+    )
+    collect_controller.metrics_manager = MagicMock()
+
+    collect_controller.generate_metrics()
+
+    collect_controller.metrics_manager.delete_stale_metrics.assert_called_once_with(  # pylint: disable=line-too-long # noqa: E501
+        ["assigned-namespace"]
+    )
+    collect_controller.metrics_manager.update_namespace_metrics.assert_called_once_with(  # pylint: disable=line-too-long # noqa: E501
+        assigned_namespace
+    )
+    collect_controller.metrics_manager.save_metrics.assert_called_once_with()
+
+
+def test_reconcile_metrics_files_deletes_files_for_inactive_pods(
+    collect_controller,
+):
+    """Metrics reconciliation should keep files for active pods only."""
+    collect_controller.get_namespace_pods_by = MagicMock(
+        return_value=[
+            _make_pod(
+                "api-1",
+                "api-sa",
+                labels={"app.kubernetes.io/component": "api"},
+            ),
+            _make_pod(
+                "collect-1",
+                "collect-ctl-sa",
+                labels={"app.kubernetes.io/component": "collect-controller"},
+            ),
+            _make_pod(
+                "action-1",
+                "action-sa",
+                labels={"app.kubernetes.io/component": "action-controller"},
+            ),
+        ]
+    )
+    collect_controller.config.metrics.enabled = True
+    collect_controller.leader_lock.is_leader.return_value = True
+    collect_controller.metrics_manager = MagicMock()
+
+    collect_controller.reconcile_metrics_files()
+
+    delete_metrics_files = (
+        collect_controller.metrics_manager.delete_stale_metrics_files
+    )
+    delete_metrics_files.assert_called_once_with(
+        ["action-1", "api-1", "collect-1"]
+    )
+
+
+def test_reconcile_metrics_files_skips_when_no_active_pods(
+    collect_controller, caplog
+):
+    """Metrics reconciliation should not delete files without pod data."""
+    collect_controller.get_namespace_pods_by = MagicMock(return_value=[])
+    collect_controller.config.metrics.enabled = True
+    collect_controller.leader_lock.is_leader.return_value = True
+    collect_controller.metrics_manager = MagicMock()
+
+    collect_controller.reconcile_metrics_files()
+
+    delete_metrics_files = (
+        collect_controller.metrics_manager.delete_stale_metrics_files
+    )
+    delete_metrics_files.assert_not_called()
+    assert (
+        "Skipping metrics file reconciliation because no active "
+        "namespace-manager pods were discovered"
+    ) in caplog.text
+
+
 def test_update_heartbeat_refreshes_mtime(collect_controller):
     """Heartbeat updates should refresh the file modification time."""
     heartbeat_path = Path(collect_controller.config.heartbeat.path)
@@ -574,6 +750,7 @@ def test_namespace_thread_stops_when_namespace_missing(
     collect_controller.has_task = MagicMock(return_value=False)
     collect_controller.get_namespace = MagicMock(return_value=None)
     collect_controller.run_namespace_check = MagicMock()
+    collect_controller.metrics_manager = MagicMock()
     collect_controller.add_managed_task = MagicMock()
 
     collect_controller.create_namespace_check_thread(
@@ -586,3 +763,61 @@ def test_namespace_thread_stops_when_namespace_missing(
     task(stop_event, *task_args)
 
     collect_controller.run_namespace_check.assert_not_called()
+    record_result = (
+        collect_controller.metrics_manager.record_namespace_check_result
+    )
+    record_result.assert_not_called()
+
+
+def test_namespace_thread_records_successful_check(
+    collect_controller,
+):
+    """Successful per-namespace checks should record a success result."""
+    namespace_resource = MagicMock()
+    stop_event = threading.Event()
+    collect_controller.get_namespace = MagicMock(
+        return_value=namespace_resource
+    )
+    collect_controller.run_namespace_check = MagicMock()
+    collect_controller.metrics_manager = MagicMock()
+    collect_controller.wait_for_task_stop = MagicMock(return_value=True)
+
+    collect_controller.run_namespace_check_thread(
+        stop_event, "test-namespace", timedelta(milliseconds=1)
+    )
+
+    collect_controller.run_namespace_check.assert_called_once_with(
+        "test-namespace", namespace_resource
+    )
+    collect_controller.metrics_manager.record_namespace_check_result.assert_called_once_with(  # pylint: disable=line-too-long # noqa: E501
+        "success"
+    )
+
+
+def test_namespace_thread_records_failed_check(collect_controller, caplog):
+    """Failed per-namespace checks should record a failure result."""
+    namespace_resource = MagicMock()
+    stop_event = threading.Event()
+    collect_controller.get_namespace = MagicMock(
+        return_value=namespace_resource
+    )
+    collect_controller.run_namespace_check = MagicMock(
+        side_effect=RuntimeError("collector failed")
+    )
+    collect_controller.metrics_manager = MagicMock()
+    collect_controller.wait_for_task_stop = MagicMock(return_value=True)
+
+    collect_controller.run_namespace_check_thread(
+        stop_event, "test-namespace", timedelta(milliseconds=1)
+    )
+
+    collect_controller.run_namespace_check.assert_called_once_with(
+        "test-namespace", namespace_resource
+    )
+    collect_controller.metrics_manager.record_namespace_check_result.assert_called_once_with(  # pylint: disable=line-too-long # noqa: E501
+        "failure"
+    )
+    assert (
+        "Namespace check thread failed for namespace 'test-namespace'"
+        in caplog.text
+    )

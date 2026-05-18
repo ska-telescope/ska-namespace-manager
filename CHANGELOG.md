@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## 0.3.0 - 2026-05-18
+
+- **Metrics management refactor**
+  - refactored metrics handling around per-process Prometheus registries persisted as owner-specific `.prom` files
+  - added reusable Prometheus textfile restore/write helpers for gauges, counters, summaries, histograms, info metrics, and enums
+  - changed the public metrics API to merge metrics files from the shared registry path
+  - simplified merged metrics loading to read all `.prom` files and ignore files that disappear during merging
+
+- **Namespace check result metrics**
+  - added the `namespace_manager_ns_check_total` counter for periodic namespace check success and failure results
+  - labelled namespace check result metrics by controller owner and result
+  - record namespace check failures when in-process namespace check threads raise exceptions
+
+- **Namespace deletion metrics**
+  - added the `namespace_manager_ns_delete_total` counter for deleted namespaces by status
+  - record deletion metrics from the action-controller when stale or failed namespaces are deleted
+  - added action-controller metrics configuration and metrics registry volume mounting when metrics are enabled
+
+- **Metrics file reconciliation**
+  - added a leader-only collect-controller task to delete metrics files for inactive namespace-manager pods
+  - discover active API, collect-controller, and action-controller pods before reconciling shared metrics files
+  - removed time-based stale metrics file filtering in favour of active pod reconciliation
+
 
 ## 0.2.0 - 2026-04-29
 

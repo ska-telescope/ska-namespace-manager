@@ -19,6 +19,7 @@ from ska_ser_namespace_manager.core.types import (
     NamespaceAnnotations,
     NamespaceStatus,
 )
+from ska_ser_namespace_manager.metrics.metrics_config import MetricsConfig
 
 
 @pytest.fixture
@@ -65,6 +66,8 @@ def mock_action_controller_config():
         mock_config_instance.leader_election.lease_path = "/mock/lease/path"
         mock_config_instance.leader_election.lease_ttl = timedelta(seconds=30)
         mock_config_instance.namespaces = []
+        mock_config_instance.metrics = MagicMock()
+        mock_config_instance.metrics.enabled = True
         yield mock_config_instance
 
 
@@ -100,6 +103,7 @@ def action_controller(
 
         action_controller_instance.forbidden_namespaces = []
         action_controller_instance.config = mock_action_controller_config
+        action_controller_instance.metrics_manager = MagicMock()
         action_controller_instance.leader_lock = MagicMock()
         action_controller_instance.shutdown_event = MagicMock()
         action_controller_instance.shutdown_event.is_set = MagicMock(
@@ -111,6 +115,10 @@ def action_controller(
 def test_action_controller_init():
     action_controller_config = MagicMock()
     action_controller_config.notifier.token = "test-token"
+    action_controller_config.metrics = MagicMock()
+
+    def mock_environ_get(key, default=None):
+        return "action-controller-0" if key == "HOSTNAME" else default
 
     def set_controller_config(controller, config_class, tasks, kubeconfig):
         controller.config = action_controller_config
@@ -122,7 +130,15 @@ def test_action_controller_init():
         LeaderController, "__init__", autospec=True
     ) as mock_leader_init, patch.object(
         Notifier, "__init__", autospec=True, return_value=None
-    ) as notifier_init:
+    ) as notifier_init, patch(
+        "ska_ser_namespace_manager.controller.action_controller."
+        "os.environ.get",
+        side_effect=mock_environ_get,
+    ), patch(
+        "ska_ser_namespace_manager.controller.action_controller."
+        "MetricsManager",
+        autospec=True,
+    ) as metrics_manager:
         mock_leader_init.side_effect = set_controller_config
         action_controller_instance = ActionController()
 
@@ -143,10 +159,36 @@ def test_action_controller_init():
             "notify_failing_unstable_namespaces",
         ]
         assert kubeconfig is None
+        assert action_controller_instance.current_pod_name == (
+            "action-controller-0"
+        )
+        metrics_manager.assert_called_once_with(
+            action_controller_config.metrics,
+            owner="action-controller-0",
+        )
         notifier_init.assert_called_once_with(
             action_controller_instance,
             action_controller_config.notifier.token,
         )
+
+
+def test_action_controller_config_has_metrics_default():
+    """
+    Action controller config should include metrics configuration.
+    """
+    config = ActionControllerConfig(
+        namespaces=[],
+        context={
+            "namespace": "default-namespace",
+            "service_account": "action-ctl-sa",
+            "image": "test-image",
+            "config_path": "/etc/config",
+            "config_secret": "action-config",
+        },
+        leader_election={},
+    )
+
+    assert isinstance(config.metrics, MetricsConfig)
 
 
 def test_delete_namespaces_with_status_no_match(action_controller):
@@ -158,6 +200,8 @@ def test_delete_namespaces_with_status_no_match(action_controller):
             NamespaceAnnotations.STATUS.value: NamespaceStatus.STALE.value,
         }
     )
+    action_controller.metrics_manager.record_namespace_deletion.assert_not_called()  # pylint: disable=line-too-long # noqa: E501
+    action_controller.metrics_manager.save_metrics.assert_not_called()
 
 
 def test_delete_namespaces_with_status_match(action_controller):
@@ -201,6 +245,10 @@ def test_delete_namespaces_with_status_match(action_controller):
     action_controller.delete_namespace.assert_called_once_with(
         "test-namespace"
     )
+    action_controller.metrics_manager.record_namespace_deletion.assert_called_once_with(  # pylint: disable=line-too-long # noqa: E501
+        NamespaceStatus.STALE.value
+    )
+    action_controller.metrics_manager.save_metrics.assert_called_once_with()
     action_controller.notify_user.assert_called_once()
 
 
@@ -241,6 +289,55 @@ def test_delete_namespaces_with_status_match_no_notify(action_controller):
     action_controller.delete_namespace.assert_called_once_with(
         "test-namespace"
     )
+    action_controller.metrics_manager.record_namespace_deletion.assert_called_once_with(  # pylint: disable=line-too-long # noqa: E501
+        NamespaceStatus.STALE.value
+    )
+    action_controller.metrics_manager.save_metrics.assert_called_once_with()
+    action_controller.notify_user.assert_not_called()
+
+
+def test_delete_namespaces_with_status_match_metrics_disabled(
+    action_controller,
+):
+    mock_namespace = MagicMock()
+    mock_namespace.metadata.name = "test-namespace"
+    mock_namespace.metadata.annotations = {
+        NamespaceAnnotations.STATUS.value: "stale"
+    }
+    mock_namespace.status.phase = "Active"
+
+    action_controller.config.metrics.enabled = False
+    action_controller.get_namespaces_by = MagicMock(
+        return_value=[mock_namespace]
+    )
+    action_controller.to_dto = MagicMock(
+        return_value=Namespace(
+            name="test-namespace",
+            labels={},
+            annotations={NamespaceAnnotations.STATUS.value: "stale"},
+        )
+    )
+    action_controller.delete_namespace = MagicMock()
+    action_controller.notify_user = MagicMock()
+
+    phase_config = MagicMock()
+    phase_config.delete = True
+    phase_config.notify_on_delete = False
+
+    with patch(
+        "ska_ser_namespace_manager.controller.action_controller.match_namespace",  # pylint: disable=line-too-long # noqa: E501
+        return_value=True,
+    ), patch(
+        "ska_ser_namespace_manager.controller.action_controller.getattr",
+        return_value=phase_config,
+    ):
+        action_controller._delete_namespaces_with_status("stale")
+
+    action_controller.delete_namespace.assert_called_once_with(
+        "test-namespace"
+    )
+    action_controller.metrics_manager.record_namespace_deletion.assert_not_called()  # pylint: disable=line-too-long # noqa: E501
+    action_controller.metrics_manager.save_metrics.assert_not_called()
     action_controller.notify_user.assert_not_called()
 
 
@@ -279,6 +376,8 @@ def test_delete_namespaces_with_status_match_no_delete(action_controller):
         action_controller._delete_namespaces_with_status("stale")
 
     action_controller.delete_namespace.assert_not_called()
+    action_controller.metrics_manager.record_namespace_deletion.assert_not_called()  # pylint: disable=line-too-long # noqa: E501
+    action_controller.metrics_manager.save_metrics.assert_not_called()
     action_controller.notify_user.assert_not_called()
 
 
@@ -321,6 +420,8 @@ def test_delete_namespaces_with_status_terminating(action_controller):
         )
 
     action_controller.delete_namespace.assert_not_called()
+    action_controller.metrics_manager.record_namespace_deletion.assert_not_called()  # pylint: disable=line-too-long # noqa: E501
+    action_controller.metrics_manager.save_metrics.assert_not_called()
     action_controller.notify_user.assert_not_called()
 
 

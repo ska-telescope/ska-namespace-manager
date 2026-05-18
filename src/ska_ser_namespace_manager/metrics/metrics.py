@@ -3,14 +3,16 @@ Module for managing the metrics reported by the Prometheus Exporter.
 """
 
 import os
+from pathlib import Path
+from threading import RLock
 from typing import Dict
 
 from kubernetes.client import V1Namespace
 from prometheus_client import (
     CollectorRegistry,
+    Counter,
     Gauge,
     generate_latest,
-    write_to_textfile,
 )
 from prometheus_client.registry import Collector
 
@@ -21,24 +23,93 @@ from ska_ser_namespace_manager.core.types import (
     NamespaceStatus,
 )
 from ska_ser_namespace_manager.metrics.metrics_config import MetricsConfig
+from ska_ser_namespace_manager.metrics.metrics_helper import (
+    PrometheusMetricsHelper,
+)
 
 
 class MetricsManager:
-    """Singleton class that groups all the metrics."""
+    """Groups and persists metrics for one controller process."""
 
     metrics: Dict[str, Collector]
+    NAMESPACE_STATUS_METRIC_NAME: str = "namespace_manager_ns_status"
+    NAMESPACE_CHECK_RESULT_METRIC_NAME: str = (
+        "namespace_manager_ns_check_total"
+    )
+    NAMESPACE_CHECK_RESULTS: tuple[str, str] = ("success", "failure")
+    NAMESPACE_DELETE_METRIC_NAME: str = "namespace_manager_ns_delete_total"
 
-    def __init__(self, config: MetricsConfig):
+    def __init__(self, config: MetricsConfig, owner: str | None = None):
         self.config = config
+        self.owner = owner
+        self._lock = RLock()
         logging.info("Metrics registry at: %s", self.config.registry_path)
 
         if not os.path.exists(self.config.registry_path):
             os.makedirs(self.config.registry_path)
 
         self.metrics_file = os.path.join(
-            self.config.registry_path, "metrics.prom"
+            self.config.registry_path,
+            f"{Path(self.owner).name if self.owner else 'metrics'}.prom",
         )
-        self.load_metrics()
+
+        self._load_metrics()
+
+    @staticmethod
+    def build_registry() -> tuple[CollectorRegistry, Dict[str, Collector]]:
+        """
+        Build the application metrics registry and known collectors.
+        """
+        registry = CollectorRegistry()
+        metrics: Dict[str, Collector] = {}
+        metrics[MetricsManager.NAMESPACE_STATUS_METRIC_NAME] = Gauge(
+            name=MetricsManager.NAMESPACE_STATUS_METRIC_NAME,
+            documentation="Namespace status",
+            labelnames=[
+                "environment",
+                "project",
+                "team",
+                "user",
+                "pipelineId",
+                "projectId",
+                "namespace",
+            ],
+            registry=registry,
+        )
+        metrics[MetricsManager.NAMESPACE_CHECK_RESULT_METRIC_NAME] = Counter(
+            name=MetricsManager.NAMESPACE_CHECK_RESULT_METRIC_NAME,
+            documentation=(
+                "Number of periodic namespace check executions by result"
+            ),
+            labelnames=["owner", "result"],
+            registry=registry,
+        )
+        metrics[MetricsManager.NAMESPACE_DELETE_METRIC_NAME] = Counter(
+            name=MetricsManager.NAMESPACE_DELETE_METRIC_NAME,
+            documentation="Number of namespaces deleted by status",
+            labelnames=["owner", "status"],
+            registry=registry,
+        )
+
+        return registry, metrics
+
+    def _load_metrics(self):
+        """
+        Load metrics from a file.
+
+        This method reads metrics from a file and updates the in-memory
+        metrics with the values from the file.
+        """
+        with self._lock:
+            self.registry, self.metrics = MetricsManager.build_registry()
+
+            if os.path.exists(self.metrics_file):
+                logging.debug(
+                    "Loading prometheus metrics from %s", self.metrics_file
+                )
+                PrometheusMetricsHelper.restore_metrics_file(
+                    self.metrics, self.metrics_file
+                )
 
     def delete_stale_metrics(self, namespaces: list[str]):
         """
@@ -46,17 +117,57 @@ class MetricsManager:
 
         :param namespaces: Existing namespaces
         """
-        for (
-            sample
-        ) in (
-            self.namespace_manager_ns_status._samples()  # pylint: disable=line-too-long,protected-access  # noqa: E501
-        ):
-            namespace = sample.labels.get("namespace")
-            if namespace not in namespaces:
-                logging.info("Removed metrics for namespace '%s'", namespace)
-                self.namespace_manager_ns_status.remove(
-                    *sample.labels.values()
-                )
+        with self._lock:
+            metric = self.metrics.get(
+                MetricsManager.NAMESPACE_STATUS_METRIC_NAME
+            )
+            label_names = PrometheusMetricsHelper.get_label_names(metric)
+            for sample in next(iter(metric.collect())).samples:
+                namespace = sample.labels.get("namespace")
+                if namespace not in namespaces:
+                    logging.info(
+                        "Removed metrics for namespace '%s'", namespace
+                    )
+                    metric.remove(
+                        *[
+                            sample.labels[label_name]
+                            for label_name in label_names
+                        ]
+                    )
+
+    def delete_stale_metrics_files(self, pod_names: list[str]) -> list[str]:
+        """
+        Delete metrics files that do not match active pod names.
+        """
+        deleted_files = []
+        expected_files = {f"{pod_name}.prom" for pod_name in pod_names}
+        registry_path = Path(self.config.registry_path)
+        if not registry_path.exists():
+            return deleted_files
+
+        with self._lock:
+            for metrics_file in registry_path.glob("*.prom"):
+                if metrics_file.name in expected_files:
+                    continue
+
+                try:
+                    metrics_file.unlink()
+                    deleted_files.append(metrics_file.name)
+                    logging.info(
+                        "Deleted stale prometheus metrics file '%s'",
+                        metrics_file,
+                    )
+                except FileNotFoundError:
+                    continue
+                except OSError as exc:
+                    logging.error(
+                        "Failed to delete stale prometheus metrics file "
+                        "'%s': %s",
+                        metrics_file,
+                        exc,
+                    )
+
+        return deleted_files
 
     def update_namespace_metrics(self, namespace: V1Namespace):
         """
@@ -64,29 +175,77 @@ class MetricsManager:
 
         :param namespace: Namespace to update metrics on
         """
-        labels = namespace.metadata.labels or {}
-        annotations = namespace.metadata.annotations or {}
-        status = annotations.get(NamespaceAnnotations.STATUS.value, "unknown")
-        status_numeric = NamespaceStatus.from_string(status).value_numeric
+        with self._lock:
+            metric = self.metrics.get(
+                MetricsManager.NAMESPACE_STATUS_METRIC_NAME
+            )
+            labels = namespace.metadata.labels or {}
+            annotations = namespace.metadata.annotations or {}
+            status = annotations.get(
+                NamespaceAnnotations.STATUS.value, "unknown"
+            )
+            status_numeric = NamespaceStatus.from_string(status).value_numeric
 
-        self.namespace_manager_ns_status.labels(
-            environment=labels.get(CicdAnnotations.ENV_TIER.value, "unknown"),
-            project=labels.get(CicdAnnotations.PROJECT.value, "unknown"),
-            team=labels.get(CicdAnnotations.TEAM.value, "unknown"),
-            user=labels.get(CicdAnnotations.AUTHOR.value, "unknown"),
-            pipelineId=labels.get(
-                CicdAnnotations.PIPELINE_ID.value, "unknown"
-            ),
-            projectId=labels.get(CicdAnnotations.PROJECT_ID.value, "unknown"),
-            namespace=namespace.metadata.name,
-        ).set(status_numeric)
+            metric.labels(
+                environment=labels.get(
+                    CicdAnnotations.ENV_TIER.value, "unknown"
+                ),
+                project=labels.get(CicdAnnotations.PROJECT.value, "unknown"),
+                team=labels.get(CicdAnnotations.TEAM.value, "unknown"),
+                user=labels.get(CicdAnnotations.AUTHOR.value, "unknown"),
+                pipelineId=labels.get(
+                    CicdAnnotations.PIPELINE_ID.value, "unknown"
+                ),
+                projectId=labels.get(
+                    CicdAnnotations.PROJECT_ID.value, "unknown"
+                ),
+                namespace=namespace.metadata.name,
+            ).set(status_numeric)
 
         logging.debug(
             f"Updated metrics for namespace '{namespace.metadata.name}' - "
             f"Status: {status}"
         )
 
-    def get_metrics(self) -> None:
+    def record_namespace_check_result(self, result: str) -> None:
+        """
+        Record a periodic namespace check execution result.
+
+        :param result: One of success or failure
+        """
+        if result not in MetricsManager.NAMESPACE_CHECK_RESULTS:
+            raise ValueError(
+                f"Invalid namespace check result '{result}'. Expected one of "
+                f"{MetricsManager.NAMESPACE_CHECK_RESULTS}"
+            )
+
+        with self._lock:
+            metric = self.metrics.get(
+                MetricsManager.NAMESPACE_CHECK_RESULT_METRIC_NAME
+            )
+            metric.labels(
+                owner=self.owner,
+                result=result,
+            ).inc()
+
+    def record_namespace_deletion(self, status: str) -> None:
+        """
+        Record a namespace deletion by namespace status.
+
+        :param status: Namespace status that caused the deletion
+        """
+        namespace_status = NamespaceStatus.from_string(status)
+
+        with self._lock:
+            metric = self.metrics.get(
+                MetricsManager.NAMESPACE_DELETE_METRIC_NAME
+            )
+            metric.labels(
+                owner=self.owner,
+                status=namespace_status.value,
+            ).inc()
+
+    def get_metrics(self) -> bytes:
         """
         Generate the latest metrics from the Prometheus registry.
 
@@ -98,8 +257,9 @@ class MetricsManager:
         logging.debug(
             "Generating prometheus metrics from '%s'", self.metrics_file
         )
-        self.load_metrics()
-        return generate_latest(self.registry)
+        with self._lock:
+            self._load_metrics()
+            return generate_latest(self.registry)
 
     def save_metrics(self):
         """
@@ -109,64 +269,29 @@ class MetricsManager:
         that Prometheus can read.
         """
         logging.debug("Saving prometheus metrics to '%s'", self.metrics_file)
-        write_to_textfile(self.metrics_file, self.registry)
-
-    def load_metrics(self):
-        """
-        Load metrics from a file.
-
-        This method reads metrics from a file and updates the in-memory
-        metrics with the values from the file.
-        """
-        self.registry = CollectorRegistry()
-        self.namespace_manager_ns_status = Gauge(
-            name="namespace_manager_ns_status",
-            documentation="Namespace status",
-            labelnames=[
-                "environment",
-                "project",
-                "team",
-                "user",
-                "pipelineId",
-                "projectId",
-                "namespace",
-            ],
-            registry=self.registry,
-        )
-
-        if os.path.exists(self.metrics_file):
-            logging.debug(
-                "Loading prometheus metrics from %s", self.metrics_file
+        with self._lock:
+            PrometheusMetricsHelper.write_metrics_file(
+                self.registry, self.metrics_file
             )
-            with open(self.metrics_file, "r", encoding="utf-8") as f:
-                for line in f:
-                    if line.startswith("#"):
-                        continue
 
-                    if " " in line:
-                        metric, value = line.split(" ")
-                        value = float(value)
-                        if "{" in metric:
-                            name, labels = metric.split("{")
-                            labels = labels.rstrip("}")
-                            label_dict = dict(
-                                item.split("=") for item in labels.split(",")
-                            )
-                            label_dict = {
-                                k: v.strip('"') for k, v in label_dict.items()
-                            }
+    def get_merged_metrics(self) -> bytes:
+        """
+        Merge metrics files into a single Prometheus text response.
+        """
+        registry, metrics = MetricsManager.build_registry()
+        registry_path = Path(self.config.registry_path)
+        if not registry_path.exists():
+            return generate_latest(registry)
 
-                            # TODO: Implement this bit of code in a generic way
-                            # to support other collectors
-                            gauge = getattr(self, name, None)
-                            if gauge and isinstance(gauge, Gauge):
-                                gauge.labels(**label_dict).set(value)
-                                logging.debug(
-                                    f"Set {name} with labels "
-                                    f"{label_dict} to {value}"
-                                )
-                            else:
-                                logging.warning(
-                                    "Unrecognized or unsupported "
-                                    f"metric: {name}"
-                                )
+        for metrics_file in registry_path.glob("*.prom"):
+            logging.debug("Merging prometheus metrics from '%s'", metrics_file)
+            try:
+                PrometheusMetricsHelper.restore_metrics_file(
+                    metrics, metrics_file
+                )
+            except FileNotFoundError:
+                logging.debug(
+                    "Prometheus metrics file not found: '%s'", metrics_file
+                )
+
+        return generate_latest(registry)
