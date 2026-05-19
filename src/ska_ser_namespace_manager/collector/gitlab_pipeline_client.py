@@ -165,7 +165,7 @@ class GitLabPipelineClient:
         if now - cached_at < self.config.cache_ttl:
             return status
 
-        del self._pipeline_status_cache[cache_key]
+        self._pipeline_status_cache.pop(cache_key, None)
 
         return None
 
