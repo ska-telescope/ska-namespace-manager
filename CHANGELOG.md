@@ -4,11 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
-## 0.3.0 - 2026-05-19
+## 0.3.1 - 2026-05-19
 
 - **Delete duplicate deployments**
   - Query pipeline status to detect cancelled pipelines and deem the namespace 'cancelled'
+  - Gather pipelines by pipelineId/mrId and job to determine which ones are superseded
   - Notify and delete users of 'cancelled' pipelines
+
+## 0.3.0 - 2026-05-18
 
 - **Metrics management refactor**
   - refactored metrics handling around per-process Prometheus registries persisted as owner-specific `.prom` files

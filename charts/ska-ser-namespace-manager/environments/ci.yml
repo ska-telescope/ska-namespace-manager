@@ -1,3 +1,6 @@
+clusterWide:
+  usePrefix: true
+
 image:
   repository: registry.gitlab.com/ska-telescope/ska-ser-namespace-manager/ska-ser-namespace-manager
 
@@ -32,6 +35,7 @@ actionController:
       token: null
 
 collectController:
+  replicas: 1
   config:
     namespaces:
       - names:
