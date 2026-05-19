@@ -289,6 +289,15 @@ class CollectController(LeaderController):
             )
             return None
 
+        job_id = labels.get(CicdLabels.JOB_ID.value)
+        if not job_id:
+            logging.debug(
+                "Skipping superseded check for namespace '%s' because "
+                "jobId label is missing",
+                namespace.metadata.name,
+            )
+            return None
+
         mr_id = labels.get(CicdLabels.MR_ID.value)
         if mr_id:
             return ("mr", project_id, mr_id, job)
@@ -486,41 +495,59 @@ class CollectController(LeaderController):
             if len(active_namespaces) < 2:
                 continue
 
-            newest_namespace = max(
-                active_namespaces,
-                key=lambda namespace: namespace.metadata.creation_timestamp,
-            )
+            deployments: dict[str, list[V1Namespace]] = {}
             for namespace in active_namespaces:
-                if namespace == newest_namespace:
-                    continue
+                deployments.setdefault(
+                    namespace.metadata.labels[CicdLabels.JOB_ID.value], []
+                ).append(namespace)
 
-                logging.info(
-                    "Marking namespace '%s' as superseded by newer namespace "
-                    "'%s'",
-                    namespace.metadata.name,
-                    newest_namespace.metadata.name,
-                )
-                status_timestamp = datetime.datetime.now(datetime.timezone.utc)
-                time_to_delete = datetime.timedelta(seconds=5)
-                self.patch_namespace(
-                    namespace.metadata.name,
-                    annotations={
-                        NamespaceAnnotations.STATUS.value: (
-                            NamespaceStatus.SUPERSEDED.value
-                        ),
-                        NamespaceAnnotations.STATUS_TS.value: format_utc(
-                            status_timestamp
-                        ),
-                        NamespaceAnnotations.STATUS_FINALIZE_AT.value: format_utc(  # pylint: disable=line-too-long  # noqa: E501
-                            status_timestamp + time_to_delete
-                        ),
-                        NamespaceAnnotations.STATUS_TIMEFRAME.value: format_timespan(  # pylint: disable=line-too-long  # noqa: E501
-                            time_to_delete
-                        ),
-                        NamespaceAnnotations.NOTIFIED_TS.value: None,
-                        NamespaceAnnotations.NOTIFIED_STATUS.value: None,
-                    },
-                )
+            if len(deployments) < 2:
+                continue
+
+            newest_deployment_key = max(
+                deployments,
+                key=lambda key, deployments=deployments: max(
+                    ns.metadata.creation_timestamp for ns in deployments[key]
+                ),
+            )
+            newest_namespace = max(
+                deployments[newest_deployment_key],
+                key=lambda ns: ns.metadata.creation_timestamp,
+            )
+
+            for key, deployment in deployments.items():
+                if key == newest_deployment_key:
+                    continue
+                for namespace in deployment:
+                    logging.info(
+                        "Marking namespace '%s' as superseded by newer "
+                        "namespace '%s'",
+                        namespace.metadata.name,
+                        newest_namespace.metadata.name,
+                    )
+                    status_timestamp = datetime.datetime.now(
+                        datetime.timezone.utc
+                    )
+                    time_to_delete = datetime.timedelta(seconds=5)
+                    self.patch_namespace(
+                        namespace.metadata.name,
+                        annotations={
+                            NamespaceAnnotations.STATUS.value: (
+                                NamespaceStatus.SUPERSEDED.value
+                            ),
+                            NamespaceAnnotations.STATUS_TS.value: format_utc(
+                                status_timestamp
+                            ),
+                            NamespaceAnnotations.STATUS_FINALIZE_AT.value: format_utc(  # pylint: disable=line-too-long  # noqa: E501
+                                status_timestamp + time_to_delete
+                            ),
+                            NamespaceAnnotations.STATUS_TIMEFRAME.value: format_timespan(  # pylint: disable=line-too-long  # noqa: E501
+                                time_to_delete
+                            ),
+                            NamespaceAnnotations.NOTIFIED_TS.value: None,
+                            NamespaceAnnotations.NOTIFIED_STATUS.value: None,
+                        },
+                    )
 
     @controller_task(period=datetime.timedelta(seconds=5))
     def check_assigned_namespaces(self) -> None:

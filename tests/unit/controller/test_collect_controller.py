@@ -71,7 +71,13 @@ def _make_namespace(
     )
 
 
-def _ci_labels(project_id="123", branch="main", mr_id=None, job="deploy"):
+def _ci_labels(
+    project_id="123",
+    branch="main",
+    mr_id=None,
+    job="deploy",
+    job_id=None,
+):
     """Build CI labels used for superseded detection."""
     labels = {
         CicdLabels.PROJECT_ID.value: project_id,
@@ -82,6 +88,8 @@ def _ci_labels(project_id="123", branch="main", mr_id=None, job="deploy"):
         labels[CicdLabels.MR_ID.value] = mr_id
     if job is not None:
         labels[CicdLabels.JOB.value] = job
+    if job_id is not None:
+        labels[CicdLabels.JOB_ID.value] = job_id
 
     return labels
 
@@ -204,12 +212,12 @@ def test_check_superseded_namespaces_groups_by_mr(collect_controller):
     old_namespace = _make_namespace(
         "ci-old",
         base_time,
-        labels=_ci_labels(branch="feature-a", mr_id="42"),
+        labels=_ci_labels(branch="feature-a", mr_id="42", job_id="100"),
     )
     new_namespace = _make_namespace(
         "ci-new",
         base_time + timedelta(minutes=1),
-        labels=_ci_labels(branch="feature-b", mr_id="42"),
+        labels=_ci_labels(branch="feature-b", mr_id="42", job_id="200"),
     )
     collect_controller.config.namespaces = [
         CollectNamespaceConfig(
@@ -241,12 +249,14 @@ def test_check_superseded_namespaces_groups_by_branch(collect_controller):
     """Namespaces without MR labels should group by project and branch."""
     base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
     old_namespace = _make_namespace(
-        "ci-old", base_time, labels=_ci_labels(branch="main")
+        "ci-old",
+        base_time,
+        labels=_ci_labels(branch="main", job_id="100"),
     )
     new_namespace = _make_namespace(
         "ci-new",
         base_time + timedelta(minutes=1),
-        labels=_ci_labels(branch="main"),
+        labels=_ci_labels(branch="main", job_id="200"),
     )
     collect_controller.config.namespaces = [
         CollectNamespaceConfig(
@@ -297,16 +307,18 @@ def test_check_superseded_namespaces_keeps_newest(collect_controller):
     ]
     collect_controller.get_namespaces_by = MagicMock(
         return_value=[
-            _make_namespace("ci-old", base_time, labels=_ci_labels()),
+            _make_namespace(
+                "ci-old", base_time, labels=_ci_labels(job_id="100")
+            ),
             _make_namespace(
                 "ci-middle",
                 base_time + timedelta(minutes=1),
-                labels=_ci_labels(),
+                labels=_ci_labels(job_id="200"),
             ),
             _make_namespace(
                 "ci-new",
                 base_time + timedelta(minutes=2),
-                labels=_ci_labels(),
+                labels=_ci_labels(job_id="300"),
             ),
         ]
     )
@@ -359,17 +371,19 @@ def test_check_superseded_namespaces_patches_older_active_only(
     ]
     collect_controller.get_namespaces_by = MagicMock(
         return_value=[
-            _make_namespace("ci-old", base_time, labels=_ci_labels()),
+            _make_namespace(
+                "ci-old", base_time, labels=_ci_labels(job_id="100")
+            ),
             _make_namespace(
                 "ci-terminating",
                 base_time + timedelta(seconds=30),
-                labels=_ci_labels(),
+                labels=_ci_labels(job_id="200"),
                 phase="Terminating",
             ),
             _make_namespace(
                 "ci-cancelled",
                 base_time + timedelta(seconds=45),
-                labels=_ci_labels(),
+                labels=_ci_labels(job_id="300"),
                 annotations={
                     NamespaceAnnotations.STATUS.value: (
                         NamespaceStatus.CANCELLED.value
@@ -379,7 +393,7 @@ def test_check_superseded_namespaces_patches_older_active_only(
             _make_namespace(
                 "ci-new",
                 base_time + timedelta(minutes=1),
-                labels=_ci_labels(),
+                labels=_ci_labels(job_id="400"),
             ),
         ]
     )
@@ -438,12 +452,12 @@ def test_check_superseded_namespaces_keeps_sibling_jobs(collect_controller):
             _make_namespace(
                 "ci-staging",
                 base_time,
-                labels=_ci_labels(job="deploy-staging"),
+                labels=_ci_labels(job="deploy-staging", job_id="100"),
             ),
             _make_namespace(
                 "ci-prod",
                 base_time + timedelta(minutes=1),
-                labels=_ci_labels(job="deploy-prod"),
+                labels=_ci_labels(job="deploy-prod", job_id="200"),
             ),
         ]
     )
@@ -469,12 +483,12 @@ def test_check_superseded_namespaces_supersedes_same_job_redeploy(
             _make_namespace(
                 "ci-old",
                 base_time,
-                labels=_ci_labels(job="deploy-staging"),
+                labels=_ci_labels(job="deploy-staging", job_id="100"),
             ),
             _make_namespace(
                 "ci-new",
                 base_time + timedelta(minutes=1),
-                labels=_ci_labels(job="deploy-staging"),
+                labels=_ci_labels(job="deploy-staging", job_id="200"),
             ),
         ]
     )
@@ -501,10 +515,119 @@ def test_check_superseded_namespaces_skips_namespaces_without_job(
     collect_controller.get_namespaces_by = MagicMock(
         return_value=[
             _make_namespace(
-                "ci-no-job", base_time, labels=_ci_labels(job=None)
+                "ci-no-job",
+                base_time,
+                labels=_ci_labels(job=None, job_id="100"),
             ),
             _make_namespace(
                 "ci-with-job",
+                base_time + timedelta(minutes=1),
+                labels=_ci_labels(job_id="200"),
+            ),
+        ]
+    )
+    collect_controller.patch_namespace = MagicMock()
+
+    collect_controller.check_superseded_namespaces()
+
+    collect_controller.patch_namespace.assert_not_called()
+
+
+def test_check_superseded_namespaces_keeps_siblings_from_same_job(
+    collect_controller,
+):
+    """
+    Namespaces created by one job execution must not
+    supersede each other.
+    """
+    base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    collect_controller.config.namespaces = [
+        CollectNamespaceConfig(
+            names=["ci-*"], checks=CheckOptions(superseded=True)
+        )
+    ]
+    collect_controller.get_namespaces_by = MagicMock(
+        return_value=[
+            _make_namespace(
+                "ci-a", base_time, labels=_ci_labels(job_id="100")
+            ),
+            _make_namespace(
+                "ci-b",
+                base_time + timedelta(seconds=1),
+                labels=_ci_labels(job_id="100"),
+            ),
+        ]
+    )
+    collect_controller.patch_namespace = MagicMock()
+
+    collect_controller.check_superseded_namespaces()
+
+    collect_controller.patch_namespace.assert_not_called()
+
+
+def test_check_superseded_namespaces_supersedes_older_deployment(
+    collect_controller,
+):
+    """
+    A newer multi-namespace deployment should supersede
+    the older one whole.
+    """
+    base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    collect_controller.config.namespaces = [
+        CollectNamespaceConfig(
+            names=["ci-*"], checks=CheckOptions(superseded=True)
+        )
+    ]
+    collect_controller.get_namespaces_by = MagicMock(
+        return_value=[
+            _make_namespace(
+                "ci-old-a", base_time, labels=_ci_labels(job_id="100")
+            ),
+            _make_namespace(
+                "ci-old-b",
+                base_time + timedelta(seconds=1),
+                labels=_ci_labels(job_id="100"),
+            ),
+            _make_namespace(
+                "ci-new-a",
+                base_time + timedelta(minutes=1),
+                labels=_ci_labels(job_id="200"),
+            ),
+            _make_namespace(
+                "ci-new-b",
+                base_time + timedelta(minutes=1, seconds=1),
+                labels=_ci_labels(job_id="200"),
+            ),
+        ]
+    )
+    collect_controller.patch_namespace = MagicMock()
+
+    collect_controller.check_superseded_namespaces()
+
+    assert sorted(
+        call.args[0]
+        for call in collect_controller.patch_namespace.call_args_list
+    ) == ["ci-old-a", "ci-old-b"]
+
+
+def test_check_superseded_namespaces_skips_when_job_id_missing(
+    collect_controller,
+):
+    """
+    Namespaces missing the jobId label should be
+    skipped from supersession.
+    """
+    base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    collect_controller.config.namespaces = [
+        CollectNamespaceConfig(
+            names=["ci-*"], checks=CheckOptions(superseded=True)
+        )
+    ]
+    collect_controller.get_namespaces_by = MagicMock(
+        return_value=[
+            _make_namespace("ci-old", base_time, labels=_ci_labels()),
+            _make_namespace(
+                "ci-new",
                 base_time + timedelta(minutes=1),
                 labels=_ci_labels(),
             ),
