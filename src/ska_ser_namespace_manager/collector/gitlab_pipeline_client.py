@@ -111,17 +111,15 @@ class GitLabPipelineClient:
         Start the background event loop if it is not already running.
         """
         with self._lock:
-            if self._thread is not None and self._thread.is_alive():
-                return
-
-            self._startup_error = None
-            self._ready.clear()
-            self._thread = threading.Thread(
-                target=self._run_worker,
-                name="gitlab-pipeline-client",
-                daemon=True,
-            )
-            self._thread.start()
+            if self._thread is None or not self._thread.is_alive():
+                self._startup_error = None
+                self._ready.clear()
+                self._thread = threading.Thread(
+                    target=self._run_worker,
+                    name="gitlab-pipeline-client",
+                    daemon=True,
+                )
+                self._thread.start()
 
         self._ready.wait()
         if self._startup_error is not None:

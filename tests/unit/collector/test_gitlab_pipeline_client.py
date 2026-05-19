@@ -1,6 +1,8 @@
 """Tests for reusable GitLab pipeline client behavior."""
 
 import http
+import threading
+import time
 from collections import deque
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -227,3 +229,73 @@ def test_gitlab_pipeline_client_handles_rate_limit():
     )
 
     assert client.get_pipeline_status("123", "456") is None
+
+
+def test_gitlab_pipeline_client_concurrent_init_failure_does_not_hang():
+    """Concurrent callers must raise when init fails, not hang on the queue.
+
+    Reproduces the race where Thread A starts the worker and Thread B enters
+    `_start()` while the worker is still alive: Thread B must also surface the
+    initialization failure instead of putting a request on the queue and
+    blocking forever on `future.result()`.
+    """
+    init_proceed = threading.Event()
+    init_entered = threading.Event()
+
+    class FailingSession:
+        """Session whose construction blocks until released, then raises."""
+
+        def __init__(self):
+            """Signal that init has begun, then fail on release."""
+            init_entered.set()
+            init_proceed.wait(timeout=5)
+            raise RuntimeError("simulated init failure")
+
+    config = SimpleNamespace(
+        api_base="https://gitlab.example.test",
+        requester="namespace-manager",
+        private_token="token",
+        cache_ttl=timedelta(minutes=5),
+        cache_max_entries=10,
+    )
+
+    with patch(
+        "ska_ser_namespace_manager.collector.gitlab_pipeline_client.aiohttp.ClientSession",  # pylint: disable=line-too-long # noqa: E501
+        FailingSession,
+    ):
+        client = GitLabPipelineClient(config)
+        results = {}
+
+        def call(key, project_id, pipeline_id):
+            try:
+                results[key] = (
+                    "ok",
+                    client.get_pipeline_info(project_id, pipeline_id),
+                )
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                results[key] = ("err", exc)
+
+        thread_a = threading.Thread(
+            target=call, args=("a", "1", "2"), daemon=True
+        )
+        thread_b = threading.Thread(
+            target=call, args=("b", "3", "4"), daemon=True
+        )
+
+        thread_a.start()
+        assert init_entered.wait(timeout=2)
+        thread_b.start()
+        time.sleep(0.1)
+        init_proceed.set()
+
+        thread_a.join(timeout=5)
+        thread_b.join(timeout=5)
+
+    assert not thread_a.is_alive(), "starting caller hung"
+    assert (
+        not thread_b.is_alive()
+    ), "concurrent caller hung waiting on an orphaned future"
+    assert results["a"][0] == "err"
+    assert isinstance(results["a"][1], RuntimeError)
+    assert results["b"][0] == "err"
+    assert isinstance(results["b"][1], RuntimeError)

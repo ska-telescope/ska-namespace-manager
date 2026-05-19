@@ -573,12 +573,13 @@ class CollectController(LeaderController):
                 self.config.namespaces, self.to_dto(namespace)
             )
             if namespace_config is None:
-                logging.warning(
-                    "Skipping namespace '%s' because it no longer matches "
+                logging.debug(
+                    "Skipping namespace '%s' there is no match in the "
                     "collector configuration",
                     namespace_name,
                 )
                 continue
+
             active_namespaces.add(namespace_name)
             self.create_namespace_check_thread(
                 namespace_name,
