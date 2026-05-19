@@ -4,33 +4,27 @@ clusterWide:
 image:
   repository: registry.gitlab.com/ska-telescope/ska-ser-namespace-manager/ska-ser-namespace-manager
 
-api:
-  config:
-    people_database:
-      enabled: false
-      spreadsheet_id: "dummy"
-      credentials:
-        client_email: "dummy"
-        client_id: "dummy"
-        client_x509_cert_url: "dummy"
-        private_key: |
-          -----BEGIN RSA PRIVATE KEY-----
-          MIIBOgIBAAJBAKj34GkxFhD90vcNLYLInFEX6Ppy1tPf9Cnzj4p4WGeKLs1Pt8Qu
-          KUpRKfFLfRYC9AIKjbJTWit+CqvjWYzvQwECAwEAAQJAIJLixBy2qpFoS4DSmoEm
-          o3qGy0t6z09AIJtH+5OeRV1be+N4cDYJKffGzDa88vQENZiRm0GRq6a+HPGQMd2k
-          TQIhAKMSvzIBnni7ot/OSie2TmJLY4SwTQAevXysE2RbFDYdAiEBCUEaRQnMnbp7
-          9mxDXDf6AU0cN/RPBjb9qSHDcWZHGzUCIG2Es59z8ugGrDY+pxLQnwfotadxd+Uy
-          v/Ow5T0q5gIJAiEAyS4RaI9YG8EWx/2w0T67ZUVAw8eOMB6BIUg0Xcu+3okCIBOs
-          /5OiPgoTdSy7bcF9IGpSE8ZgGKzgYQVZeN97YE00
-          -----END RSA PRIVATE KEY-----
-        private_key_id: "dummy"
-        project_id: "dummy"
-
 actionController:
   config:
     namespaces:
       - names:
-          - dummy-*
+          - nscicd-${CI_COMMIT_SHORT_SHA}-*
+        stale:
+          delete: true
+          notify_on_delete: false
+          notify_on_status: false
+        failed:
+          delete: true
+          notify_on_delete: false
+          notify_on_status: false
+        cancelled:
+          delete: true
+          notify_on_delete: false
+          notify_on_status: false
+        superseded:
+          delete: true
+          notify_on_delete: false
+          notify_on_status: false
     notifier:
       token: null
 
@@ -39,6 +33,66 @@ collectController:
   config:
     namespaces:
       - names:
-          - dummy-*
+          - nscicd-${CI_COMMIT_SHORT_SHA}-*
+        ttl: 1m
+        settling_period: 5s
+        grace_period: 15s
+        checks:
+          cancelled: true
+          superseded: true
+        actions:
+          check-namespace:
+            schedule: "5s"
+    prometheus:
+      enabled: true
+      insecure: false
+      whitelisted_alerts:
+        - KubePersistentVolumeFillingUp
+        - KubePersistentVolumeInodesFillingUp
+        - KubeQuotaAlmostFull
+        - KubeQuotaFullyUsed
+        - KubeDaemonSetNotScheduled
+        - KubeDaemonSetMisScheduled
+        - KubeHpaReplicasMismatch
+        - CPUThrottlingHigh
+      ca: |
+        -----BEGIN CERTIFICATE-----
+        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
+        3iTxzjmtSa+uvUSTGzaKGg==
+        -----END CERTIFICATE-----
+    gitlab:
+      enabled: true
+      api_base: https://gitlab.com
+      cache_ttl: 5s
     people_api:
       insecure: true
