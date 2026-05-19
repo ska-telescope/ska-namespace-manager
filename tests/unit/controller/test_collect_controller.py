@@ -26,7 +26,7 @@ from ska_ser_namespace_manager.controller.leader_controller import (
 )
 from ska_ser_namespace_manager.core.namespace import Namespace
 from ska_ser_namespace_manager.core.types import (
-    CicdAnnotations,
+    CicdLabels,
     NamespaceAnnotations,
     NamespaceStatus,
 )
@@ -71,15 +71,17 @@ def _make_namespace(
     )
 
 
-def _ci_labels(project_id="123", branch="main", mr_id=None):
+def _ci_labels(project_id="123", branch="main", mr_id=None, job="deploy"):
     """Build CI labels used for superseded detection."""
     labels = {
-        CicdAnnotations.PROJECT_ID.value: project_id,
+        CicdLabels.PROJECT_ID.value: project_id,
     }
     if branch is not None:
-        labels[CicdAnnotations.BRANCH.value] = branch
+        labels[CicdLabels.BRANCH.value] = branch
     if mr_id is not None:
-        labels[CicdAnnotations.MR_ID.value] = mr_id
+        labels[CicdLabels.MR_ID.value] = mr_id
+    if job is not None:
+        labels[CicdLabels.JOB.value] = job
 
     return labels
 
@@ -413,6 +415,98 @@ def test_check_superseded_namespaces_ignores_newer_cancelled_namespace(
                         NamespaceStatus.CANCELLED.value
                     )
                 },
+            ),
+        ]
+    )
+    collect_controller.patch_namespace = MagicMock()
+
+    collect_controller.check_superseded_namespaces()
+
+    collect_controller.patch_namespace.assert_not_called()
+
+
+def test_check_superseded_namespaces_keeps_sibling_jobs(collect_controller):
+    """Sibling jobs of the same pipeline should not supersede each other."""
+    base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    collect_controller.config.namespaces = [
+        CollectNamespaceConfig(
+            names=["ci-*"], checks=CheckOptions(superseded=True)
+        )
+    ]
+    collect_controller.get_namespaces_by = MagicMock(
+        return_value=[
+            _make_namespace(
+                "ci-staging",
+                base_time,
+                labels=_ci_labels(job="deploy-staging"),
+            ),
+            _make_namespace(
+                "ci-prod",
+                base_time + timedelta(minutes=1),
+                labels=_ci_labels(job="deploy-prod"),
+            ),
+        ]
+    )
+    collect_controller.patch_namespace = MagicMock()
+
+    collect_controller.check_superseded_namespaces()
+
+    collect_controller.patch_namespace.assert_not_called()
+
+
+def test_check_superseded_namespaces_supersedes_same_job_redeploy(
+    collect_controller,
+):
+    """A newer run of the same job should supersede the previous one."""
+    base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    collect_controller.config.namespaces = [
+        CollectNamespaceConfig(
+            names=["ci-*"], checks=CheckOptions(superseded=True)
+        )
+    ]
+    collect_controller.get_namespaces_by = MagicMock(
+        return_value=[
+            _make_namespace(
+                "ci-old",
+                base_time,
+                labels=_ci_labels(job="deploy-staging"),
+            ),
+            _make_namespace(
+                "ci-new",
+                base_time + timedelta(minutes=1),
+                labels=_ci_labels(job="deploy-staging"),
+            ),
+        ]
+    )
+    collect_controller.patch_namespace = MagicMock()
+
+    collect_controller.check_superseded_namespaces()
+
+    assert [
+        call.args[0]
+        for call in collect_controller.patch_namespace.call_args_list
+    ] == ["ci-old"]
+
+
+def test_check_superseded_namespaces_skips_namespaces_without_job(
+    collect_controller,
+):
+    """Namespaces missing the job label should be skipped from supersession."""
+    base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    collect_controller.config.namespaces = [
+        CollectNamespaceConfig(
+            names=["ci-*"], checks=CheckOptions(superseded=True)
+        )
+    ]
+    collect_controller.get_namespaces_by = MagicMock(
+        return_value=[
+            _make_namespace(
+                "ci-no-job", base_time, labels=_ci_labels(job=None)
+            ),
+            _make_namespace(
+                "ci-with-job",
+                base_time + timedelta(minutes=1),
+                labels=_ci_labels(),
             ),
         ]
     )

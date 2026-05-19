@@ -11,16 +11,38 @@ class CicdAnnotations(str, Enum):
     CicdAnnotations describes the used cicd annotations
     """
 
+    AUTHOR_EMAIL = "cicd.skao.int/authorEmail"
+    ENVIRONMENT = "cicd.skao.int/environment"
     JOB_URL = "cicd.skao.int/jobUrl"
-    ENV_TIER = "cicd.skao.int/environmentTier"
-    PROJECT = "cicd.skao.int/project"
-    TEAM = "cicd.skao.int/team"
-    AUTHOR = "cicd.skao.int/author"
-    BRANCH = "cicd.skao.int/branch"
-    MR_ID = "cicd.skao.int/mrId"
-    PIPELINE_ID = "cicd.skao.int/pipelineId"
-    PROJECT_ID = "cicd.skao.int/projectId"
+    MR_ASSIGNEES = "cicd.skao.int/mrAssignees"
     NOTIFICATION_ADDRESS = "cicd.skao.int/notificationAddress"
+    PIPELINE_URL = "cicd.skao.int/pipelineUrl"
+    TIMESTAMP = "cicd.skao.int/timestamp"
+
+    def __str__(self):
+        return self.value
+
+
+class CicdLabels(str, Enum):
+    """
+    CicdLabels describes the used cicd labels
+    """
+
+    AUTHOR = "cicd.skao.int/author"
+    AUTHOR_ID = "cicd.skao.int/authorId"
+    BRANCH = "cicd.skao.int/branch"
+    COMMIT = "cicd.skao.int/commit"
+    ENV_TIER = "cicd.skao.int/environmentTier"
+    JOB = "cicd.skao.int/job"
+    JOB_ID = "cicd.skao.int/jobId"
+    MR_ID = "cicd.skao.int/mrId"
+    PERMITTED = "cicd.skao.int/permitted"
+    PIPELINE_ID = "cicd.skao.int/pipelineId"
+    PIPELINE_SOURCE = "cicd.skao.int/pipelineSource"
+    PROJECT = "cicd.skao.int/project"
+    PROJECT_ID = "cicd.skao.int/projectId"
+    PROJECT_PATH = "cicd.skao.int/projectPath"
+    TEAM = "cicd.skao.int/team"
 
     def __str__(self):
         return self.value

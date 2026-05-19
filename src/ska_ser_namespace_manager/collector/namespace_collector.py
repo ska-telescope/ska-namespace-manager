@@ -25,7 +25,7 @@ from ska_ser_namespace_manager.controller.collect_controller_config import (
 )
 from ska_ser_namespace_manager.core.logging import logging
 from ska_ser_namespace_manager.core.types import (
-    CicdAnnotations,
+    CicdLabels,
     NamespaceAnnotations,
     NamespaceStatus,
 )
@@ -58,8 +58,8 @@ class NamespaceCollector(Collector):
             return None
 
         labels = namespace.metadata.labels or {}
-        project_id = labels.get(CicdAnnotations.PROJECT_ID.value)
-        pipeline_id = labels.get(CicdAnnotations.PIPELINE_ID.value)
+        project_id = labels.get(CicdLabels.PROJECT_ID.value)
+        pipeline_id = labels.get(CicdLabels.PIPELINE_ID.value)
         if not project_id or not pipeline_id:
             logging.info(
                 "Skipping GitLab pipeline lookup for namespace '%s' because "
@@ -438,11 +438,15 @@ class NamespaceCollector(Collector):
         alerts: Optional[list] = None,
     ) -> Tuple[NamespaceStatus, dict]:
         """
-        Evaluate namespace health based on Prometheus alerts or
-        Kubernetes API fallback.
+        Evaluate namespace status based on:
+            * Originating pipeline status (autocancel)
+            * Duplicate pipeline (superseded)
+            * Health based on Prometheus alerts or Kubernetes API fallback.
 
-        Returns:
-            bool: True if the namespace is healthy, False if there are issues.
+        :param namespace_name: Namespace to check
+        :param namespace: Namespace to check
+        :param namespace_config: Namespace collect config
+        :return: Namespace status and annotations
         """
         matching_alerts = alerts
         annotations = namespace.metadata.annotations or {}

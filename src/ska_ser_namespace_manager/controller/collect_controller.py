@@ -34,9 +34,12 @@ from ska_ser_namespace_manager.controller.leader_controller import (
     LeaderController,
 )
 from ska_ser_namespace_manager.core.logging import logging
-from ska_ser_namespace_manager.core.namespace import match_namespace
+from ska_ser_namespace_manager.core.namespace import (
+    can_mark_superseded,
+    match_namespace,
+)
 from ska_ser_namespace_manager.core.types import (
-    CicdAnnotations,
+    CicdLabels,
     NamespaceAnnotations,
     NamespaceStatus,
 )
@@ -261,36 +264,14 @@ class CollectController(LeaderController):
         """
         return f"namespace-check-{namespace}"
 
-    def _is_active_namespace(self, namespace: V1Namespace) -> bool:
-        """
-        Check whether a namespace is in the Kubernetes Active phase.
-        """
-        return (
-            getattr(getattr(namespace, "status", None), "phase", None)
-            == "Active"
-        )
-
-    def _can_mark_superseded(self, namespace: V1Namespace) -> bool:
-        """
-        Check whether a namespace should be patched to superseded.
-        """
-        if not self._is_active_namespace(namespace):
-            return False
-
-        annotations = namespace.metadata.annotations or {}
-        return annotations.get(NamespaceAnnotations.STATUS.value) not in [
-            NamespaceStatus.CANCELLED.value,
-            NamespaceStatus.SUPERSEDED.value,
-        ]
-
     def _get_superseded_group_key(
         self, namespace: V1Namespace
-    ) -> tuple[str, str, str] | None:
+    ) -> tuple[str, str, str, str] | None:
         """
         Resolve the CI identity used to compare namespace deployments.
         """
         labels = namespace.metadata.labels or {}
-        project_id = labels.get(CicdAnnotations.PROJECT_ID.value)
+        project_id = labels.get(CicdLabels.PROJECT_ID.value)
         if not project_id:
             logging.debug(
                 "Skipping superseded check for namespace '%s' because "
@@ -299,11 +280,20 @@ class CollectController(LeaderController):
             )
             return None
 
-        mr_id = labels.get(CicdAnnotations.MR_ID.value)
-        if mr_id:
-            return ("mr", project_id, mr_id)
+        job = labels.get(CicdLabels.JOB.value)
+        if not job:
+            logging.debug(
+                "Skipping superseded check for namespace '%s' because "
+                "job label is missing",
+                namespace.metadata.name,
+            )
+            return None
 
-        branch = labels.get(CicdAnnotations.BRANCH.value)
+        mr_id = labels.get(CicdLabels.MR_ID.value)
+        if mr_id:
+            return ("mr", project_id, mr_id, job)
+
+        branch = labels.get(CicdLabels.BRANCH.value)
         if not branch:
             logging.debug(
                 "Skipping superseded check for namespace '%s' because "
@@ -312,7 +302,7 @@ class CollectController(LeaderController):
             )
             return None
 
-        return ("branch", project_id, branch)
+        return ("branch", project_id, branch, job)
 
     def is_metrics_enabled(self) -> bool:
         """
@@ -450,7 +440,9 @@ class CollectController(LeaderController):
         """
         Mark older deployments for the same CI identity as superseded.
         """
-        grouped_namespaces: dict[tuple[str, str, str], list[V1Namespace]] = {}
+        grouped_namespaces: dict[
+            tuple[str, str, str, str], list[V1Namespace]
+        ] = {}
         managed_namespaces = [
             namespace
             for namespace in self.get_namespaces_by(
@@ -489,7 +481,7 @@ class CollectController(LeaderController):
             active_namespaces = [
                 namespace
                 for namespace in namespaces
-                if self._can_mark_superseded(namespace)
+                if can_mark_superseded(namespace)
             ]
             if len(active_namespaces) < 2:
                 continue

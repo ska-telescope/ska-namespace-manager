@@ -18,7 +18,7 @@ from prometheus_client.registry import Collector
 
 from ska_ser_namespace_manager.core.logging import logging
 from ska_ser_namespace_manager.core.types import (
-    CicdAnnotations,
+    CicdLabels,
     NamespaceAnnotations,
     NamespaceStatus,
 )
@@ -187,18 +187,12 @@ class MetricsManager:
             status_numeric = NamespaceStatus.from_string(status).value_numeric
 
             metric.labels(
-                environment=labels.get(
-                    CicdAnnotations.ENV_TIER.value, "unknown"
-                ),
-                project=labels.get(CicdAnnotations.PROJECT.value, "unknown"),
-                team=labels.get(CicdAnnotations.TEAM.value, "unknown"),
-                user=labels.get(CicdAnnotations.AUTHOR.value, "unknown"),
-                pipelineId=labels.get(
-                    CicdAnnotations.PIPELINE_ID.value, "unknown"
-                ),
-                projectId=labels.get(
-                    CicdAnnotations.PROJECT_ID.value, "unknown"
-                ),
+                environment=labels.get(CicdLabels.ENV_TIER.value, "unknown"),
+                project=labels.get(CicdLabels.PROJECT.value, "unknown"),
+                team=labels.get(CicdLabels.TEAM.value, "unknown"),
+                user=labels.get(CicdLabels.AUTHOR.value, "unknown"),
+                pipelineId=labels.get(CicdLabels.PIPELINE_ID.value, "unknown"),
+                projectId=labels.get(CicdLabels.PROJECT_ID.value, "unknown"),
                 namespace=namespace.metadata.name,
             ).set(status_numeric)
 

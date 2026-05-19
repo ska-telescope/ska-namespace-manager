@@ -14,7 +14,7 @@ from ska_ser_namespace_manager.collector.namespace_collector import (
     NamespaceCollector,
 )
 from ska_ser_namespace_manager.core.types import (
-    CicdAnnotations,
+    CicdLabels,
     NamespaceAnnotations,
     NamespaceStatus,
 )
@@ -204,8 +204,8 @@ def make_pipeline_namespace(status=NamespaceStatus.UNKNOWN.value):
         NamespaceAnnotations.STATUS.value: status,
     }
     namespace.metadata.labels = {
-        CicdAnnotations.PROJECT_ID.value: "123",
-        CicdAnnotations.PIPELINE_ID.value: "456",
+        CicdLabels.PROJECT_ID.value: "123",
+        CicdLabels.PIPELINE_ID.value: "456",
     }
     return namespace
 
