@@ -1,6 +1,10 @@
 nameOverride:
 fullnameOverride:
 
+# Set to true to prefix cluster-wide resources
+clusterWide:
+  usePrefix: true
+
 labels: {}
 
 nodeSelector: {}
