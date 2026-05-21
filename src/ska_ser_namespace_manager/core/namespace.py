@@ -109,7 +109,8 @@ def match_namespace(configs: List[T], namespace: Namespace) -> T | None:
         score = 0
         if config.names:
             name_match = any(
-                re.match(pattern, namespace.name) for pattern in config.names
+                re.fullmatch(pattern, namespace.name)
+                for pattern in config.names
             )
             if name_match:
                 score += 1

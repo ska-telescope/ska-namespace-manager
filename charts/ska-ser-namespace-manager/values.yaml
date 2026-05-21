@@ -190,7 +190,7 @@ collectController:
       lease_ttl: 5s
     namespaces:
       - names:
-          - ci-*
+          - ci-.*
         ttl: 5m
         settling_period: 5m
         grace_period: 2m
@@ -327,7 +327,7 @@ actionController:
       lease_ttl: 5s
     namespaces:
       - names:
-          - ci-*
+          - ci-.*
         cancelled:
           delete: true
           notify_on_delete: true

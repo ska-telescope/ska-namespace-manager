@@ -465,7 +465,7 @@ def test_delete_superseded_namespaces(action_controller):
 
 def test_action_namespace_config_terminal_defaults():
     """Cancelled and superseded action configs should notify and delete."""
-    config = ActionNamespaceConfig(names=["ci-*"])
+    config = ActionNamespaceConfig(names=["ci-.*"])
 
     assert config.cancelled.delete is True
     assert config.cancelled.notify_on_delete is False

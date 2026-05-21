@@ -144,7 +144,7 @@ Runtime configuration is provided through the Helm chart in
 - `actionController.config`: namespace matchers, per-status delete and
   notification behavior, Slack token, and leader election.
 
-The default values manage `ci-*` namespaces and enable Prometheus metrics. The
+The default values manage `ci-.*` namespaces and enable Prometheus metrics. The
 cancelled and superseded checks are configurable per namespace matcher.
 
 ## Development
@@ -204,14 +204,14 @@ collectController:
   config:
     namespaces:
       - names:
-          - ci-*
+          - ci-.*
         ttl: 2m
 
 actionController:
   config:
     namespaces:
       - names:
-          - ci-*
+          - ci-.*
 ```
 
 Populate `api.config.people_database.credentials` from the

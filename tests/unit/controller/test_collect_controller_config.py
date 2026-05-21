@@ -142,7 +142,7 @@ def test_collect_controller_config_namespace_check_defaults():
             },
             "namespaces": [
                 {
-                    "names": ["ci-*"],
+                    "names": ["ci-.*"],
                 },
             ],
         }
@@ -168,7 +168,7 @@ def test_collect_controller_config_namespace_check_overrides():
             },
             "namespaces": [
                 {
-                    "names": ["ci-*"],
+                    "names": ["ci-.*"],
                     "checks": {
                         "cancelled": True,
                         "superseded": True,

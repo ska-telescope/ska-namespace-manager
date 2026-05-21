@@ -84,6 +84,19 @@ def test_match_namespace():
             "namespace": Namespace(name="staging-something"),
             "matching": configs[0],
         },
+        # Patterns must fully match the namespace name. A "ci-.*-.*"
+        # pattern should not match a namespace whose name only happens
+        # to share a prefix with the pattern's literal prefix.
+        {"namespace": Namespace(name="cilium-secrets"), "matching": None},
+        {
+            "namespace": Namespace(name="ci-foo-bar-extra"),
+            "matching": configs[0],
+        },
+        {
+            "namespace": Namespace(name="staging-foo-suffix"),
+            "matching": configs[0],
+        },
+        {"namespace": Namespace(name="prefix-staging-foo"), "matching": None},
         # Test any
         {
             "namespace": Namespace(name="namespace", labels={"label": "0"}),

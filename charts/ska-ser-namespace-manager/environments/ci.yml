@@ -4,11 +4,16 @@ clusterWide:
 image:
   repository: registry.gitlab.com/ska-telescope/ska-ser-namespace-manager/ska-ser-namespace-manager
 
+api:
+  service:
+    https:
+      type: ClusterIP
+
 actionController:
   config:
     namespaces:
       - names:
-          - nscicd-${CI_COMMIT_SHORT_SHA}-*
+          - nscicd-${CI_COMMIT_SHORT_SHA}-.*
         stale:
           delete: true
           notify_on_delete: false
@@ -33,7 +38,7 @@ collectController:
   config:
     namespaces:
       - names:
-          - nscicd-${CI_COMMIT_SHORT_SHA}-*
+          - nscicd-${CI_COMMIT_SHORT_SHA}-.*
         ttl: 1m
         settling_period: 5s
         grace_period: 15s

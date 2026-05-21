@@ -1,7 +1,7 @@
 """
 End-to-end lifecycle tests for ska-ser-namespace-manager.
 
-Each test creates one or more namespaces under the ``nstest-*`` pattern,
+Each test creates one or more namespaces under the prefixed pattern,
 optionally provisions workloads, then waits for the manager to drive
 those namespaces to the expected status (annotation + Prometheus metric).
 """

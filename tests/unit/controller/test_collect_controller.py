@@ -221,7 +221,7 @@ def test_check_superseded_namespaces_groups_by_mr(collect_controller):
     )
     collect_controller.config.namespaces = [
         CollectNamespaceConfig(
-            names=["ci-*"], checks=CheckOptions(superseded=True)
+            names=["ci-.*"], checks=CheckOptions(superseded=True)
         )
     ]
     collect_controller.get_namespaces_by = MagicMock(
@@ -260,7 +260,7 @@ def test_check_superseded_namespaces_groups_by_branch(collect_controller):
     )
     collect_controller.config.namespaces = [
         CollectNamespaceConfig(
-            names=["ci-*"], checks=CheckOptions(superseded=True)
+            names=["ci-.*"], checks=CheckOptions(superseded=True)
         )
     ]
     collect_controller.get_namespaces_by = MagicMock(
@@ -278,7 +278,7 @@ def test_check_superseded_namespaces_is_opt_in(collect_controller):
     """Superseded detection should do nothing unless checks enable it."""
     base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
     collect_controller.config.namespaces = [
-        CollectNamespaceConfig(names=["ci-*"])
+        CollectNamespaceConfig(names=["ci-.*"])
     ]
     collect_controller.get_namespaces_by = MagicMock(
         return_value=[
@@ -302,7 +302,7 @@ def test_check_superseded_namespaces_keeps_newest(collect_controller):
     base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
     collect_controller.config.namespaces = [
         CollectNamespaceConfig(
-            names=["ci-*"], checks=CheckOptions(superseded=True)
+            names=["ci-.*"], checks=CheckOptions(superseded=True)
         )
     ]
     collect_controller.get_namespaces_by = MagicMock(
@@ -339,7 +339,7 @@ def test_check_superseded_namespaces_skips_missing_labels(
     base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
     collect_controller.config.namespaces = [
         CollectNamespaceConfig(
-            names=["ci-*"], checks=CheckOptions(superseded=True)
+            names=["ci-.*"], checks=CheckOptions(superseded=True)
         )
     ]
     collect_controller.get_namespaces_by = MagicMock(
@@ -366,7 +366,7 @@ def test_check_superseded_namespaces_patches_older_active_only(
     base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
     collect_controller.config.namespaces = [
         CollectNamespaceConfig(
-            names=["ci-*"], checks=CheckOptions(superseded=True)
+            names=["ci-.*"], checks=CheckOptions(superseded=True)
         )
     ]
     collect_controller.get_namespaces_by = MagicMock(
@@ -414,7 +414,7 @@ def test_check_superseded_namespaces_ignores_newer_cancelled_namespace(
     base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
     collect_controller.config.namespaces = [
         CollectNamespaceConfig(
-            names=["ci-*"], checks=CheckOptions(superseded=True)
+            names=["ci-.*"], checks=CheckOptions(superseded=True)
         )
     ]
     collect_controller.get_namespaces_by = MagicMock(
@@ -444,7 +444,7 @@ def test_check_superseded_namespaces_keeps_sibling_jobs(collect_controller):
     base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
     collect_controller.config.namespaces = [
         CollectNamespaceConfig(
-            names=["ci-*"], checks=CheckOptions(superseded=True)
+            names=["ci-.*"], checks=CheckOptions(superseded=True)
         )
     ]
     collect_controller.get_namespaces_by = MagicMock(
@@ -475,7 +475,7 @@ def test_check_superseded_namespaces_supersedes_same_job_redeploy(
     base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
     collect_controller.config.namespaces = [
         CollectNamespaceConfig(
-            names=["ci-*"], checks=CheckOptions(superseded=True)
+            names=["ci-.*"], checks=CheckOptions(superseded=True)
         )
     ]
     collect_controller.get_namespaces_by = MagicMock(
@@ -509,7 +509,7 @@ def test_check_superseded_namespaces_skips_namespaces_without_job(
     base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
     collect_controller.config.namespaces = [
         CollectNamespaceConfig(
-            names=["ci-*"], checks=CheckOptions(superseded=True)
+            names=["ci-.*"], checks=CheckOptions(superseded=True)
         )
     ]
     collect_controller.get_namespaces_by = MagicMock(
@@ -543,7 +543,7 @@ def test_check_superseded_namespaces_keeps_siblings_from_same_job(
     base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
     collect_controller.config.namespaces = [
         CollectNamespaceConfig(
-            names=["ci-*"], checks=CheckOptions(superseded=True)
+            names=["ci-.*"], checks=CheckOptions(superseded=True)
         )
     ]
     collect_controller.get_namespaces_by = MagicMock(
@@ -575,7 +575,7 @@ def test_check_superseded_namespaces_supersedes_older_deployment(
     base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
     collect_controller.config.namespaces = [
         CollectNamespaceConfig(
-            names=["ci-*"], checks=CheckOptions(superseded=True)
+            names=["ci-.*"], checks=CheckOptions(superseded=True)
         )
     ]
     collect_controller.get_namespaces_by = MagicMock(
@@ -620,7 +620,7 @@ def test_check_superseded_namespaces_skips_when_job_id_missing(
     base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
     collect_controller.config.namespaces = [
         CollectNamespaceConfig(
-            names=["ci-*"], checks=CheckOptions(superseded=True)
+            names=["ci-.*"], checks=CheckOptions(superseded=True)
         )
     ]
     collect_controller.get_namespaces_by = MagicMock(
