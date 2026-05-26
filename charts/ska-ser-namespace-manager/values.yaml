@@ -13,6 +13,13 @@ tolerations: []
 
 extraEnvVars: []
 
+# Arbitrary Kubernetes manifests rendered alongside the chart, e.g. to declare
+# VaultStaticSecret resources (Vault Secrets Operator) whose contents are then
+# projected into pods via the per-component `extraConfigSecrets` setting.
+# Entries are run through `tpl` so values like names and namespaces can use
+# template helpers, e.g. `{{ template "ska-ser-namespace-manager.namespace" . }}`.
+extraDeploy: []
+
 image:
   repository: artefact.skao.int/ska-ser-namespace-manager
   pullPolicy: IfNotPresent
@@ -165,6 +172,19 @@ api:
   extraArgs: []
 
   extraEnvVars: []
+
+  # Additional Secrets whose keys are projected alongside the chart-managed
+  # config secret into `configPath`. The Python loader merges every YAML file
+  # in that directory alphabetically (later wins, lists are replaced, `null`
+  # leaves the base value alone). Typical use: a VaultStaticSecret-managed
+  # secret with sensitive fields layered over the values-based base config.
+  # Example:
+  #   - name: my-vault-secret      # required; supports tpl
+  #     optional: false             # optional; defaults to false
+  #     items:                      # optional; project only the listed keys
+  #       - key: gitlab.yml
+  #         path: 50-gitlab.yml
+  extraConfigSecrets: []
 
   service:
     https:
@@ -319,6 +339,9 @@ collectController:
 
   extraEnvVars: []
 
+  # See `api.extraConfigSecrets` for usage; same schema.
+  extraConfigSecrets: []
+
 actionController:
   config:
     leader_election:
@@ -425,3 +448,6 @@ actionController:
   extraArgs: []
 
   extraEnvVars: []
+
+  # See `api.extraConfigSecrets` for usage; same schema.
+  extraConfigSecrets: []

@@ -4,8 +4,10 @@ import io
 import json
 import os
 import tempfile
+from typing import List, Optional
 
 import pytest
+import yaml
 from pydantic import BaseModel
 
 from ska_ser_namespace_manager.core.config import ConfigLoader
@@ -18,6 +20,25 @@ class SomeConfig(BaseModel):
 
     int_field: int = 1
     string_field: str
+
+
+class LayeredConfig(BaseModel):
+    """
+    LayeredConfig exercises nested dict and list merging.
+    """
+
+    int_field: int = 0
+    string_field: str = ""
+    nested: dict = {}
+    items: List[str] = []
+
+
+class OptionalConfig(BaseModel):
+    """
+    OptionalConfig has only optional fields so default instantiation works.
+    """
+
+    name: Optional[str] = None
 
 
 @pytest.fixture()
@@ -132,3 +153,82 @@ class TestConfigLoader:
 
         assert config.int_field == 3
         assert config.string_field == "config_from_stream"
+
+    def test_load_config_from_directory(self, tmp_path):
+        (tmp_path / "00-base.yml").write_text(
+            yaml.safe_dump(
+                {
+                    "int_field": 7,
+                    "string_field": "base",
+                    "nested": {"a": 1, "b": 2},
+                }
+            )
+        )
+        (tmp_path / "10-overlay.yml").write_text(
+            yaml.safe_dump(
+                {
+                    "string_field": "overlay",
+                    "nested": {"b": 99, "c": 3},
+                }
+            )
+        )
+
+        try:
+            config = ConfigLoader().load(LayeredConfig, str(tmp_path))
+            assert config.int_field == 7
+            assert config.string_field == "overlay"
+            assert config.nested == {"a": 1, "b": 99, "c": 3}
+        finally:
+            ConfigLoader().dispose(LayeredConfig)
+
+    def test_directory_ignores_hidden_and_non_yaml_files(self, tmp_path):
+        (tmp_path / "config.yml").write_text(
+            yaml.safe_dump({"string_field": "kept"})
+        )
+        # Mimic Kubernetes' ..data / ..2025_… symlinks and stray text files.
+        (tmp_path / ".hidden.yml").write_text(
+            yaml.safe_dump({"string_field": "should-be-ignored"})
+        )
+        (tmp_path / "notes.txt").write_text("not yaml")
+
+        try:
+            config = ConfigLoader().load(SomeConfig, str(tmp_path))
+            assert config.string_field == "kept"
+        finally:
+            ConfigLoader().dispose(SomeConfig)
+
+    def test_empty_directory_returns_default(self, tmp_path):
+        try:
+            config = ConfigLoader().load(OptionalConfig, str(tmp_path))
+            assert config.name is None
+        finally:
+            ConfigLoader().dispose(OptionalConfig)
+
+    def test_directory_list_replacement(self, tmp_path):
+        (tmp_path / "00-base.yml").write_text(
+            yaml.safe_dump({"string_field": "x", "items": ["a", "b"]})
+        )
+        (tmp_path / "10-overlay.yml").write_text(
+            yaml.safe_dump({"items": ["c"]})
+        )
+
+        try:
+            config = ConfigLoader().load(LayeredConfig, str(tmp_path))
+            assert config.items == ["c"]
+        finally:
+            ConfigLoader().dispose(LayeredConfig)
+
+    def test_directory_none_overlay_preserves_base(self, tmp_path):
+        (tmp_path / "00-base.yml").write_text(
+            yaml.safe_dump({"string_field": "base"})
+        )
+        (tmp_path / "10-overlay.yml").write_text(
+            yaml.safe_dump({"string_field": None, "int_field": 5})
+        )
+
+        try:
+            config = ConfigLoader().load(LayeredConfig, str(tmp_path))
+            assert config.string_field == "base"
+            assert config.int_field == 5
+        finally:
+            ConfigLoader().dispose(LayeredConfig)

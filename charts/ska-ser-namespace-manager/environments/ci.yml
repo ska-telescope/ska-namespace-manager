@@ -4,12 +4,46 @@ clusterWide:
 image:
   repository: registry.gitlab.com/ska-telescope/ska-ser-namespace-manager/ska-ser-namespace-manager
 
+extraDeploy:
+  - apiVersion: secrets.hashicorp.com/v1beta1
+    kind: VaultStaticSecret
+    metadata:
+      name: '{{ template "ska-ser-namespace-manager.name" . }}-config-secrets'
+      namespace: '{{ template "ska-ser-namespace-manager.namespace" . }}'
+    spec:
+      mount: stfc-techops
+      type: kv-v2
+      path: staging/ci/ska-ser-namespace-manager
+      refreshAfter: 60s
+      rolloutRestartTargets:
+        - kind: Deployment
+          name: '{{ template "ska-ser-namespace-manager.api.name" . }}'
+        - kind: StatefulSet
+          name: '{{ template "ska-ser-namespace-manager.collect-controller.name" . }}'
+        - kind: Deployment
+          name: '{{ template "ska-ser-namespace-manager.action-controller.name" . }}'
+      destination:
+        create: true
+        name: '{{ template "ska-ser-namespace-manager.name" . }}-config-secrets'
+        transformation:
+          excludeRaw: true
+
 api:
+  extraConfigSecrets:
+    - name: '{{ template "ska-ser-namespace-manager.name" . }}-config-secrets'
+      items:
+        - key: api.yml
+          path: 99-credentials.yml
   service:
     https:
       type: ClusterIP
 
 actionController:
+  extraConfigSecrets:
+    - name: '{{ template "ska-ser-namespace-manager.name" . }}-config-secrets'
+      items:
+        - key: action-controller.yml
+          path: 99-credentials.yml
   config:
     namespaces:
       - names:
@@ -35,6 +69,11 @@ actionController:
 
 collectController:
   replicas: 1
+  extraConfigSecrets:
+    - name: '{{ template "ska-ser-namespace-manager.name" . }}-config-secrets'
+      items:
+        - key: collect-controller.yml
+          path: 99-credentials.yml
   config:
     namespaces:
       - names:

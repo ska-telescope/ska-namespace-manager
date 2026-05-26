@@ -4,7 +4,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
-## 0.3.1 - 2026-05-19
+## 0.3.1 - 2026-05-26
+
+- **Allow secret injection from third-parties**
+  - Configuration can now come from a directory with multiple (to be merged) configuration files
+  - `extraDeploy` allows to create tird-party secrets (e.g, VSO) and mount them as part of the configuration set
 
 - **Delete duplicate deployments**
   - Query pipeline status to detect cancelled pipelines and deem the namespace 'cancelled'

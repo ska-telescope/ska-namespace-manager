@@ -147,6 +147,66 @@ Runtime configuration is provided through the Helm chart in
 The default values manage `ci-.*` namespaces and enable Prometheus metrics. The
 cancelled and superseded checks are configurable per namespace matcher.
 
+### Layered configuration via VaultStaticSecret
+
+Each component reads every YAML file found in `CONFIG_PATH` (`/etc/config` by
+default), sorted alphabetically, and deep-merges them: later filenames override
+earlier ones, nested dictionaries merge key-by-key, and lists are replaced
+wholesale. A `null` value in an overlay leaves the base value untouched. The
+chart-managed base secret writes its content to `00-base.yml` so any
+user-supplied overlay sorts after it and wins on conflicts.
+
+To layer sensitive fields (e.g. `collectController.config.gitlab.private_token`
+or `api.config.people_database.credentials.private_key`) without storing them
+in Helm values, declare a `VaultStaticSecret` via `extraDeploy` and project the
+resulting secret into the component's config directory with
+`<component>.extraConfigSecrets`:
+
+```yaml
+extraDeploy:
+  - apiVersion: secrets.hashicorp.com/v1beta1
+    kind: VaultStaticSecret
+    metadata:
+      name: '{{ template "ska-ser-namespace-manager.collect-controller.name" . }}-vault'
+      namespace: '{{ template "ska-ser-namespace-manager.namespace" . }}'
+    spec:
+      mount: aws-eu-west-2
+      type: kv-v2
+      path: staging/ska-ser-namespace-manager
+      refreshAfter: 60s
+      # Roll the workload when the secret rotates — VSO updates the projected
+      # volume in place, but the running process keeps the cached config until
+      # restart.
+      rolloutRestartTargets:
+        - kind: StatefulSet
+          name: '{{ template "ska-ser-namespace-manager.collect-controller.name" . }}'
+      destination:
+        create: true
+        name: '{{ template "ska-ser-namespace-manager.collect-controller.name" . }}-vault'
+        transformation:
+          excludeRaw: true
+
+collectController:
+  extraConfigSecrets:
+    - name: '{{ template "ska-ser-namespace-manager.collect-controller.name" . }}-vault'
+      items:
+        # The key in the Vault payload becomes the file name in /etc/config.
+        # Pick a path that sorts after `00-base.yml` so the overlay wins.
+        - key: gitlab.yml
+          path: 50-gitlab.yml
+```
+
+The Vault payload's `gitlab.yml` key should contain a YAML fragment matching
+the live config shape, e.g.:
+
+```yaml
+gitlab:
+  private_token: glpat-xxxxxxxxxxxxxxxxxxxx
+```
+
+The same pattern applies to `api.extraConfigSecrets` and
+`actionController.extraConfigSecrets`.
+
 ## Development
 
 Clone the repository and initialise the shared tooling submodule:

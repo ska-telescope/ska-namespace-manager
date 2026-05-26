@@ -17,32 +17,8 @@ stages:
 k8s-test-runner:
   tags:
     - ska-staging-k8s
-  id_tokens:
-    VAULT_ID_TOKEN:
-      aud: https://gitlab.com
   variables:
-    K8S_EXTRA_VALUES: "${NS_MANAGER_SECRET_CONFIG_VALUES}"
     NSTEST_NAMESPACE_PREFIX: "nscicd-${CI_COMMIT_SHORT_SHA}-"
-  secrets:
-    NS_MANAGER_SECRET_CONFIG_VALUES:
-      vault: staging/ci/ska-ser-namespace-manager/values.yml@stfc-techops
-      file: true
-      token: $VAULT_ID_TOKEN
-    NSTEST_AUTHOR_EMAIL:
-      vault: staging/ci/ska-ser-namespace-manager/NSTEST_AUTHOR_EMAIL@stfc-techops
-      token: $VAULT_ID_TOKEN
-    NSTEST_AUTHOR_GITLAB_HANDLE:
-      vault: staging/ci/ska-ser-namespace-manager/NSTEST_AUTHOR_GITLAB_HANDLE@stfc-techops
-      token: $VAULT_ID_TOKEN
-    NSTEST_AUTHOR_ID:
-      vault: staging/ci/ska-ser-namespace-manager/NSTEST_AUTHOR_ID@stfc-techops
-      token: $VAULT_ID_TOKEN
-    NSTEST_EXPECTED_SLACK_ID:
-      vault: staging/ci/ska-ser-namespace-manager/NSTEST_EXPECTED_SLACK_ID@stfc-techops
-      token: $VAULT_ID_TOKEN
-    NSTEST_EXPECTED_TEAM:
-      vault: staging/ci/ska-ser-namespace-manager/NSTEST_EXPECTED_TEAM@stfc-techops
-      token: $VAULT_ID_TOKEN
 
 include:
   #- project: "ska-telescope/templates-repository"
