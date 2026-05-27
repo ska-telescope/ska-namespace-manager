@@ -12,6 +12,13 @@ def test_namespace_defaults():
     assert ns.annotations == {}
 
 
+def test_match_namespace_fullname():
+    configs = [NamespaceMatcher(names=["ci-nstest"])]
+
+    assert match_namespace(configs, Namespace(name="ci-nstest"))
+    assert not match_namespace(configs, Namespace(name="ci-nstest-xpto"))
+
+
 def test_match_namespace():
     configs = [
         NamespaceMatcher(

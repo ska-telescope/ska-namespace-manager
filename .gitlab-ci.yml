@@ -6,8 +6,8 @@ default:
   image: $SKA_K8S_TOOLS_BUILD_DEPLOY
 
 stages:
-  #- lint
-  #- join-reports
+  - lint
+  - join-reports
   - build
   - test
   - scan
@@ -16,19 +16,20 @@ stages:
 
 k8s-test-runner:
   tags:
+    # TODO: For safety don't run integration tests in the production cicd cluster
     - ska-staging-k8s
   variables:
     NSTEST_NAMESPACE_PREFIX: "nscicd-${CI_COMMIT_SHORT_SHA}-"
 
 include:
-  #- project: "ska-telescope/templates-repository"
-  #  file: "gitlab-ci/includes/python.gitlab-ci.yml"
+  - project: "ska-telescope/templates-repository"
+    file: "gitlab-ci/includes/python.gitlab-ci.yml"
 
-  #- project: "ska-telescope/templates-repository"
-  #  file: "gitlab-ci/includes/helm-chart.gitlab-ci.yml"
+  - project: "ska-telescope/templates-repository"
+    file: "gitlab-ci/includes/helm-chart.gitlab-ci.yml"
 
-  #- project: "ska-telescope/templates-repository"
-  #  file: "gitlab-ci/includes/oci-image.gitlab-ci.yml"
+  - project: "ska-telescope/templates-repository"
+    file: "gitlab-ci/includes/oci-image.gitlab-ci.yml"
 
   - project: "ska-telescope/templates-repository"
     file: "gitlab-ci/includes/helm-chart-build.gitlab-ci.yml"

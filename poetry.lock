@@ -3967,4 +3967,4 @@ reference = "gitlab"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "6de88b770c372bda11725ade6d7e946f4d731c6da168f6d85cad9f5221230881"
+content-hash = "753fd5bbdc7314a42cc929c3c2bbd92f8e1e12886eb265594f3558299a9cac0e"

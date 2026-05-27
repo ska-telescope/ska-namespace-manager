@@ -37,17 +37,10 @@ class CollectActions(str, Enum):
 class CollectTaskConfig(BaseModel):
     """
     CollectTaskConfig holds the configurations for the collect controller
-    tasks. The schedule uses interval syntax for in-process namespace checks,
-    while the remaining properties are used for Kubernetes Jobs.
+    tasks. The schedule uses interval syntax for in-process namespace checks.
     """
 
     schedule: Optional[str] = "60s"
-    successful_jobs_history_limit: Optional[int] = 1
-    failed_jobs_history_limit: Optional[int] = None
-    concurrency_policy: Optional[str] = "Forbid"
-    active_deadline_seconds: Optional[int] = None
-    backoff_limit: Optional[int] = None
-    parallelism: Optional[int] = None
 
 
 class CheckOptions(BaseModel):

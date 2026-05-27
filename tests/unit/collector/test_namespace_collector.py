@@ -103,7 +103,7 @@ def test_evaluate_namespace_health_ignores_different_datacentre():
     )
 
 
-def test__evaluate_namespace_health_ignores_missing_datacentre():
+def test_evaluate_namespace_health_ignores_missing_datacentre():
     """Alerts without a datacentre label should not match configured ones."""
     collector = make_collector(datacentre="stfc-techops")
     namespace = make_namespace()
