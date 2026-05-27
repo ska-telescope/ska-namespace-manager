@@ -52,7 +52,11 @@ class GitLabPipelineClient:
         """
         Initialize async resources on the background loop.
         """
-        self._session = aiohttp.ClientSession()
+        self._session = aiohttp.ClientSession(
+            timeout=aiohttp.ClientTimeout(
+                total=self.config.request_timeout.total_seconds()
+            )
+        )
         self._api = GitLabApi(
             self._session,
             api_base=self.config.api_base,
@@ -183,7 +187,7 @@ class GitLabPipelineClient:
             oldest_key, queued_at = self._pipeline_status_cache_queue.popleft()
             cached_status = self._pipeline_status_cache.get(oldest_key)
             if cached_status is not None and cached_status[0] == queued_at:
-                del self._pipeline_status_cache[oldest_key]
+                self._pipeline_status_cache.pop(oldest_key, None)
 
     async def _get_pipeline_info(
         self, project_id: str, pipeline_id: str

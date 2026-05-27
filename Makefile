@@ -39,7 +39,8 @@ PYTHON_SWITCHES_FOR_PYLINT = \
 	--min-public-methods 0 \
 	--max-attributes 10 \
 	--max-positional-arguments 8 \
-	--max-args 8
+	--max-args 8 \
+	--max-locals 20
 PYTHON_TEST_FILE = ./tests/unit
 PYTHON_VARS_AFTER_PYTEST = --disable-warnings
 K8S_TEST_TEST_COMMAND = $(PYTHON_VARS_BEFORE_PYTEST) $(PYTHON_RUNNER) \

@@ -21,9 +21,10 @@ class FakeSession:
 
     instances = []
 
-    def __init__(self):
+    def __init__(self, timeout=None):
         """Record created sessions."""
         self.closed = False
+        self.timeout = timeout
         self.__class__.instances.append(self)
 
     async def close(self):
@@ -67,6 +68,7 @@ def test_gitlab_pipeline_client_reuses_session_and_api():
         private_token="token",
         cache_ttl=timedelta(minutes=5),
         cache_max_entries=10000,
+        request_timeout=timedelta(seconds=10),
     )
 
     with patch(
@@ -111,6 +113,7 @@ def test_gitlab_pipeline_client_caches_status():
         private_token="token",
         cache_ttl=timedelta(minutes=5),
         cache_max_entries=10000,
+        request_timeout=timedelta(seconds=10),
     )
 
     with patch(
@@ -245,7 +248,7 @@ def test_gitlab_pipeline_client_concurrent_init_failure_does_not_hang():
     class FailingSession:
         """Session whose construction blocks until released, then raises."""
 
-        def __init__(self):
+        def __init__(self, timeout=None):
             """Signal that init has begun, then fail on release."""
             init_entered.set()
             init_proceed.wait(timeout=5)
@@ -257,6 +260,7 @@ def test_gitlab_pipeline_client_concurrent_init_failure_does_not_hang():
         private_token="token",
         cache_ttl=timedelta(minutes=5),
         cache_max_entries=10,
+        request_timeout=timedelta(seconds=10),
     )
 
     with patch(

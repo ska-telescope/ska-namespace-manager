@@ -173,6 +173,7 @@ class GitLabConfig(BaseModel):
     * private_token: GitLab private token
     * cache_ttl: Time to cache pipeline status responses
     * cache_max_entries: Maximum cached pipeline statuses
+    * request_timeout: Per-request deadline for GitLab API calls
     """
 
     enabled: Optional[bool] = False
@@ -183,6 +184,9 @@ class GitLabConfig(BaseModel):
         datetime.timedelta, BeforeValidator(parse_timedelta)
     ] = datetime.timedelta(minutes=5)
     cache_max_entries: int = 10000
+    request_timeout: Annotated[
+        datetime.timedelta, BeforeValidator(parse_timedelta)
+    ] = datetime.timedelta(seconds=10)
 
     def model_post_init(self, _):
         if self.enabled and not self.private_token:

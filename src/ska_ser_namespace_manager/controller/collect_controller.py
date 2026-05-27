@@ -432,14 +432,23 @@ class CollectController(LeaderController):
                     "Managing new namespace '%s'",
                     namespace,
                 )
-                self.patch_namespace(
-                    namespace,
-                    annotations={
-                        NamespaceAnnotations.STATUS: NamespaceStatus.UNKNOWN.value,  # pylint: disable=line-too-long  # noqa: E501
-                        NamespaceAnnotations.MANAGED: "true",
-                        NamespaceAnnotations.NAMESPACE: namespace,
-                    },
-                )
+                try:
+                    self.patch_namespace(
+                        namespace,
+                        annotations={
+                            NamespaceAnnotations.STATUS: NamespaceStatus.UNKNOWN.value,  # pylint: disable=line-too-long  # noqa: E501
+                            NamespaceAnnotations.MANAGED: "true",
+                            NamespaceAnnotations.NAMESPACE: namespace,
+                        },
+                    )
+                except (  # pylint: disable=broad-exception-caught
+                    Exception
+                ) as exc:
+                    logging.exception(
+                        "Failed to manage new namespace '%s': %s",
+                        namespace,
+                        exc,
+                    )
 
     @conditional_controller_task(
         period=datetime.timedelta(seconds=5),
@@ -529,25 +538,34 @@ class CollectController(LeaderController):
                         datetime.timezone.utc
                     )
                     time_to_delete = datetime.timedelta(seconds=5)
-                    self.patch_namespace(
-                        namespace.metadata.name,
-                        annotations={
-                            NamespaceAnnotations.STATUS.value: (
-                                NamespaceStatus.SUPERSEDED.value
-                            ),
-                            NamespaceAnnotations.STATUS_TS.value: format_utc(
-                                status_timestamp
-                            ),
-                            NamespaceAnnotations.STATUS_FINALIZE_AT.value: format_utc(  # pylint: disable=line-too-long  # noqa: E501
-                                status_timestamp + time_to_delete
-                            ),
-                            NamespaceAnnotations.STATUS_TIMEFRAME.value: format_timespan(  # pylint: disable=line-too-long  # noqa: E501
-                                time_to_delete
-                            ),
-                            NamespaceAnnotations.NOTIFIED_TS.value: None,
-                            NamespaceAnnotations.NOTIFIED_STATUS.value: None,
-                        },
-                    )
+                    try:
+                        self.patch_namespace(
+                            namespace.metadata.name,
+                            annotations={
+                                NamespaceAnnotations.STATUS.value: (
+                                    NamespaceStatus.SUPERSEDED.value
+                                ),
+                                NamespaceAnnotations.STATUS_TS.value: format_utc(  # pylint: disable=line-too-long  # noqa: E501
+                                    status_timestamp
+                                ),
+                                NamespaceAnnotations.STATUS_FINALIZE_AT.value: format_utc(  # pylint: disable=line-too-long  # noqa: E501
+                                    status_timestamp + time_to_delete
+                                ),
+                                NamespaceAnnotations.STATUS_TIMEFRAME.value: format_timespan(  # pylint: disable=line-too-long  # noqa: E501
+                                    time_to_delete
+                                ),
+                                NamespaceAnnotations.NOTIFIED_TS.value: None,
+                                NamespaceAnnotations.NOTIFIED_STATUS.value: None,  # pylint: disable=line-too-long  # noqa: E501
+                            },
+                        )
+                    except (  # pylint: disable=broad-exception-caught
+                        Exception
+                    ) as exc:
+                        logging.exception(
+                            "Failed to mark namespace '%s' as superseded: %s",
+                            namespace.metadata.name,
+                            exc,
+                        )
 
     @controller_task(period=datetime.timedelta(seconds=5))
     def check_assigned_namespaces(self) -> None:
