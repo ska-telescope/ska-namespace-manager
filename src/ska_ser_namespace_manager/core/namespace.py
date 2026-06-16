@@ -5,7 +5,13 @@ namespace provides core namespace DTO and supporting functions
 import re
 from typing import Dict, List, Optional, TypeVar
 
+from kubernetes import client
 from pydantic import BaseModel
+
+from ska_ser_namespace_manager.core.types import (
+    NamespaceAnnotations,
+    NamespaceStatus,
+)
 
 FORBIDDEN_NAMESPACES = [
     "kube-system",
@@ -103,7 +109,8 @@ def match_namespace(configs: List[T], namespace: Namespace) -> T | None:
         score = 0
         if config.names:
             name_match = any(
-                re.match(pattern, namespace.name) for pattern in config.names
+                re.fullmatch(pattern, namespace.name)
+                for pattern in config.names
             )
             if name_match:
                 score += 1
@@ -139,3 +146,20 @@ def match_namespace(configs: List[T], namespace: Namespace) -> T | None:
             best_matching_config = config
 
     return best_matching_config
+
+
+def can_mark_superseded(namespace: client.V1Namespace) -> bool:
+    """
+    Check whether a namespace should be patched to superseded.
+    """
+    if (
+        not getattr(getattr(namespace, "status", None), "phase", None)
+        == "Active"
+    ):
+        return False
+
+    annotations = namespace.metadata.annotations or {}
+    return annotations.get(NamespaceAnnotations.STATUS.value) not in [
+        NamespaceStatus.CANCELLED.value,
+        NamespaceStatus.SUPERSEDED.value,
+    ]

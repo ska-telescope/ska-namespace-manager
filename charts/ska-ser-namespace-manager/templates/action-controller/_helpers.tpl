@@ -25,7 +25,11 @@
 {{- end -}}
 
 {{- define "ska-ser-namespace-manager.action-controller.clusterWidePrefix" -}}
+{{- if .Values.clusterWide.usePrefix -}}
 {{- printf "%s-%s-action-ctl" (include "ska-ser-namespace-manager.fullname" .) (.Release.Namespace | sha256sum | substr 0 4) | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-action-ctl" (include "ska-ser-namespace-manager.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
 {{- end -}}
 
 {{- define "ska-ser-namespace-manager.action-controller.leaderElectionVol" -}}

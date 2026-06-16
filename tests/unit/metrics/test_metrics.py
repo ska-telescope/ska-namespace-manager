@@ -12,7 +12,7 @@ from prometheus_client import generate_latest
 from prometheus_client.parser import text_string_to_metric_families
 
 from ska_ser_namespace_manager.core.types import (
-    CicdAnnotations,
+    CicdLabels,
     NamespaceAnnotations,
     NamespaceStatus,
 )
@@ -143,12 +143,12 @@ def test_update_metrics(metrics_manager):
         metadata=V1ObjectMeta(
             name="test-namespace",
             labels={
-                CicdAnnotations.ENV_TIER.value: "dev",
-                CicdAnnotations.PROJECT.value: "marvin",
-                CicdAnnotations.TEAM.value: "system",
-                CicdAnnotations.AUTHOR.value: "marvin",
-                CicdAnnotations.PIPELINE_ID.value: "123456",
-                CicdAnnotations.PROJECT_ID.value: "654321",
+                CicdLabels.ENV_TIER.value: "dev",
+                CicdLabels.PROJECT.value: "marvin",
+                CicdLabels.TEAM.value: "system",
+                CicdLabels.AUTHOR.value: "marvin",
+                CicdLabels.PIPELINE_ID.value: "123456",
+                CicdLabels.PROJECT_ID.value: "654321",
             },
             annotations={
                 NamespaceAnnotations.STATUS.value: NamespaceStatus.FAILING.value  # pylint: disable=line-too-long # noqa: E501
@@ -241,12 +241,12 @@ def test_save_metrics(metrics_manager, temp_metrics_path):
         metadata=V1ObjectMeta(
             name="test-namespace",
             labels={
-                CicdAnnotations.ENV_TIER.value: "dev",
-                CicdAnnotations.PROJECT.value: "marvin",
-                CicdAnnotations.TEAM.value: "system",
-                CicdAnnotations.AUTHOR.value: "marvin",
-                CicdAnnotations.PIPELINE_ID.value: "0123456",
-                CicdAnnotations.PROJECT_ID.value: "0654321",
+                CicdLabels.ENV_TIER.value: "dev",
+                CicdLabels.PROJECT.value: "marvin",
+                CicdLabels.TEAM.value: "system",
+                CicdLabels.AUTHOR.value: "marvin",
+                CicdLabels.PIPELINE_ID.value: "0123456",
+                CicdLabels.PROJECT_ID.value: "0654321",
             },
             annotations={
                 NamespaceAnnotations.STATUS.value: NamespaceStatus.OK.value  # pylint: disable=line-too-long # noqa: E501
@@ -330,12 +330,12 @@ def test_metrics_manager_restores_metrics_on_instantiation(
         metadata=V1ObjectMeta(
             name="test-namespace",
             labels={
-                CicdAnnotations.ENV_TIER.value: "dev",
-                CicdAnnotations.PROJECT.value: "marvin",
-                CicdAnnotations.TEAM.value: "system",
-                CicdAnnotations.AUTHOR.value: "marvin",
-                CicdAnnotations.PIPELINE_ID.value: "123456",
-                CicdAnnotations.PROJECT_ID.value: "654321",
+                CicdLabels.ENV_TIER.value: "dev",
+                CicdLabels.PROJECT.value: "marvin",
+                CicdLabels.TEAM.value: "system",
+                CicdLabels.AUTHOR.value: "marvin",
+                CicdLabels.PIPELINE_ID.value: "123456",
+                CicdLabels.PROJECT_ID.value: "654321",
             },
             annotations={
                 NamespaceAnnotations.STATUS.value: NamespaceStatus.OK.value
@@ -417,12 +417,12 @@ def test_delete_stale_metrics_removes_unassigned_namespace(metrics_manager):
         metadata=V1ObjectMeta(
             name="kept-namespace",
             labels={
-                CicdAnnotations.ENV_TIER.value: "dev",
-                CicdAnnotations.PROJECT.value: "marvin",
-                CicdAnnotations.TEAM.value: "system",
-                CicdAnnotations.AUTHOR.value: "marvin",
-                CicdAnnotations.PIPELINE_ID.value: "123456",
-                CicdAnnotations.PROJECT_ID.value: "654321",
+                CicdLabels.ENV_TIER.value: "dev",
+                CicdLabels.PROJECT.value: "marvin",
+                CicdLabels.TEAM.value: "system",
+                CicdLabels.AUTHOR.value: "marvin",
+                CicdLabels.PIPELINE_ID.value: "123456",
+                CicdLabels.PROJECT_ID.value: "654321",
             },
             annotations={
                 NamespaceAnnotations.STATUS.value: NamespaceStatus.OK.value
@@ -433,12 +433,12 @@ def test_delete_stale_metrics_removes_unassigned_namespace(metrics_manager):
         metadata=V1ObjectMeta(
             name="stale-namespace",
             labels={
-                CicdAnnotations.ENV_TIER.value: "dev",
-                CicdAnnotations.PROJECT.value: "marvin",
-                CicdAnnotations.TEAM.value: "system",
-                CicdAnnotations.AUTHOR.value: "marvin",
-                CicdAnnotations.PIPELINE_ID.value: "123456",
-                CicdAnnotations.PROJECT_ID.value: "654321",
+                CicdLabels.ENV_TIER.value: "dev",
+                CicdLabels.PROJECT.value: "marvin",
+                CicdLabels.TEAM.value: "system",
+                CicdLabels.AUTHOR.value: "marvin",
+                CicdLabels.PIPELINE_ID.value: "123456",
+                CicdLabels.PROJECT_ID.value: "654321",
             },
             annotations={
                 NamespaceAnnotations.STATUS.value: NamespaceStatus.FAILED.value
@@ -532,12 +532,12 @@ def test_get_merged_metrics_reads_multiple_fresh_files(temp_metrics_path):
         metadata=V1ObjectMeta(
             name="first-namespace",
             labels={
-                CicdAnnotations.ENV_TIER.value: "dev",
-                CicdAnnotations.PROJECT.value: "marvin",
-                CicdAnnotations.TEAM.value: "system",
-                CicdAnnotations.AUTHOR.value: "marvin",
-                CicdAnnotations.PIPELINE_ID.value: "123456",
-                CicdAnnotations.PROJECT_ID.value: "654321",
+                CicdLabels.ENV_TIER.value: "dev",
+                CicdLabels.PROJECT.value: "marvin",
+                CicdLabels.TEAM.value: "system",
+                CicdLabels.AUTHOR.value: "marvin",
+                CicdLabels.PIPELINE_ID.value: "123456",
+                CicdLabels.PROJECT_ID.value: "654321",
             },
             annotations={
                 NamespaceAnnotations.STATUS.value: NamespaceStatus.OK.value
@@ -548,12 +548,12 @@ def test_get_merged_metrics_reads_multiple_fresh_files(temp_metrics_path):
         metadata=V1ObjectMeta(
             name="second-namespace",
             labels={
-                CicdAnnotations.ENV_TIER.value: "dev",
-                CicdAnnotations.PROJECT.value: "marvin",
-                CicdAnnotations.TEAM.value: "system",
-                CicdAnnotations.AUTHOR.value: "marvin",
-                CicdAnnotations.PIPELINE_ID.value: "123456",
-                CicdAnnotations.PROJECT_ID.value: "654321",
+                CicdLabels.ENV_TIER.value: "dev",
+                CicdLabels.PROJECT.value: "marvin",
+                CicdLabels.TEAM.value: "system",
+                CicdLabels.AUTHOR.value: "marvin",
+                CicdLabels.PIPELINE_ID.value: "123456",
+                CicdLabels.PROJECT_ID.value: "654321",
             },
             annotations={
                 NamespaceAnnotations.STATUS.value: (

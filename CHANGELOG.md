@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## 0.3.1 - 2026-05-26
+
+- **Allow secret injection from third-parties**
+  - Configuration can now come from a directory with multiple (to be merged) configuration files
+  - `extraDeploy` allows to create tird-party secrets (e.g, VSO) and mount them as part of the configuration set
+
+- **Delete duplicate deployments**
+  - Query pipeline status to detect cancelled pipelines and deem the namespace 'cancelled'
+  - Gather pipelines by pipelineId/mrId and job to determine which ones are superseded
+  - Notify and delete users of 'cancelled' pipelines
+
 ## 0.3.0 - 2026-05-18
 
 - **Metrics management refactor**
@@ -26,7 +37,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   - added a leader-only collect-controller task to delete metrics files for inactive namespace-manager pods
   - discover active API, collect-controller, and action-controller pods before reconciling shared metrics files
   - removed time-based stale metrics file filtering in favour of active pod reconciliation
-
 
 ## 0.2.0 - 2026-04-29
 

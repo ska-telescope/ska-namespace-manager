@@ -37,17 +37,22 @@ class CollectActions(str, Enum):
 class CollectTaskConfig(BaseModel):
     """
     CollectTaskConfig holds the configurations for the collect controller
-    tasks. The schedule uses interval syntax for in-process namespace checks,
-    while the remaining properties are used for Kubernetes Jobs.
+    tasks. The schedule uses interval syntax for in-process namespace checks.
     """
 
     schedule: Optional[str] = "60s"
-    successful_jobs_history_limit: Optional[int] = 1
-    failed_jobs_history_limit: Optional[int] = None
-    concurrency_policy: Optional[str] = "Forbid"
-    active_deadline_seconds: Optional[int] = None
-    backoff_limit: Optional[int] = None
-    parallelism: Optional[int] = None
+
+
+class CheckOptions(BaseModel):
+    """
+    CheckOptions holds optional namespace lifecycle checks.
+
+    * cancelled: Whether to check originating GitLab pipeline status
+    * superseded: Whether to check older deployments for the same CI identity
+    """
+
+    cancelled: bool = False
+    superseded: bool = False
 
 
 class CollectNamespaceConfig(NamespaceMatcher):
@@ -58,6 +63,7 @@ class CollectNamespaceConfig(NamespaceMatcher):
     * ttl: Namespace ttl to become stale
     * settling_period: Period to mark unstable namespace as failing
     * grace_period: Grace period to mark a failing namespace as failed
+    * checks: Optional namespace lifecycle checks
     """
 
     ttl: (
@@ -69,6 +75,7 @@ class CollectNamespaceConfig(NamespaceMatcher):
     grace_period: (
         Annotated[datetime.timedelta, BeforeValidator(parse_timedelta)] | None
     ) = datetime.timedelta(minutes=1)
+    checks: CheckOptions = CheckOptions()
     actions: Optional[Dict[CollectActions, CollectTaskConfig]] = None
 
     def model_post_init(self, _):
@@ -149,6 +156,39 @@ class PrometheusConfig(BaseModel):
                 )
 
 
+class GitLabConfig(BaseModel):
+    """
+    GitLabConfig holds configuration for GitLab pipeline status lookups.
+
+    * enabled: True to query GitLab for originating pipeline status
+    * api_base: GitLab instance base URL
+    * requester: GitLab API requester identity
+    * private_token: GitLab private token
+    * cache_ttl: Time to cache pipeline status responses
+    * cache_max_entries: Maximum cached pipeline statuses
+    * request_timeout: Per-request deadline for GitLab API calls
+    """
+
+    enabled: Optional[bool] = False
+    api_base: Optional[str] = "https://gitlab.com"
+    requester: Optional[str] = ""
+    private_token: Optional[str] = None
+    cache_ttl: Annotated[
+        datetime.timedelta, BeforeValidator(parse_timedelta)
+    ] = datetime.timedelta(minutes=5)
+    cache_max_entries: int = 10000
+    request_timeout: Annotated[
+        datetime.timedelta, BeforeValidator(parse_timedelta)
+    ] = datetime.timedelta(seconds=10)
+
+    def model_post_init(self, _):
+        if self.enabled and not self.private_token:
+            raise ValueError(
+                "GitLab private_token must be configured when GitLab "
+                "pipeline checks are enabled"
+            )
+
+
 class CollectConfig(BaseModel):
     """
     CollectConfig holds the configurations governing collection of
@@ -158,6 +198,7 @@ class CollectConfig(BaseModel):
     namespaces: Optional[List[CollectNamespaceConfig]] = None
     people_api: PeopleAPIConfig = PeopleAPIConfig()
     prometheus: PrometheusConfig = PrometheusConfig()
+    gitlab: GitLabConfig = GitLabConfig()
 
     def model_post_init(self, _):
         if self.namespaces is None:

@@ -96,7 +96,7 @@ spec:
           {{- end }}
           env:
           - name: CONFIG_PATH
-            value: {{ template "ska-ser-namespace-manager.collect-controller.configPath" . }}/config.yml
+            value: {{ template "ska-ser-namespace-manager.collect-controller.configPath" . }}
           {{- with (concat .Values.extraEnvVars .Values.collectController.extraEnvVars) }}
           {{- toYaml . | nindent 10 }}
           {{- end }}
@@ -126,8 +126,21 @@ spec:
             {{- end }}
       volumes:
       - name: config
-        secret:
-          secretName: {{ template "ska-ser-namespace-manager.collect-controller.configName" . }}
+        projected:
+          sources:
+            - secret:
+                name: {{ template "ska-ser-namespace-manager.collect-controller.configName" . }}
+            {{- range .Values.collectController.extraConfigSecrets }}
+            - secret:
+                name: {{ tpl .name $ }}
+                {{- with .items }}
+                items:
+                  {{- toYaml . | nindent 18 }}
+                {{- end }}
+                {{- with .optional }}
+                optional: {{ . }}
+                {{- end }}
+            {{- end }}
       {{- if gt (int .Values.collectController.replicas) 1 }}
       - name: leader-election
         persistentVolumeClaim:

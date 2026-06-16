@@ -4,7 +4,7 @@ import http
 from unittest.mock import Mock, patch
 
 import pytest
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from prometheus_client import CONTENT_TYPE_LATEST
 
 from ska_ser_namespace_manager.metrics.metrics_config import MetricsConfig
@@ -20,7 +20,9 @@ async def test_metrics():
         mock_metrics.config = MetricsConfig()
         metrics = "some_metrics".encode("utf-8")
         mock_metrics.get_metrics = Mock(return_value=metrics)
-        async with AsyncClient(app=app, base_url="http://test") as ac:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as ac:
             response = await ac.get("/api/metrics")
             assert response.status_code == http.HTTPStatus.OK
             assert response.headers.get("Content-Type", CONTENT_TYPE_LATEST)

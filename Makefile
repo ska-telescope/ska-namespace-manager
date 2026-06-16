@@ -27,14 +27,22 @@ ifeq ($(ENVIRONMENT),ci)
 K8S_CHART_PARAMS += --set image.tag=$(VERSION)-dev.c$(CI_COMMIT_SHORT_SHA)
 endif
 
+# K8S_EXTRA_VALUES: space-separated list of additional helm values files,
+# each piped through envsubst (same as all.yml / $(ENVIRONMENT).yml).
+# Later entries override earlier ones, and the list is appended after the
+# environment files so it always wins.
+K8S_EXTRA_VALUES ?=
+K8S_CHART_PARAMS += $(foreach extra_values_file,$(K8S_EXTRA_VALUES),-f <(envsubst < $(extra_values_file)))
+
 PYTHON_SWITCHES_FOR_PYLINT = \
 	--disable "fixme,duplicate-code,arguments-differ" \
 	--min-public-methods 0 \
 	--max-attributes 10 \
 	--max-positional-arguments 8 \
-	--max-args 8
+	--max-args 8 \
+	--max-locals 20
 PYTHON_TEST_FILE = ./tests/unit
 PYTHON_VARS_AFTER_PYTEST = --disable-warnings
 K8S_TEST_TEST_COMMAND = $(PYTHON_VARS_BEFORE_PYTEST) $(PYTHON_RUNNER) \
-	pytest --disable-warnings ./tests/integration \
+	pytest --disable-warnings ./tests/integration -v -s --log-cli-level=INFO \
 	| tee pytest.stdout

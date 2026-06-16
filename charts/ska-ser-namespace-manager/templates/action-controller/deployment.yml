@@ -93,7 +93,7 @@ spec:
           {{- end }}
           env:
           - name: CONFIG_PATH
-            value: {{ template "ska-ser-namespace-manager.action-controller.configPath" . }}/config.yml
+            value: {{ template "ska-ser-namespace-manager.action-controller.configPath" . }}
           {{- with (concat .Values.extraEnvVars .Values.actionController.extraEnvVars) }}
           {{- toYaml . | nindent 10 }}
           {{- end }}
@@ -124,8 +124,21 @@ spec:
           {{- end }}
       volumes:
         - name: config
-          secret:
-            secretName: {{ template "ska-ser-namespace-manager.action-controller.configName" . }}
+          projected:
+            sources:
+              - secret:
+                  name: {{ template "ska-ser-namespace-manager.action-controller.configName" . }}
+              {{- range .Values.actionController.extraConfigSecrets }}
+              - secret:
+                  name: {{ tpl .name $ }}
+                  {{- with .items }}
+                  items:
+                    {{- toYaml . | nindent 20 }}
+                  {{- end }}
+                  {{- with .optional }}
+                  optional: {{ . }}
+                  {{- end }}
+              {{- end }}
       {{- if gt (int .Values.actionController.replicas) 1 }}
         - name: leader-election
           persistentVolumeClaim:

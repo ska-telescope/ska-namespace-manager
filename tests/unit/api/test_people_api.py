@@ -4,7 +4,7 @@ import http
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from ska_cicd_services_api.people_database_api import PeopleDatabaseUser
 
 from ska_ser_namespace_manager.api.api_config import (
@@ -42,7 +42,9 @@ async def test_not_found_email():
             spreadsheet_id="dummy",
         )
         mock_people_db.get_user_by_email = AsyncMock(return_value=None)
-        async with AsyncClient(app=app, base_url="http://test") as ac:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as ac:
             response = await ac.get("/api/people?email=marvin")
             assert response.status_code == http.HTTPStatus.NOT_FOUND
             assert response.json() == {"status": "not found"}
@@ -59,7 +61,9 @@ async def test_not_found_slack_id():
             spreadsheet_id="dummy",
         )
         mock_people_db.get_user_by_slack_id = AsyncMock(return_value=None)
-        async with AsyncClient(app=app, base_url="http://test") as ac:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as ac:
             response = await ac.get("/api/people?slack_id=marvin")
 
             assert response.status_code == http.HTTPStatus.NOT_FOUND
@@ -77,7 +81,9 @@ async def test_not_found_gitlab_handle():
             spreadsheet_id="dummy",
         )
         mock_people_db.get_user_by_gitlab_handle = AsyncMock(return_value=None)
-        async with AsyncClient(app=app, base_url="http://test") as ac:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as ac:
             response = await ac.get("/api/people?gitlab_handle=marvin")
             assert response.status_code == http.HTTPStatus.NOT_FOUND
             assert response.json() == {"status": "not found"}
@@ -96,7 +102,9 @@ async def test_not_found_all():
         mock_people_db.get_user_by_email = AsyncMock(return_value=None)
         mock_people_db.get_user_by_slack_id = AsyncMock(return_value=None)
         mock_people_db.get_user_by_gitlab_handle = AsyncMock(return_value=None)
-        async with AsyncClient(app=app, base_url="http://test") as ac:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as ac:
             response = await ac.get(
                 "/api/people?email=marvin&slack_id=marvin&gitlab_handle=marvin"
             )
@@ -118,7 +126,9 @@ async def test_not_found_ignore():
         mock_people_db.get_user_by_email = AsyncMock(return_value=None)
         mock_people_db.get_user_by_slack_id = AsyncMock(return_value=None)
         mock_people_db.get_user_by_gitlab_handle = AsyncMock(return_value=None)
-        async with AsyncClient(app=app, base_url="http://test") as ac:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as ac:
             response = await ac.get("/api/people?email=&ignore_not_found=true")
 
             assert response.status_code == http.HTTPStatus.OK
@@ -143,7 +153,9 @@ async def test_email():
             spreadsheet_id="dummy",
         )
         mock_people_db.get_user_by_email = AsyncMock(return_value=user)
-        async with AsyncClient(app=app, base_url="http://test") as ac:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as ac:
             response = await ac.get("/api/people?email=marvin")
             assert response.status_code == http.HTTPStatus.OK
             assert response.json() == user.model_dump()
@@ -167,7 +179,9 @@ async def test_slack_id():
             spreadsheet_id="dummy",
         )
         mock_people_db.get_user_by_slack_id = AsyncMock(return_value=user)
-        async with AsyncClient(app=app, base_url="http://test") as ac:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as ac:
             response = await ac.get("/api/people?slack_id=marvin")
 
             assert response.status_code == http.HTTPStatus.OK
@@ -192,7 +206,9 @@ async def test_gitlab_handle():
             spreadsheet_id="dummy",
         )
         mock_people_db.get_user_by_gitlab_handle = AsyncMock(return_value=user)
-        async with AsyncClient(app=app, base_url="http://test") as ac:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as ac:
             response = await ac.get("/api/people?gitlab_handle=marvin")
             assert response.status_code == http.HTTPStatus.OK
             assert response.json() == user.model_dump()
@@ -212,7 +228,9 @@ async def test_people_db_disabled():
         mock_people_db.get_user_by_email = AsyncMock(return_value=None)
         mock_people_db.get_user_by_slack_id = AsyncMock(return_value=None)
         mock_people_db.get_user_by_gitlab_handle = AsyncMock(return_value=None)
-        async with AsyncClient(app=app, base_url="http://test") as ac:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as ac:
             response = await ac.get("/api/people?email=marvin")
 
             assert response.status_code == http.HTTPStatus.NOT_FOUND
