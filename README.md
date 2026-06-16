@@ -29,35 +29,47 @@ The Helm chart deploys three runtime surfaces:
 
 ```mermaid
 flowchart TD
-    ns["Kubernetes namespaces<br/>labels and annotations"]
-    k8s["Kubernetes API"]
-    prom["Prometheus alerts"]
-    gitlab["GitLab pipeline API"]
-    people["People database"]
-    metrics["Shared metrics registry<br/>Prometheus text files"]
-    slack["Slack"]
-
     subgraph app["SKA Namespace Manager"]
-        api["FastAPI service<br/>/health, /api/people, /api/metrics"]
-        collect["Collect controller<br/>manage, check, annotate"]
-        action["Action controller<br/>notify and delete"]
+        direction LR
+        collect["Collect controller<br/>manage · check · annotate"]
+        action["Action controller<br/>notify · delete"]
+        api["FastAPI service<br/>/health · /api/people · /api/metrics"]
     end
 
-    collect --> k8s
-    k8s --> ns
-    ns --> collect
+    k8s["Kubernetes API"]
+    ns[("Namespaces<br/>labels & annotations")]
+    prom["Prometheus alerts"]
+    gitlab["GitLab pipeline API"]
+    people[("People database")]
+    metrics[/"Shared metrics registry<br/>Prometheus text files"/]
+    slack["Slack"]
+
+    collect <--> k8s
+    action <--> k8s
+    k8s <--> ns
+
     prom --> collect
     gitlab --> collect
-    collect --> ns
+
     collect --> metrics
-
-    action --> k8s
-    ns --> action
-    action --> slack
     action --> metrics
-
+    metrics --> api
     api --> people
-    api --> metrics
+    action --> slack
+
+    classDef controller fill:#1f6feb,stroke:#0b3d91,color:#ffffff,font-weight:bold;
+    classDef service fill:#8250df,stroke:#3b1f7a,color:#ffffff,font-weight:bold;
+    classDef platform fill:#e6f0ff,stroke:#1f6feb,color:#0b2545;
+    classDef store fill:#fff4e5,stroke:#d97706,color:#7a3e00;
+    classDef integration fill:#eaf7ea,stroke:#2da44e,color:#0f3d1f;
+    classDef artifact fill:#fde8ef,stroke:#cf222e,color:#5c0011;
+
+    class collect,action controller;
+    class api service;
+    class k8s platform;
+    class ns,people store;
+    class prom,gitlab,slack integration;
+    class metrics artifact;
 ```
 
 Namespace selection is driven by configured matchers. A namespace can match by
@@ -72,9 +84,12 @@ status; the action controller acts on it.
 
 ```mermaid
 stateDiagram-v2
+    direction TB
     [*] --> unknown: namespace matches config
+
     unknown --> ok: no stale or failing condition
     unknown --> unstable: failing resources detected
+    unknown --> stale: TTL elapsed
     unknown --> cancelled: originating pipeline cancelled or missing
     unknown --> superseded: newer CI deployment found
 
@@ -95,11 +110,28 @@ stateDiagram-v2
     failing --> cancelled: originating pipeline cancelled or missing
     failing --> superseded: newer CI deployment found
 
+    failed --> ok: alerts clear
+    failed --> stale: TTL elapsed
+    failed --> cancelled: originating pipeline cancelled or missing
+    failed --> superseded: newer CI deployment found
+
     stale --> deleted: action controller deletes
     failed --> deleted: action controller deletes
     cancelled --> deleted: action controller deletes
     superseded --> deleted: action controller deletes
     deleted --> [*]
+
+    classDef initial fill:#eef2f6,stroke:#8b98a5,color:#1c2b36;
+    classDef healthy fill:#eaf7ea,stroke:#2da44e,color:#0f3d1f,font-weight:bold;
+    classDef degraded fill:#fff4e5,stroke:#d97706,color:#7a3e00;
+    classDef terminal fill:#fde8ef,stroke:#cf222e,color:#5c0011;
+    classDef removed fill:#1b1f24,stroke:#000000,color:#ffffff,font-weight:bold;
+
+    class unknown initial
+    class ok healthy
+    class unstable,failing degraded
+    class stale,failed,cancelled,superseded terminal
+    class deleted removed
 ```
 
 The supported status values are:
