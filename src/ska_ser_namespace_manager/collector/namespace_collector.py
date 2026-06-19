@@ -29,7 +29,11 @@ from ska_ser_namespace_manager.core.types import (
     NamespaceAnnotations,
     NamespaceStatus,
 )
-from ska_ser_namespace_manager.core.utils import format_utc, utc
+from ska_ser_namespace_manager.core.utils import (
+    format_labels_resources,
+    format_utc,
+    utc,
+)
 
 
 class NamespaceCollector(Collector):
@@ -306,7 +310,16 @@ class NamespaceCollector(Collector):
                 )
                 return False
         else:
-            logging.warning("Alert '%s' is firing.", alert_identifier)
+            resources = format_labels_resources(alert["labels"])
+            if resources:
+                logging.warning(
+                    "Alert '%s' is firing for %s.",
+                    alert_identifier,
+                    resources,
+                )
+            else:
+                logging.warning("Alert '%s' is firing.", alert_identifier)
+
         return True
 
     def _process_alerts(self, alerts: list) -> List[dict]:

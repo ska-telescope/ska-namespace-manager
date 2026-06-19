@@ -38,6 +38,36 @@ ALERT_SUGGESTIONS = {
 }
 
 
+RESOURCE_LABELS = [
+    "pod",
+    "deployment",
+    "statefulset",
+    "job",
+    "daemonset",
+    "container",
+    "persistentvolumeclaim",
+]
+
+
+def format_labels_resources(labels: dict) -> str:
+    """
+    Formats a string from the resource-identifying labels of an alert.
+
+    :param labels: Alert labels dictionary.
+    :return: A string of resources in the format 'label=value, ...',
+        or an empty string if no resource labels are present.
+    """
+    resources = {
+        label: labels.get(label)
+        for label in RESOURCE_LABELS
+        if labels.get(label)
+    }
+
+    return ", ".join(
+        [f"{label}={value}" for label, value in resources.items()]
+    )
+
+
 class Singleton(type):
     """
     Singleton implements the singleton pattern to be used as a

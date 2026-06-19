@@ -8,10 +8,23 @@ import pytz
 from ska_ser_namespace_manager.core.utils import (
     decode_slack_address,
     encode_slack_address,
+    format_labels_resources,
     format_utc,
     parse_timedelta,
     utc,
 )
+
+
+def test_format_labels_resources():
+    assert format_labels_resources({}) == ""
+    assert format_labels_resources({"alertname": "KubePodNotReady"}) == ""
+    assert (
+        format_labels_resources({"pod": "my-pod", "severity": "critical"})
+        == "pod=my-pod"
+    )
+    assert format_labels_resources(
+        {"pod": "my-pod", "deployment": "my-deploy"}
+    ) == ("pod=my-pod, deployment=my-deploy")
 
 
 def test_parse_timedelta():

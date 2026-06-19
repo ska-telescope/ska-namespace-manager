@@ -1,3 +1,5 @@
+import json
+import logging
 from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
@@ -658,3 +660,131 @@ def test_notify_status_namespaces_match_no_notify(action_controller):
 
     action_controller.notify_user.assert_not_called()
     action_controller.patch_namespace.assert_not_called()
+
+
+def test_summarize_failing_resources_empty(action_controller):
+    assert action_controller._summarize_failing_resources("") == ""
+    assert action_controller._summarize_failing_resources("[]") == ""
+
+
+def test_summarize_failing_resources_invalid_json(action_controller):
+    assert (
+        action_controller._summarize_failing_resources("not-json")
+        == "not-json"
+    )
+
+
+def test_summarize_failing_resources_string_list(action_controller):
+    resources_json = json.dumps(["my-deployment", "my-statefulset"])
+    assert (
+        action_controller._summarize_failing_resources(resources_json)
+        == "my-deployment, my-statefulset"
+    )
+
+
+def test_summarize_failing_resources_alert_dicts(action_controller):
+    resources_json = json.dumps(
+        [
+            {
+                "labels": {
+                    "alertname": "KubePodNotReady",
+                    "pod": "my-pod",
+                },
+                "annotations": {},
+            },
+            {
+                "labels": {"alertname": "SomeAlert"},
+                "annotations": {},
+            },
+        ]
+    )
+    assert action_controller._summarize_failing_resources(resources_json) == (
+        "KubePodNotReady: pod=my-pod; SomeAlert"
+    )
+
+
+def test_delete_namespaces_logs_failing_resources(action_controller, caplog):
+    mock_namespace = MagicMock()
+    mock_namespace.metadata.name = "test-namespace"
+    mock_namespace.metadata.annotations = {
+        NamespaceAnnotations.STATUS.value: NamespaceStatus.FAILED.value,
+        NamespaceAnnotations.FAILING_RESOURCES.value: json.dumps(
+            ["my-deployment"]
+        ),
+    }
+    mock_namespace.status.phase = "Active"
+
+    action_controller.get_namespaces_by = MagicMock(
+        return_value=[mock_namespace]
+    )
+    action_controller.to_dto = MagicMock(
+        return_value=Namespace(
+            name="test-namespace", labels={}, annotations={}
+        )
+    )
+    action_controller.delete_namespace = MagicMock()
+    action_controller.notify_user = MagicMock()
+
+    phase_config = MagicMock()
+    phase_config.delete = True
+    phase_config.notify_on_delete = False
+
+    with patch(
+        "ska_ser_namespace_manager.controller.action_controller.match_namespace",  # pylint: disable=line-too-long # noqa: E501
+        return_value=True,
+    ), patch(
+        "ska_ser_namespace_manager.controller.action_controller.getattr",
+        return_value=phase_config,
+    ), caplog.at_level(logging.INFO):
+        action_controller._delete_namespaces_with_status(
+            NamespaceStatus.FAILED.value
+        )
+
+    assert (
+        "had failing resources before deletion: my-deployment" in caplog.text
+    )
+    action_controller.delete_namespace.assert_called_once_with(
+        "test-namespace"
+    )
+
+
+def test_delete_namespaces_no_failing_resources_no_log(
+    action_controller, caplog
+):
+    mock_namespace = MagicMock()
+    mock_namespace.metadata.name = "test-namespace"
+    mock_namespace.metadata.annotations = {
+        NamespaceAnnotations.STATUS.value: NamespaceStatus.STALE.value
+    }
+    mock_namespace.status.phase = "Active"
+
+    action_controller.get_namespaces_by = MagicMock(
+        return_value=[mock_namespace]
+    )
+    action_controller.to_dto = MagicMock(
+        return_value=Namespace(
+            name="test-namespace", labels={}, annotations={}
+        )
+    )
+    action_controller.delete_namespace = MagicMock()
+    action_controller.notify_user = MagicMock()
+
+    phase_config = MagicMock()
+    phase_config.delete = True
+    phase_config.notify_on_delete = False
+
+    with patch(
+        "ska_ser_namespace_manager.controller.action_controller.match_namespace",  # pylint: disable=line-too-long # noqa: E501
+        return_value=True,
+    ), patch(
+        "ska_ser_namespace_manager.controller.action_controller.getattr",
+        return_value=phase_config,
+    ), caplog.at_level(logging.INFO):
+        action_controller._delete_namespaces_with_status(
+            NamespaceStatus.STALE.value
+        )
+
+    assert "had failing resources before deletion" not in caplog.text
+    action_controller.delete_namespace.assert_called_once_with(
+        "test-namespace"
+    )

@@ -27,7 +27,11 @@ from ska_ser_namespace_manager.core.types import (
     NamespaceAnnotations,
     NamespaceStatus,
 )
-from ska_ser_namespace_manager.core.utils import ALERT_SUGGESTIONS, utc
+from ska_ser_namespace_manager.core.utils import (
+    ALERT_SUGGESTIONS,
+    format_labels_resources,
+    utc,
+)
 from ska_ser_namespace_manager.metrics.metrics import MetricsManager
 
 
@@ -76,24 +80,7 @@ class ActionController(Notifier, LeaderController):
         Formats string based on the labels.
         Returns a string of resources in the format 'label=value'.
         """
-        resources = {
-            label: labels.get(label)
-            for label in [
-                "pod",
-                "deployment",
-                "statefulset",
-                "job",
-                "daemonset",
-                "container",
-                "persistentvolumeclaim",
-            ]
-            if labels.get(label)
-        }
-        failing_resources = ", ".join(
-            [f"{label}={value}" for label, value in resources.items()]
-        )
-
-        return failing_resources
+        return format_labels_resources(labels)
 
     def _process_failing_resources(self, resources_json=str) -> dict:
         """
@@ -138,6 +125,44 @@ class ActionController(Notifier, LeaderController):
             )
         return processed_alerts
 
+    def _summarize_failing_resources(self, resources_json: str) -> str:
+        """
+        Builds a human-readable summary of the failing resources recorded
+        in a namespace's annotation, supporting both the Kubernetes API
+        format (a list of resource name strings) and the Prometheus alerts
+        format (a list of alert dictionaries).
+
+        :param resources_json: JSON string from the failing_resources
+            annotation.
+        :return: Human-readable summary, or an empty string if there is
+            nothing to report.
+        """
+        if not resources_json:
+            return ""
+
+        try:
+            resources = json.loads(resources_json)
+        except json.JSONDecodeError:
+            return resources_json
+
+        if not resources:
+            return ""
+
+        if all(isinstance(item, str) for item in resources):
+            return ", ".join(resources)
+
+        summaries = []
+        for alert in resources:
+            alertname = alert.get("labels", {}).get("alertname", "unknown")
+            resource_str = self._format_labels_resources(
+                alert.get("labels", {})
+            )
+            summaries.append(
+                f"{alertname}: {resource_str}" if resource_str else alertname
+            )
+
+        return "; ".join(summaries)
+
     def _delete_namespaces_with_status(self, status: str):
         """
         Deletes namespaces with a particular status
@@ -180,6 +205,20 @@ class ActionController(Notifier, LeaderController):
                 )
                 continue
 
+            annotations = namespace.metadata.annotations or {}
+            failing_resources = self._summarize_failing_resources(
+                annotations.get(
+                    NamespaceAnnotations.FAILING_RESOURCES.value, ""
+                )
+            )
+            if failing_resources:
+                logging.info(
+                    "Namespace '%s' had failing resources before "
+                    "deletion: %s",
+                    namespace.metadata.name,
+                    failing_resources,
+                )
+
             logging.info(
                 "Deleting %s namespace '%s'",
                 status,
@@ -192,7 +231,6 @@ class ActionController(Notifier, LeaderController):
                 self.metrics_manager.record_namespace_deletion(status)
                 self.metrics_manager.save_metrics()
 
-            annotations = namespace.metadata.annotations or {}
             if phase_config.notify_on_delete:
                 self.notify_user(
                     address=annotations.get(
