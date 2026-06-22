@@ -2,7 +2,10 @@
 
 import pytest
 
-from ska_ser_namespace_manager.api.api_config import APIConfig
+from ska_ser_namespace_manager.api.api_config import (
+    APIConfig,
+    PeopleDatabaseConfig,
+)
 from ska_ser_namespace_manager.core.config import ConfigLoader
 
 
@@ -65,3 +68,32 @@ class TestAPIConfig:
         assert not config.ca_path
         assert not config.cert_path
         assert not config.key_path
+
+
+class TestPeopleDatabaseConfig:
+    def test_disabled_without_credentials(self):
+        config = PeopleDatabaseConfig(enabled=False)
+        assert not config.enabled
+        assert config.credentials is None
+        assert config.spreadsheet_id is None
+
+    def test_people_database_defaults_to_disabled(self):
+        ConfigLoader().dispose(APIConfig)
+        config = ConfigLoader().load(APIConfig, {"https_enabled": False})
+        assert config.people_database is not None
+        assert not config.people_database.enabled
+
+    def test_enabled_without_credentials_raises(self):
+        with pytest.raises(ValueError):
+            PeopleDatabaseConfig(enabled=True, spreadsheet_id="dummy")
+
+    def test_enabled_without_spreadsheet_id_raises(self):
+        with pytest.raises(ValueError):
+            PeopleDatabaseConfig(
+                enabled=True,
+                credentials={
+                    "project_id": "dummy",
+                    "private_key": "dummy",
+                    "client_email": "dummy",
+                },
+            )

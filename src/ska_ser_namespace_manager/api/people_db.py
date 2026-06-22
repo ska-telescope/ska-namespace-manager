@@ -28,6 +28,9 @@ class PeopleDB(PeopleDatabaseApi, metaclass=Singleton):  # pragma: no cover
         """
         config: APIConfig = ConfigLoader().load(APIConfig)
         self.config = config.people_database
+        if not self.config.enabled:
+            return
+
         PeopleDatabaseApi.__init__(
             self,
             service_account_data=self.config.credentials.model_dump(),

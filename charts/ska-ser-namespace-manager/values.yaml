@@ -40,6 +40,10 @@ api:
     http_port: 8080
     pki_path: /etc/pki
     people_database:
+      # Set enabled: false in environments that do not require the People
+      # Database; spreadsheet_id and credentials may then be omitted and the
+      # API still starts and passes its readiness probe.
+      enabled: true
       spreadsheet_id:
       spreadsheet_range: "System Team API!A2:Z1001"
       credentials:
