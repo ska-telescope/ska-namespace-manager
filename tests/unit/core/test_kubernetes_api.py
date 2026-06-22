@@ -8,20 +8,25 @@ from ska_ser_namespace_manager.core.kubernetes_api import KubernetesAPI
 
 @pytest.fixture
 def mock_kubernetes_api():
-    with patch(
-        "ska_ser_namespace_manager.core.kubernetes_api.client.CoreV1Api"
-    ) as MockCoreV1Api, patch(
-        "ska_ser_namespace_manager.core.kubernetes_api.client.AppsV1Api"
-    ) as MockAppsV1Api, patch(
-        "ska_ser_namespace_manager.core.kubernetes_api.client.BatchV1Api"
-    ) as MockBatchV1Api, patch(
-        "ska_ser_namespace_manager.core.kubernetes_api.config.load_kube_config",  # pylint: disable=line-too-long # noqa: E501
-        new_callable=MagicMock(),
-    ) as MockLoadKubeConfig, patch(
-        "ska_ser_namespace_manager.core.kubernetes_api.config.load_incluster_config",  # pylint: disable=line-too-long # noqa: E501
-        new_callable=MagicMock(),
-    ) as MockLoadInclusterConfig:
-
+    with (
+        patch(
+            "ska_ser_namespace_manager.core.kubernetes_api.client.CoreV1Api"
+        ) as MockCoreV1Api,
+        patch(
+            "ska_ser_namespace_manager.core.kubernetes_api.client.AppsV1Api"
+        ) as MockAppsV1Api,
+        patch(
+            "ska_ser_namespace_manager.core.kubernetes_api.client.BatchV1Api"
+        ) as MockBatchV1Api,
+        patch(
+            "ska_ser_namespace_manager.core.kubernetes_api.config.load_kube_config",  # pylint: disable=line-too-long # noqa: E501
+            new_callable=MagicMock(),
+        ) as MockLoadKubeConfig,
+        patch(
+            "ska_ser_namespace_manager.core.kubernetes_api.config.load_incluster_config",  # pylint: disable=line-too-long # noqa: E501
+            new_callable=MagicMock(),
+        ) as MockLoadInclusterConfig,
+    ):
         # Create mocks for the API instances
         mock_core_v1_api = MockCoreV1Api.return_value
         mock_apps_v1_api = MockAppsV1Api.return_value
@@ -102,9 +107,7 @@ def test_get_namespaces_empty(mock_kubernetes_api):
 def test_get_namespaces_failure(mock_kubernetes_api):
     mocks = mock_kubernetes_api
     mock_v1 = mocks["mock_core_v1_api"]
-    mock_v1.list_namespace.side_effect = Exception(
-        "Failed to fetch namespaces"
-    )
+    mock_v1.list_namespace.side_effect = Exception("Failed to fetch namespaces")
 
     api = KubernetesAPI()
     namespaces = api.get_namespaces()
@@ -126,9 +129,7 @@ def test_get_namespace_success(mock_kubernetes_api):
     api = KubernetesAPI()
     namespace = api.get_namespace("test")
     assert namespace.metadata.name == "test"
-    mock_v1.read_namespace.assert_called_once_with(
-        name="test", _request_timeout=10
-    )
+    mock_v1.read_namespace.assert_called_once_with(name="test", _request_timeout=10)
 
 
 def test_get_namespace_not_found(mock_kubernetes_api):
@@ -152,9 +153,7 @@ def test_get_namespace_failure(mock_kubernetes_api):
     api = KubernetesAPI()
     namespace = api.get_namespace("test")
     assert namespace is None
-    mock_v1.read_namespace.assert_called_once_with(
-        name="test", _request_timeout=10
-    )
+    mock_v1.read_namespace.assert_called_once_with(name="test", _request_timeout=10)
 
 
 # Test get_namespaces_by
@@ -278,9 +277,7 @@ def test_get_namespaces_by_failure(mock_kubernetes_api):
     mocks = mock_kubernetes_api
 
     mock_v1 = mocks["mock_core_v1_api"]
-    mock_v1.list_namespace.side_effect = Exception(
-        "Failed to fetch namespaces"
-    )
+    mock_v1.list_namespace.side_effect = Exception("Failed to fetch namespaces")
 
     api = KubernetesAPI()
     namespaces = api.get_namespaces_by()
@@ -407,9 +404,7 @@ def test_get_namespace_pods_by_empty(mock_kubernetes_api):
     mock_v1.list_namespaced_pod.return_value.items = []
 
     api = KubernetesAPI()
-    pods = api.get_namespace_pods_by(
-        namespace="default", labels={"env": "prod"}
-    )
+    pods = api.get_namespace_pods_by(namespace="default", labels={"env": "prod"})
     assert len(pods) == 0
     mock_v1.list_namespaced_pod.assert_called_once_with(
         namespace="default", label_selector="env=prod", _request_timeout=10
@@ -425,9 +420,7 @@ def test_get_namespace_pods_by_failure(mock_kubernetes_api):
     api = KubernetesAPI()
 
     pods = api.get_namespace_pods("default")
-    mock_v1.list_namespaced_pod.assert_called_once_with(
-        "default", _request_timeout=10
-    )
+    mock_v1.list_namespaced_pod.assert_called_once_with("default", _request_timeout=10)
     assert len(pods) == 0
 
 
@@ -479,12 +472,8 @@ def test_patch_namespace_success(mock_kubernetes_api):
     mock_v1 = mocks["mock_core_v1_api"]
 
     api = KubernetesAPI()
-    api.patch_namespace(
-        "default", labels={"env": "prod"}, annotations={"team": "dev"}
-    )
-    body = {
-        "metadata": {"labels": {"env": "prod"}, "annotations": {"team": "dev"}}
-    }
+    api.patch_namespace("default", labels={"env": "prod"}, annotations={"team": "dev"})
+    body = {"metadata": {"labels": {"env": "prod"}, "annotations": {"team": "dev"}}}
     mock_v1.patch_namespace.assert_called_once_with(
         name="default", body=body, _request_timeout=10
     )
@@ -493,14 +482,10 @@ def test_patch_namespace_success(mock_kubernetes_api):
 def test_patch_namespace_failure(mock_kubernetes_api):
     mocks = mock_kubernetes_api
     mock_v1 = mocks["mock_core_v1_api"]
-    mock_v1.patch_namespace.side_effect = Exception(
-        "Failed to patch namespace"
-    )
+    mock_v1.patch_namespace.side_effect = Exception("Failed to patch namespace")
 
     api = KubernetesAPI()
-    api.patch_namespace(
-        "default", labels={"env": "prod"}, annotations={"team": "dev"}
-    )
+    api.patch_namespace("default", labels={"env": "prod"}, annotations={"team": "dev"})
     mock_v1.patch_namespace.assert_called_once_with(
         name="default",
         body={
@@ -530,9 +515,7 @@ def test_delete_namespace_success(mock_kubernetes_api):
 def test_delete_namespace_failure(mock_kubernetes_api):
     mocks = mock_kubernetes_api
     mock_v1 = mocks["mock_core_v1_api"]
-    mock_v1.delete_namespace.side_effect = Exception(
-        "Failed to delete namespace"
-    )
+    mock_v1.delete_namespace.side_effect = Exception("Failed to delete namespace")
 
     api = KubernetesAPI()
     api.delete_namespace("default")
@@ -550,16 +533,12 @@ def test_get_cronjobs_by_success(mock_kubernetes_api):
     mock_batch_v1 = mocks["mock_batch_v1_api"]
     mock_batch_v1.list_namespaced_cron_job.return_value.items = [
         MagicMock(
-            metadata=MagicMock(
-                name="cronjob1", annotations={"cron-type": "daily"}
-            )
+            metadata=MagicMock(name="cronjob1", annotations={"cron-type": "daily"})
         )
     ]
 
     api = KubernetesAPI()
-    cronjobs = api.get_cronjobs_by(
-        "default", annotations={"cron-type": "daily"}
-    )
+    cronjobs = api.get_cronjobs_by("default", annotations={"cron-type": "daily"})
     assert len(cronjobs) == 1
     assert cronjobs[0].metadata.annotations["cron-type"] == "daily"
     mock_batch_v1.list_namespaced_cron_job.assert_called_once_with(
@@ -582,9 +561,7 @@ def test_get_cronjobs_by_exclude_labels(mock_kubernetes_api):
     mock_batch_v1.list_namespaced_cron_job.return_value.items = [mock_cronjob2]
 
     api = KubernetesAPI()
-    cronjobs = api.get_cronjobs_by(
-        namespace="default", exclude_labels={"env": "prod"}
-    )
+    cronjobs = api.get_cronjobs_by(namespace="default", exclude_labels={"env": "prod"})
 
     assert len(cronjobs) == 1
     assert cronjobs[0].metadata.name == "cronjob2"
@@ -746,9 +723,7 @@ def test_get_jobs_by_exclude_annotations(mock_kubernetes_api):
     mock_batch_v1.list_namespaced_job.return_value.items = [mock_job2]
 
     api = KubernetesAPI()
-    jobs = api.get_jobs_by(
-        namespace="default", exclude_annotations={"team": "dev"}
-    )
+    jobs = api.get_jobs_by(namespace="default", exclude_annotations={"team": "dev"})
 
     assert len(jobs) == 1
     assert jobs[0].metadata.name == "job2"
@@ -806,9 +781,7 @@ def test_get_jobs_by_empty(mock_kubernetes_api):
 def test_get_jobs_by_failure(mock_kubernetes_api):
     mocks = mock_kubernetes_api
     mock_batch_v1 = mocks["mock_batch_v1_api"]
-    mock_batch_v1.list_namespaced_job.side_effect = Exception(
-        "Failed to fetch jobs"
-    )
+    mock_batch_v1.list_namespaced_job.side_effect = Exception("Failed to fetch jobs")
 
     api = KubernetesAPI()
     jobs = api.get_jobs_by(namespace="default")

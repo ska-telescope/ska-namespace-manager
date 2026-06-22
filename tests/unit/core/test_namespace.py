@@ -110,9 +110,7 @@ def test_match_namespace():
             "matching": configs[1],
         },
         {
-            "namespace": Namespace(
-                name="namespace", annotations={"annotation": "0"}
-            ),
+            "namespace": Namespace(name="namespace", annotations={"annotation": "0"}),
             "matching": configs[1],
         },
         {
@@ -137,9 +135,7 @@ def test_match_namespace():
             "matching": None,
         },
         {
-            "namespace": Namespace(
-                name="namespace", annotations={"annotation": "1"}
-            ),
+            "namespace": Namespace(name="namespace", annotations={"annotation": "1"}),
             "matching": None,
         },
         {

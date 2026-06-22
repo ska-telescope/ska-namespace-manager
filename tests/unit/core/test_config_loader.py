@@ -182,9 +182,7 @@ class TestConfigLoader:
             ConfigLoader().dispose(LayeredConfig)
 
     def test_directory_ignores_hidden_and_non_yaml_files(self, tmp_path):
-        (tmp_path / "config.yml").write_text(
-            yaml.safe_dump({"string_field": "kept"})
-        )
+        (tmp_path / "config.yml").write_text(yaml.safe_dump({"string_field": "kept"}))
         # Mimic Kubernetes' ..data / ..2025_… symlinks and stray text files.
         (tmp_path / ".hidden.yml").write_text(
             yaml.safe_dump({"string_field": "should-be-ignored"})
@@ -208,9 +206,7 @@ class TestConfigLoader:
         (tmp_path / "00-base.yml").write_text(
             yaml.safe_dump({"string_field": "x", "items": ["a", "b"]})
         )
-        (tmp_path / "10-overlay.yml").write_text(
-            yaml.safe_dump({"items": ["c"]})
-        )
+        (tmp_path / "10-overlay.yml").write_text(yaml.safe_dump({"items": ["c"]}))
 
         try:
             config = ConfigLoader().load(LayeredConfig, str(tmp_path))
@@ -219,9 +215,7 @@ class TestConfigLoader:
             ConfigLoader().dispose(LayeredConfig)
 
     def test_directory_none_overlay_preserves_base(self, tmp_path):
-        (tmp_path / "00-base.yml").write_text(
-            yaml.safe_dump({"string_field": "base"})
-        )
+        (tmp_path / "00-base.yml").write_text(yaml.safe_dump({"string_field": "base"}))
         (tmp_path / "10-overlay.yml").write_text(
             yaml.safe_dump({"string_field": None, "int_field": 5})
         )

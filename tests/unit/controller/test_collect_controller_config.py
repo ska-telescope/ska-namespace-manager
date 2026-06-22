@@ -53,9 +53,7 @@ def test_collect_controller_config_heartbeat_overrides():
         }
     )
 
-    assert config.heartbeat.path == os.path.abspath(
-        "var/run/collect-heartbeat"
-    )
+    assert config.heartbeat.path == os.path.abspath("var/run/collect-heartbeat")
     assert config.heartbeat.max_age_seconds == 120
 
 
@@ -120,10 +118,7 @@ def test_collect_controller_config_stateful_set_name():
         }
     )
 
-    assert (
-        config.context.stateful_set_name
-        == "namespace-manager-collect-controller"
-    )
+    assert config.context.stateful_set_name == "namespace-manager-collect-controller"
 
 
 def test_collect_controller_config_namespace_check_defaults():

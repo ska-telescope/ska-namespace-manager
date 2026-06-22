@@ -150,9 +150,7 @@ def new_namespace_name(prefix: str, scenario: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def get_namespace(
-    core: client.CoreV1Api, name: str
-) -> Optional[client.V1Namespace]:
+def get_namespace(core: client.CoreV1Api, name: str) -> Optional[client.V1Namespace]:
     """Return the namespace object or ``None`` if it does not exist."""
     try:
         return core.read_namespace(name)
@@ -210,9 +208,7 @@ def wait_for_status(
     **wait_kwargs,
 ) -> None:
     """Poll the manager status annotation until it equals ``status``."""
-    logging.info(
-        "Waiting for namespace %s to reach status `%s`", namespace, status
-    )
+    logging.info("Waiting for namespace %s to reach status `%s`", namespace, status)
     wait_for(
         lambda: get_status_annotation(core, namespace) == status,
         description=f"namespace {namespace} status == {status}",
@@ -332,8 +328,7 @@ def api_get(
     """
     name = service_proxy_name(service)
     resource_path = (
-        f"/api/v1/namespaces/{namespace}"
-        f"/services/{name}/proxy/{path.lstrip('/')}"
+        f"/api/v1/namespaces/{namespace}/services/{name}/proxy/{path.lstrip('/')}"
     )
     query_params = [(k, v) for k, v in (query or {}).items() if v is not None]
     try:

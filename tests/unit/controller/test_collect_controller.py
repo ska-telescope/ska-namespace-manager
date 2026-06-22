@@ -43,9 +43,7 @@ def _make_pod(
     pod.metadata = MagicMock()
     pod.metadata.name = name
     pod.metadata.labels = labels or {}
-    pod.metadata.deletion_timestamp = (
-        datetime.now(timezone.utc) if deleting else None
-    )
+    pod.metadata.deletion_timestamp = datetime.now(timezone.utc) if deleting else None
     pod.spec = MagicMock()
     pod.spec.service_account_name = service_account_name
     return pod
@@ -137,9 +135,7 @@ def collect_controller_fixture(mock_collect_controller_config, tmp_path):
             mock_collect_controller_config
         )
 
-        collect_controller_instance = CollectController.__new__(
-            CollectController
-        )
+        collect_controller_instance = CollectController.__new__(CollectController)
 
         LeaderController.__init__(
             collect_controller_instance,
@@ -178,9 +174,7 @@ def test_check_new_namespaces(collect_controller):
     mock_namespace.metadata.name = "test-namespace"
     mock_namespace.metadata.annotations = {}
 
-    collect_controller.get_namespaces_by = MagicMock(
-        return_value=[mock_namespace]
-    )
+    collect_controller.get_namespaces_by = MagicMock(return_value=[mock_namespace])
     collect_controller.to_dto = MagicMock(
         return_value=Namespace(
             name="test-namespace",
@@ -220,9 +214,7 @@ def test_check_superseded_namespaces_groups_by_mr(collect_controller):
         labels=_ci_labels(branch="feature-b", mr_id="42", job_id="200"),
     )
     collect_controller.config.namespaces = [
-        CollectNamespaceConfig(
-            names=["ci-.*"], checks=CheckOptions(superseded=True)
-        )
+        CollectNamespaceConfig(names=["ci-.*"], checks=CheckOptions(superseded=True))
     ]
     collect_controller.get_namespaces_by = MagicMock(
         return_value=[old_namespace, new_namespace]
@@ -233,9 +225,7 @@ def test_check_superseded_namespaces_groups_by_mr(collect_controller):
 
     collect_controller.patch_namespace.assert_called_once()
     assert collect_controller.patch_namespace.call_args.args == ("ci-old",)
-    annotations = collect_controller.patch_namespace.call_args.kwargs[
-        "annotations"
-    ]
+    annotations = collect_controller.patch_namespace.call_args.kwargs["annotations"]
     assert (
         annotations[NamespaceAnnotations.STATUS.value]
         == NamespaceStatus.SUPERSEDED.value
@@ -259,9 +249,7 @@ def test_check_superseded_namespaces_groups_by_branch(collect_controller):
         labels=_ci_labels(branch="main", job_id="200"),
     )
     collect_controller.config.namespaces = [
-        CollectNamespaceConfig(
-            names=["ci-.*"], checks=CheckOptions(superseded=True)
-        )
+        CollectNamespaceConfig(names=["ci-.*"], checks=CheckOptions(superseded=True))
     ]
     collect_controller.get_namespaces_by = MagicMock(
         return_value=[old_namespace, new_namespace]
@@ -277,9 +265,7 @@ def test_check_superseded_namespaces_groups_by_branch(collect_controller):
 def test_check_superseded_namespaces_is_opt_in(collect_controller):
     """Superseded detection should do nothing unless checks enable it."""
     base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
-    collect_controller.config.namespaces = [
-        CollectNamespaceConfig(names=["ci-.*"])
-    ]
+    collect_controller.config.namespaces = [CollectNamespaceConfig(names=["ci-.*"])]
     collect_controller.get_namespaces_by = MagicMock(
         return_value=[
             _make_namespace("ci-old", base_time, labels=_ci_labels()),
@@ -301,15 +287,11 @@ def test_check_superseded_namespaces_keeps_newest(collect_controller):
     """Only the newest namespace in a CI group should remain current."""
     base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
     collect_controller.config.namespaces = [
-        CollectNamespaceConfig(
-            names=["ci-.*"], checks=CheckOptions(superseded=True)
-        )
+        CollectNamespaceConfig(names=["ci-.*"], checks=CheckOptions(superseded=True))
     ]
     collect_controller.get_namespaces_by = MagicMock(
         return_value=[
-            _make_namespace(
-                "ci-old", base_time, labels=_ci_labels(job_id="100")
-            ),
+            _make_namespace("ci-old", base_time, labels=_ci_labels(job_id="100")),
             _make_namespace(
                 "ci-middle",
                 base_time + timedelta(minutes=1),
@@ -327,8 +309,7 @@ def test_check_superseded_namespaces_keeps_newest(collect_controller):
     collect_controller.check_superseded_namespaces()
 
     assert [
-        call.args[0]
-        for call in collect_controller.patch_namespace.call_args_list
+        call.args[0] for call in collect_controller.patch_namespace.call_args_list
     ] == ["ci-old", "ci-middle"]
 
 
@@ -338,9 +319,7 @@ def test_check_superseded_namespaces_skips_missing_labels(
     """Namespaces missing CI identity labels should not be grouped."""
     base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
     collect_controller.config.namespaces = [
-        CollectNamespaceConfig(
-            names=["ci-.*"], checks=CheckOptions(superseded=True)
-        )
+        CollectNamespaceConfig(names=["ci-.*"], checks=CheckOptions(superseded=True))
     ]
     collect_controller.get_namespaces_by = MagicMock(
         return_value=[
@@ -365,15 +344,11 @@ def test_check_superseded_namespaces_patches_older_active_only(
     """Only older active namespaces should be patched as superseded."""
     base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
     collect_controller.config.namespaces = [
-        CollectNamespaceConfig(
-            names=["ci-.*"], checks=CheckOptions(superseded=True)
-        )
+        CollectNamespaceConfig(names=["ci-.*"], checks=CheckOptions(superseded=True))
     ]
     collect_controller.get_namespaces_by = MagicMock(
         return_value=[
-            _make_namespace(
-                "ci-old", base_time, labels=_ci_labels(job_id="100")
-            ),
+            _make_namespace("ci-old", base_time, labels=_ci_labels(job_id="100")),
             _make_namespace(
                 "ci-terminating",
                 base_time + timedelta(seconds=30),
@@ -385,9 +360,7 @@ def test_check_superseded_namespaces_patches_older_active_only(
                 base_time + timedelta(seconds=45),
                 labels=_ci_labels(job_id="300"),
                 annotations={
-                    NamespaceAnnotations.STATUS.value: (
-                        NamespaceStatus.CANCELLED.value
-                    )
+                    NamespaceAnnotations.STATUS.value: (NamespaceStatus.CANCELLED.value)
                 },
             ),
             _make_namespace(
@@ -402,8 +375,7 @@ def test_check_superseded_namespaces_patches_older_active_only(
     collect_controller.check_superseded_namespaces()
 
     assert [
-        call.args[0]
-        for call in collect_controller.patch_namespace.call_args_list
+        call.args[0] for call in collect_controller.patch_namespace.call_args_list
     ] == ["ci-old"]
 
 
@@ -413,9 +385,7 @@ def test_check_superseded_namespaces_ignores_newer_cancelled_namespace(
     """Cancelled namespaces should not supersede older active namespaces."""
     base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
     collect_controller.config.namespaces = [
-        CollectNamespaceConfig(
-            names=["ci-.*"], checks=CheckOptions(superseded=True)
-        )
+        CollectNamespaceConfig(names=["ci-.*"], checks=CheckOptions(superseded=True))
     ]
     collect_controller.get_namespaces_by = MagicMock(
         return_value=[
@@ -425,9 +395,7 @@ def test_check_superseded_namespaces_ignores_newer_cancelled_namespace(
                 base_time + timedelta(minutes=1),
                 labels=_ci_labels(),
                 annotations={
-                    NamespaceAnnotations.STATUS.value: (
-                        NamespaceStatus.CANCELLED.value
-                    )
+                    NamespaceAnnotations.STATUS.value: (NamespaceStatus.CANCELLED.value)
                 },
             ),
         ]
@@ -443,9 +411,7 @@ def test_check_superseded_namespaces_keeps_sibling_jobs(collect_controller):
     """Sibling jobs of the same pipeline should not supersede each other."""
     base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
     collect_controller.config.namespaces = [
-        CollectNamespaceConfig(
-            names=["ci-.*"], checks=CheckOptions(superseded=True)
-        )
+        CollectNamespaceConfig(names=["ci-.*"], checks=CheckOptions(superseded=True))
     ]
     collect_controller.get_namespaces_by = MagicMock(
         return_value=[
@@ -474,9 +440,7 @@ def test_check_superseded_namespaces_supersedes_same_job_redeploy(
     """A newer run of the same job should supersede the previous one."""
     base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
     collect_controller.config.namespaces = [
-        CollectNamespaceConfig(
-            names=["ci-.*"], checks=CheckOptions(superseded=True)
-        )
+        CollectNamespaceConfig(names=["ci-.*"], checks=CheckOptions(superseded=True))
     ]
     collect_controller.get_namespaces_by = MagicMock(
         return_value=[
@@ -497,8 +461,7 @@ def test_check_superseded_namespaces_supersedes_same_job_redeploy(
     collect_controller.check_superseded_namespaces()
 
     assert [
-        call.args[0]
-        for call in collect_controller.patch_namespace.call_args_list
+        call.args[0] for call in collect_controller.patch_namespace.call_args_list
     ] == ["ci-old"]
 
 
@@ -508,9 +471,7 @@ def test_check_superseded_namespaces_skips_namespaces_without_job(
     """Namespaces missing the job label should be skipped from supersession."""
     base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
     collect_controller.config.namespaces = [
-        CollectNamespaceConfig(
-            names=["ci-.*"], checks=CheckOptions(superseded=True)
-        )
+        CollectNamespaceConfig(names=["ci-.*"], checks=CheckOptions(superseded=True))
     ]
     collect_controller.get_namespaces_by = MagicMock(
         return_value=[
@@ -542,15 +503,11 @@ def test_check_superseded_namespaces_keeps_siblings_from_same_job(
     """
     base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
     collect_controller.config.namespaces = [
-        CollectNamespaceConfig(
-            names=["ci-.*"], checks=CheckOptions(superseded=True)
-        )
+        CollectNamespaceConfig(names=["ci-.*"], checks=CheckOptions(superseded=True))
     ]
     collect_controller.get_namespaces_by = MagicMock(
         return_value=[
-            _make_namespace(
-                "ci-a", base_time, labels=_ci_labels(job_id="100")
-            ),
+            _make_namespace("ci-a", base_time, labels=_ci_labels(job_id="100")),
             _make_namespace(
                 "ci-b",
                 base_time + timedelta(seconds=1),
@@ -574,15 +531,11 @@ def test_check_superseded_namespaces_supersedes_older_deployment(
     """
     base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
     collect_controller.config.namespaces = [
-        CollectNamespaceConfig(
-            names=["ci-.*"], checks=CheckOptions(superseded=True)
-        )
+        CollectNamespaceConfig(names=["ci-.*"], checks=CheckOptions(superseded=True))
     ]
     collect_controller.get_namespaces_by = MagicMock(
         return_value=[
-            _make_namespace(
-                "ci-old-a", base_time, labels=_ci_labels(job_id="100")
-            ),
+            _make_namespace("ci-old-a", base_time, labels=_ci_labels(job_id="100")),
             _make_namespace(
                 "ci-old-b",
                 base_time + timedelta(seconds=1),
@@ -605,8 +558,7 @@ def test_check_superseded_namespaces_supersedes_older_deployment(
     collect_controller.check_superseded_namespaces()
 
     assert sorted(
-        call.args[0]
-        for call in collect_controller.patch_namespace.call_args_list
+        call.args[0] for call in collect_controller.patch_namespace.call_args_list
     ) == ["ci-old-a", "ci-old-b"]
 
 
@@ -619,9 +571,7 @@ def test_check_superseded_namespaces_skips_when_job_id_missing(
     """
     base_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
     collect_controller.config.namespaces = [
-        CollectNamespaceConfig(
-            names=["ci-.*"], checks=CheckOptions(superseded=True)
-        )
+        CollectNamespaceConfig(names=["ci-.*"], checks=CheckOptions(superseded=True))
     ]
     collect_controller.get_namespaces_by = MagicMock(
         return_value=[
@@ -725,12 +675,8 @@ def test_reconcile_metrics_files_filters_active_app_components(
         namespace="default-namespace",
         labels={"app.kubernetes.io/instance": "ska-ser-namespace-manager"},
     )
-    delete_metrics_files = (
-        collect_controller.metrics_manager.delete_stale_metrics_files
-    )
-    delete_metrics_files.assert_called_once_with(
-        ["action-1", "api-1", "collect-1"]
-    )
+    delete_metrics_files = collect_controller.metrics_manager.delete_stale_metrics_files
+    delete_metrics_files.assert_called_once_with(["action-1", "api-1", "collect-1"])
 
 
 def test_get_collect_controller_pods_from_stateful_set(collect_controller):
@@ -756,9 +702,7 @@ def test_get_collect_controller_pods_falls_back_to_live_pods(
 ):
     """Live pod discovery should be used if the StatefulSet is unavailable."""
     collect_controller.config.context.stateful_set_name = "collect-controller"
-    collect_controller.get_namespaced_stateful_set = MagicMock(
-        return_value=None
-    )
+    collect_controller.get_namespaced_stateful_set = MagicMock(return_value=None)
     collect_controller.get_namespace_pods_by = MagicMock(
         return_value=[
             _make_pod("collect-1", "collect-ctl-sa"),
@@ -791,9 +735,7 @@ def test_get_assigned_managed_namespaces(collect_controller):
         for namespace in namespaces
         if (
             int(
-                hashlib.sha256(
-                    namespace.metadata.name.encode("utf-8")
-                ).hexdigest(),
+                hashlib.sha256(namespace.metadata.name.encode("utf-8")).hexdigest(),
                 16,
             )
             % 2
@@ -829,9 +771,7 @@ def test_get_assigned_managed_namespaces_uses_expected_ordinals(
         for namespace in namespaces
         if (
             int(
-                hashlib.sha256(
-                    namespace.metadata.name.encode("utf-8")
-                ).hexdigest(),
+                hashlib.sha256(namespace.metadata.name.encode("utf-8")).hexdigest(),
                 16,
             )
             % 2
@@ -855,9 +795,7 @@ def test_get_assigned_managed_namespaces_current_pod_outside_ordinals(
     namespace = MagicMock()
     namespace.metadata.name = "a"
 
-    assert (
-        collect_controller._get_assigned_managed_namespaces([namespace]) == []
-    )
+    assert collect_controller._get_assigned_managed_namespaces([namespace]) == []
 
 
 def test_get_assigned_managed_namespaces_current_pod_missing(
@@ -1043,9 +981,7 @@ def test_check_assigned_namespaces_removes_unassigned_thread(
 ):
     """Reconciliation should remove threads no longer assigned here."""
     collect_controller.get_namespaces_by = MagicMock(return_value=[])
-    collect_controller._get_assigned_managed_namespaces = MagicMock(
-        return_value=[]
-    )
+    collect_controller._get_assigned_managed_namespaces = MagicMock(return_value=[])
     collect_controller.namespace_check_threads = {
         "test-namespace": "namespace-check-test-namespace"
     }
@@ -1064,9 +1000,7 @@ def test_check_assigned_namespaces_updates_heartbeat_without_assignments(
 ):
     """Heartbeat should still refresh when nothing is assigned."""
     collect_controller.get_namespaces_by = MagicMock(return_value=[])
-    collect_controller._get_assigned_managed_namespaces = MagicMock(
-        return_value=[]
-    )
+    collect_controller._get_assigned_managed_namespaces = MagicMock(return_value=[])
 
     collect_controller.check_assigned_namespaces()
 
@@ -1078,9 +1012,7 @@ def test_check_assigned_namespaces_updates_heartbeat_without_peers(
 ):
     """Heartbeat should still refresh when peer discovery returns none."""
     collect_controller.get_namespaces_by = MagicMock(return_value=[])
-    collect_controller._get_collect_controller_pods = MagicMock(
-        return_value=[]
-    )
+    collect_controller._get_collect_controller_pods = MagicMock(return_value=[])
 
     collect_controller.check_assigned_namespaces()
 
@@ -1150,17 +1082,11 @@ def test_reconcile_metrics_files_deletes_files_for_inactive_pods(
 
     collect_controller.reconcile_metrics_files()
 
-    delete_metrics_files = (
-        collect_controller.metrics_manager.delete_stale_metrics_files
-    )
-    delete_metrics_files.assert_called_once_with(
-        ["action-1", "api-1", "collect-1"]
-    )
+    delete_metrics_files = collect_controller.metrics_manager.delete_stale_metrics_files
+    delete_metrics_files.assert_called_once_with(["action-1", "api-1", "collect-1"])
 
 
-def test_reconcile_metrics_files_skips_when_no_active_pods(
-    collect_controller, caplog
-):
+def test_reconcile_metrics_files_skips_when_no_active_pods(collect_controller, caplog):
     """Metrics reconciliation should not delete files without pod data."""
     collect_controller.get_namespace_pods_by = MagicMock(return_value=[])
     collect_controller.config.metrics.enabled = True
@@ -1169,9 +1095,7 @@ def test_reconcile_metrics_files_skips_when_no_active_pods(
 
     collect_controller.reconcile_metrics_files()
 
-    delete_metrics_files = (
-        collect_controller.metrics_manager.delete_stale_metrics_files
-    )
+    delete_metrics_files = collect_controller.metrics_manager.delete_stale_metrics_files
     delete_metrics_files.assert_not_called()
     assert (
         "Skipping metrics file reconciliation because no active "
@@ -1215,9 +1139,12 @@ def test_check_assigned_namespaces_continues_when_heartbeat_write_fails(
     )
     collect_controller.create_namespace_check_thread = MagicMock()
 
-    with patch.object(Path, "touch", side_effect=OSError("disk full")), patch(
-        "ska_ser_namespace_manager.controller.collect_controller.match_namespace",  # pylint: disable=line-too-long # noqa: E501
-        return_value=namespace_config,
+    with (
+        patch.object(Path, "touch", side_effect=OSError("disk full")),
+        patch(
+            "ska_ser_namespace_manager.controller.collect_controller.match_namespace",  # pylint: disable=line-too-long # noqa: E501
+            return_value=namespace_config,
+        ),
     ):
         collect_controller.check_assigned_namespaces()
 
@@ -1247,9 +1174,7 @@ def test_namespace_thread_stops_when_namespace_missing(
     task(stop_event, *task_args)
 
     collect_controller.run_namespace_check.assert_not_called()
-    record_result = (
-        collect_controller.metrics_manager.record_namespace_check_result
-    )
+    record_result = collect_controller.metrics_manager.record_namespace_check_result
     record_result.assert_not_called()
 
 
@@ -1259,9 +1184,7 @@ def test_namespace_thread_records_successful_check(
     """Successful per-namespace checks should record a success result."""
     namespace_resource = MagicMock()
     stop_event = threading.Event()
-    collect_controller.get_namespace = MagicMock(
-        return_value=namespace_resource
-    )
+    collect_controller.get_namespace = MagicMock(return_value=namespace_resource)
     collect_controller.run_namespace_check = MagicMock()
     collect_controller.metrics_manager = MagicMock()
     collect_controller.wait_for_task_stop = MagicMock(return_value=True)
@@ -1282,9 +1205,7 @@ def test_namespace_thread_records_failed_check(collect_controller, caplog):
     """Failed per-namespace checks should record a failure result."""
     namespace_resource = MagicMock()
     stop_event = threading.Event()
-    collect_controller.get_namespace = MagicMock(
-        return_value=namespace_resource
-    )
+    collect_controller.get_namespace = MagicMock(return_value=namespace_resource)
     collect_controller.run_namespace_check = MagicMock(
         side_effect=RuntimeError("collector failed")
     )
@@ -1301,7 +1222,4 @@ def test_namespace_thread_records_failed_check(collect_controller, caplog):
     collect_controller.metrics_manager.record_namespace_check_result.assert_called_once_with(  # pylint: disable=line-too-long # noqa: E501
         "failure"
     )
-    assert (
-        "Namespace check thread failed for namespace 'test-namespace'"
-        in caplog.text
-    )
+    assert "Namespace check thread failed for namespace 'test-namespace'" in caplog.text

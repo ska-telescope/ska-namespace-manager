@@ -58,9 +58,7 @@ class Controller(KubernetesAPI, ThreadManager):
 
 def controller_task(
     wrapped=None,
-    period: datetime.timedelta | Callable = datetime.timedelta(
-        milliseconds=1000
-    ),
+    period: datetime.timedelta | Callable = datetime.timedelta(milliseconds=1000),
 ):
     """
     controller_task decorator allows to wrap the looping behavior for tasks
@@ -79,9 +77,7 @@ def controller_task(
                 logging.debug(f"Starting task {wrapped.__name__}")
                 wrapped(*args, **kwargs)
             except Exception as exc:  # pylint: disable=broad-exception-caught
-                logging.error(
-                    "Failure in task '%s': %s", wrapped.__name__, exc
-                )
+                logging.error("Failure in task '%s': %s", wrapped.__name__, exc)
                 traceback.print_exception(exc)
 
             if instance.shutdown_event.wait(
@@ -99,9 +95,7 @@ def controller_task(
 
 def conditional_controller_task(
     wrapped=None,
-    period: datetime.timedelta | Callable = datetime.timedelta(
-        milliseconds=1000
-    ),
+    period: datetime.timedelta | Callable = datetime.timedelta(milliseconds=1000),
     run_if: Callable | bool | None = None,
 ):
     """
@@ -129,15 +123,11 @@ def conditional_controller_task(
 
             if run:
                 try:
-                    logging.debug(
-                        f"Starting conditional task {wrapped.__name__}"
-                    )
+                    logging.debug(f"Starting conditional task {wrapped.__name__}")
                     wrapped(*args, **kwargs)
                 # pylint: disable-next=broad-exception-caught
                 except Exception as exc:
-                    logging.error(
-                        "Failure in task '%s': %s", wrapped.__name__, exc
-                    )
+                    logging.error("Failure in task '%s': %s", wrapped.__name__, exc)
                     traceback.print_exception(exc)
 
             if instance.shutdown_event.wait(
@@ -147,9 +137,7 @@ def conditional_controller_task(
                     else period(instance)
                 )
             ):
-                logging.debug(
-                    f"Terminating conditional task {wrapped.__name__}"
-                )
+                logging.debug(f"Terminating conditional task {wrapped.__name__}")
                 break
 
     return wrapper(wrapped)  # pylint: disable=no-value-for-parameter

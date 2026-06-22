@@ -99,8 +99,7 @@ class LeaderLock:
                 lease_time = datetime.datetime.fromtimestamp(stat.st_atime)
                 if (datetime.datetime.now() - lease_time) > 2 * self.lease_ttl:
                     logging.warning(
-                        "Detected stale lease. Attempting to acquire"
-                        " stale lock ..."
+                        "Detected stale lease. Attempting to acquire stale lock ..."
                     )
                     with self.lease_lock.acquire(timeout=-1, blocking=False):
                         os.remove(self.lock_path)

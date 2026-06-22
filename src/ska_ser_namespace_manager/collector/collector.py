@@ -41,9 +41,7 @@ class Collector(KubernetesAPI):
     gitlab_config: GitLabConfig
     gitlab_pipeline_client: GitLabPipelineClient
 
-    def __init__(
-        self, config_class: T, kubeconfig: Optional[str] = None
-    ) -> None:
+    def __init__(self, config_class: T, kubeconfig: Optional[str] = None) -> None:
         """
         Initialize NamespaceCollector with the provided information
 
@@ -116,8 +114,7 @@ class Collector(KubernetesAPI):
         actions = self.get_actions()
         if action not in actions:
             raise ValueError(
-                f"Collector '{type(self).__name__}' does not support "
-                f"'{action}'"
+                f"Collector '{type(self).__name__}' does not support '{action}'"
             )
 
         actions[action](self, namespace, resolved_namespace)

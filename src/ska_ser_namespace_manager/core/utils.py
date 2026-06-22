@@ -58,14 +58,10 @@ def format_labels_resources(labels: dict) -> str:
         or an empty string if no resource labels are present.
     """
     resources = {
-        label: labels.get(label)
-        for label in RESOURCE_LABELS
-        if labels.get(label)
+        label: labels.get(label) for label in RESOURCE_LABELS if labels.get(label)
     }
 
-    return ", ".join(
-        [f"{label}={value}" for label, value in resources.items()]
-    )
+    return ", ".join([f"{label}={value}" for label, value in resources.items()])
 
 
 class Singleton(type):
@@ -78,9 +74,7 @@ class Singleton(type):
 
     def __call__(cls, *args, **kwargs):
         if cls not in cls._instances:
-            cls._instances[cls] = super(Singleton, cls).__call__(
-                *args, **kwargs
-            )
+            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
 
         return cls._instances[cls]
 
@@ -94,9 +88,7 @@ def deserialize_request(request: Request):  # pragma: no cover
     return json.dumps(
         {
             "url": str(request.url),
-            "headers": {
-                header[0]: header[1] for header in request.headers.items()
-            },
+            "headers": {header[0]: header[1] for header in request.headers.items()},
         },
         indent=4,
     )
@@ -112,9 +104,7 @@ def parse_timedelta(v: Any) -> datetime.timedelta:
     timedelta = str(v)
     return datetime.timedelta(
         **{
-            UNITS.get(m.group("unit").lower(), "seconds"): float(
-                m.group("val")
-            )
+            UNITS.get(m.group("unit").lower(), "seconds"): float(m.group("val"))
             for m in re.finditer(
                 r"(?P<val>\d+(\.\d+)?)(?P<unit>[smhdw])",
                 timedelta.replace(" ", ""),
@@ -153,9 +143,7 @@ def encode_slack_address(name: str, slack_id: str) -> str:
     :param slack_id: User slack id
     :return: Encoded address
     """
-    return base64.b64encode(f"{name}::{slack_id}".encode("utf-8")).decode(
-        "utf-8"
-    )
+    return base64.b64encode(f"{name}::{slack_id}".encode("utf-8")).decode("utf-8")
 
 
 def decode_slack_address(address: str) -> Tuple[str, str]:

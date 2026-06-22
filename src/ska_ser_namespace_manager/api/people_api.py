@@ -58,18 +58,14 @@ async def handle_get_user(
             matched_user = await people_db.get_user_by_email(email)
 
         if gitlab_handle:
-            matched_user = await people_db.get_user_by_gitlab_handle(
-                gitlab_handle
-            )
+            matched_user = await people_db.get_user_by_gitlab_handle(gitlab_handle)
 
         if slack_id:
             matched_user = await people_db.get_user_by_slack_id(slack_id)
 
     return JSONResponse(
         content=(
-            jsonable_encoder(matched_user)
-            if matched_user
-            else {"status": "not found"}
+            jsonable_encoder(matched_user) if matched_user else {"status": "not found"}
         ),
         status_code=(
             http.HTTPStatus.OK

@@ -20,7 +20,7 @@ k8s-test-runner:
 
 include:
   - project: "ska-telescope/templates-repository"
-    file: "gitlab-ci/includes/python.gitlab-ci.yml"
+    file: "gitlab-ci/includes/python-uv.gitlab-ci.yml"
 
   - project: "ska-telescope/templates-repository"
     file: "gitlab-ci/includes/helm-chart.gitlab-ci.yml"

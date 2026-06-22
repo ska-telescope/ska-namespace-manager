@@ -70,9 +70,7 @@ class NamespaceMatcher(BaseModel):
 T = TypeVar("T", bound=NamespaceMatcher)
 
 
-def match_condition(
-    namespace: Namespace, condition: NamespaceMatchingOptions
-) -> bool:
+def match_condition(namespace: Namespace, condition: NamespaceMatchingOptions) -> bool:
     """
     Check if namespace matches all provided conditions
     """
@@ -109,18 +107,14 @@ def match_namespace(configs: List[T], namespace: Namespace) -> T | None:
         score = 0
         if config.names:
             name_match = any(
-                re.fullmatch(pattern, namespace.name)
-                for pattern in config.names
+                re.fullmatch(pattern, namespace.name) for pattern in config.names
             )
             if name_match:
                 score += 1
 
         if config.any:
             any_match = (
-                any(
-                    (match_condition(namespace, condition))
-                    for condition in config.any
-                )
+                any((match_condition(namespace, condition)) for condition in config.any)
                 if config.any
                 else False
             )
@@ -129,10 +123,7 @@ def match_namespace(configs: List[T], namespace: Namespace) -> T | None:
                 score += 2
 
         all_match = (
-            all(
-                (match_condition(namespace, condition))
-                for condition in config.all
-            )
+            all((match_condition(namespace, condition)) for condition in config.all)
             if config.all
             else False
         )
@@ -152,10 +143,7 @@ def can_mark_superseded(namespace: client.V1Namespace) -> bool:
     """
     Check whether a namespace should be patched to superseded.
     """
-    if (
-        not getattr(getattr(namespace, "status", None), "phase", None)
-        == "Active"
-    ):
+    if not getattr(getattr(namespace, "status", None), "phase", None) == "Active":
         return False
 
     annotations = namespace.metadata.annotations or {}

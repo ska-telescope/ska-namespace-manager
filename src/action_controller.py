@@ -3,6 +3,7 @@
 action_controller provides the execution script for the ActionController
 component
 """
+
 import argparse
 
 from ska_ser_namespace_manager.controller.action_controller import (

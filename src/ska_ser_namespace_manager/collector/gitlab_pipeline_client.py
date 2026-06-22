@@ -91,9 +91,7 @@ class GitLabPipelineClient:
             loop.run_until_complete(self._initialize())
         except Exception as exc:  # pylint: disable=broad-exception-caught
             self._startup_error = exc
-            logging.error(
-                "Failed to initialize GitLab pipeline client: %s", exc
-            )
+            logging.error("Failed to initialize GitLab pipeline client: %s", exc)
             self._ready.set()
             return
 
@@ -189,9 +187,7 @@ class GitLabPipelineClient:
             if cached_status is not None and cached_status[0] == queued_at:
                 self._pipeline_status_cache.pop(oldest_key, None)
 
-    async def _get_pipeline_info(
-        self, project_id: str, pipeline_id: str
-    ) -> dict:
+    async def _get_pipeline_info(self, project_id: str, pipeline_id: str) -> dict:
         """
         Fetch pipeline info on the background loop.
         """
@@ -209,9 +205,7 @@ class GitLabPipelineClient:
         self._requests.put((project_id, pipeline_id, future))
         return future.result()
 
-    def get_pipeline_status(
-        self, project_id: str, pipeline_id: str
-    ) -> Optional[str]:
+    def get_pipeline_status(self, project_id: str, pipeline_id: str) -> Optional[str]:
         """
         Get a cached GitLab pipeline status.
         """

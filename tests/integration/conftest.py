@@ -75,9 +75,7 @@ def namespace_prefix() -> str:
 
 
 @pytest.fixture(scope="session")
-def api_service(
-    k8s_clients: Clients, manager_namespace: str
-) -> client.V1Service:
+def api_service(k8s_clients: Clients, manager_namespace: str) -> client.V1Service:
     """Return the manager's api Service object."""
     try:
         services = k8s_clients.core.list_namespaced_service(
@@ -181,8 +179,7 @@ def api_reachable(metrics_client: MetricsClient) -> None:
         )
     except (AssertionError, ApiException) as exc:
         pytest.skip(
-            f"Manager API endpoint not reachable, skipping integration "
-            f"suite: {exc}"
+            f"Manager API endpoint not reachable, skipping integration suite: {exc}"
         )
 
 
@@ -199,8 +196,6 @@ def people_identity() -> PeopleIdentity:
     resolved = {field: os.environ.get(env) for field, env in keys.items()}
     missing = [env for field, env in keys.items() if not resolved[field]]
     if missing:
-        pytest.skip(
-            "People API identity env vars not set: " + ", ".join(missing)
-        )
+        pytest.skip("People API identity env vars not set: " + ", ".join(missing))
 
     return PeopleIdentity(**resolved)

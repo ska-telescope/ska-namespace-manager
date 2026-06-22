@@ -25,9 +25,9 @@ class LeaderElectionConfig(BaseModel):
     path: str = "/etc/leader"
     lock_path: Optional[str] = None
     lease_path: Optional[str] = None
-    lease_ttl: Annotated[
-        datetime.timedelta, BeforeValidator(parse_timedelta)
-    ] = datetime.timedelta(seconds=5)
+    lease_ttl: Annotated[datetime.timedelta, BeforeValidator(parse_timedelta)] = (
+        datetime.timedelta(seconds=5)
+    )
 
     def model_post_init(self, _):
         self.lock_path = os.path.join(self.path, "lock")

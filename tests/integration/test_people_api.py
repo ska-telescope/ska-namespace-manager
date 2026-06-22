@@ -48,9 +48,7 @@ def test_people_api_resolves_identity(
     assert body["team"].lower() == people_identity.team.lower(), body
     assert body["slack_id"].lower() == people_identity.slack_id.lower(), body
     assert body["email"].lower() == people_identity.email.lower(), body
-    assert (
-        body["gitlab_handle"].lower() == people_identity.gitlab_handle.lower()
-    ), body
+    assert body["gitlab_handle"].lower() == people_identity.gitlab_handle.lower(), body
 
 
 def test_people_api_email_lookup_is_case_insensitive(
@@ -85,8 +83,8 @@ def test_people_api_email_lookup_is_case_insensitive(
         bodies[variant] = body
 
     for variant, body in bodies.items():
-        assert (
-            body["email"].lower() == expected_email
-        ), f"{variant}-case lookup returned {body!r}"
+        assert body["email"].lower() == expected_email, (
+            f"{variant}-case lookup returned {body!r}"
+        )
 
     assert bodies["upper"] == bodies["lower"], bodies

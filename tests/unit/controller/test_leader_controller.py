@@ -11,15 +11,19 @@ from ska_ser_namespace_manager.controller.leader_lock import LeaderLock
 
 @pytest.fixture
 def mock_kubernetes_api():
-    with patch(
-        "ska_ser_namespace_manager.controller.controller.KubernetesAPI",
-        autospec=True,
-    ) as mock_api_class, patch(
-        "ska_ser_namespace_manager.core.kubernetes_api.config.load_kube_config",  # pylint: disable=line-too-long # noqa: E501
-        new_callable=MagicMock(),
-    ), patch(
-        "ska_ser_namespace_manager.core.kubernetes_api.config.load_incluster_config",  # pylint: disable=line-too-long # noqa: E501
-        new_callable=MagicMock(),
+    with (
+        patch(
+            "ska_ser_namespace_manager.controller.controller.KubernetesAPI",
+            autospec=True,
+        ) as mock_api_class,
+        patch(
+            "ska_ser_namespace_manager.core.kubernetes_api.config.load_kube_config",  # pylint: disable=line-too-long # noqa: E501
+            new_callable=MagicMock(),
+        ),
+        patch(
+            "ska_ser_namespace_manager.core.kubernetes_api.config.load_incluster_config",  # pylint: disable=line-too-long # noqa: E501
+            new_callable=MagicMock(),
+        ),
     ):
         mock_api_instance = mock_api_class.return_value
         mock_api_instance.v1 = MagicMock()
@@ -37,12 +41,8 @@ def controller(mock_kubernetes_api):
     with patch(
         "ska_ser_namespace_manager.controller.controller.ConfigLoader"
     ) as mock_config_loader:
-        mock_config_loader.return_value.load.return_value = (
-            mock_config_instance
-        )
-        controller_instance = Controller(
-            config_class=mock_config_class, tasks=[]
-        )
+        mock_config_loader.return_value.load.return_value = mock_config_instance
+        controller_instance = Controller(config_class=mock_config_class, tasks=[])
         yield controller_instance
 
 
@@ -68,8 +68,7 @@ def test_leader_controller_acquire_lease_period(leader_controller):
         mock_lease_period * 2
     )
     assert (
-        leader_controller._LeaderController__acquire_lease_period()
-        == mock_lease_period
+        leader_controller._LeaderController__acquire_lease_period() == mock_lease_period
     )
 
 

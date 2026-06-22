@@ -75,9 +75,7 @@ def test_evaluate_namespace_health_filters_matching_datacentre():
         make_alert("other-namespace", "stfc-techops"),
     ]
 
-    collector._evaluate_namespace_health(
-        "ci-test", namespace, namespace_config, alerts
-    )
+    collector._evaluate_namespace_health("ci-test", namespace, namespace_config, alerts)
 
     collector._check_failure.assert_called_once_with(
         "ci-test",
@@ -94,9 +92,7 @@ def test_evaluate_namespace_health_ignores_different_datacentre():
     namespace_config = SimpleNamespace(ttl=None, checks=make_checks())
     alerts = [make_alert("ci-test", "other-site")]
 
-    collector._evaluate_namespace_health(
-        "ci-test", namespace, namespace_config, alerts
-    )
+    collector._evaluate_namespace_health("ci-test", namespace, namespace_config, alerts)
 
     collector._check_failure.assert_called_once_with(
         "ci-test", namespace_config, namespace, []
@@ -110,9 +106,7 @@ def test_evaluate_namespace_health_ignores_missing_datacentre():
     namespace_config = SimpleNamespace(ttl=None, checks=make_checks())
     alerts = [make_alert("ci-test")]
 
-    collector._evaluate_namespace_health(
-        "ci-test", namespace, namespace_config, alerts
-    )
+    collector._evaluate_namespace_health("ci-test", namespace, namespace_config, alerts)
 
     collector._check_failure.assert_called_once_with(
         "ci-test", namespace_config, namespace, []
@@ -132,9 +126,7 @@ def test_evaluate_namespace_health_without_datacentre():
         make_alert("other-namespace", "stfc-techops"),
     ]
 
-    collector._evaluate_namespace_health(
-        "ci-test", namespace, namespace_config, alerts
-    )
+    collector._evaluate_namespace_health("ci-test", namespace, namespace_config, alerts)
 
     collector._check_failure.assert_called_once_with(
         "ci-test",
@@ -168,21 +160,15 @@ def test_check_namespace_resolves_config_per_invocation():
     collector.check_namespace("ci-a", namespace_a)
     collector.check_namespace("ci-b", namespace_b)
 
-    assert collector.get_namespace_config.call_args_list[0].args == (
-        namespace_a,
-    )
-    assert collector.get_namespace_config.call_args_list[1].args == (
-        namespace_b,
-    )
+    assert collector.get_namespace_config.call_args_list[0].args == (namespace_a,)
+    assert collector.get_namespace_config.call_args_list[1].args == (namespace_b,)
     assert collector._evaluate_namespace_health.call_args_list[0].args[2].ttl
     assert collector._evaluate_namespace_health.call_args_list[1].args[2].ttl
     assert (
-        collector._evaluate_namespace_health.call_args_list[0].args[2].ttl
-        == "config-a"
+        collector._evaluate_namespace_health.call_args_list[0].args[2].ttl == "config-a"
     )
     assert (
-        collector._evaluate_namespace_health.call_args_list[1].args[2].ttl
-        == "config-b"
+        collector._evaluate_namespace_health.call_args_list[1].args[2].ttl == "config-b"
     )
 
 
@@ -210,18 +196,13 @@ def make_pipeline_namespace(status=NamespaceStatus.UNKNOWN.value):
     return namespace
 
 
-@pytest.mark.parametrize(
-    "pipeline_status", [CANCELED_STATUS, NOT_FOUND_STATUS]
-)
+@pytest.mark.parametrize("pipeline_status", [CANCELED_STATUS, NOT_FOUND_STATUS])
 def test_check_cancelled_pipeline_marks_cancelled(pipeline_status):
     """Cancelled or missing GitLab pipelines should cancel namespaces."""
     collector = make_gitlab_collector(status=pipeline_status)
     namespace = make_pipeline_namespace()
 
-    assert (
-        collector._check_cancelled_pipeline(namespace)
-        == NamespaceStatus.CANCELLED
-    )
+    assert collector._check_cancelled_pipeline(namespace) == NamespaceStatus.CANCELLED
     collector.gitlab_pipeline_client.get_pipeline_status.assert_called_once_with(  # pylint: disable=line-too-long # noqa: E501
         "123", "456"
     )
@@ -264,18 +245,14 @@ def test_evaluate_namespace_health_skips_cancelled_pipeline_by_default():
     )
 
 
-@pytest.mark.parametrize(
-    "pipeline_status", [CANCELED_STATUS, NOT_FOUND_STATUS]
-)
+@pytest.mark.parametrize("pipeline_status", [CANCELED_STATUS, NOT_FOUND_STATUS])
 def test_evaluate_namespace_health_checks_cancelled_when_enabled(
     pipeline_status,
 ):
     """Opted-in namespaces should check GitLab cancellation status."""
     collector = make_gitlab_collector(status=pipeline_status)
     namespace = make_pipeline_namespace()
-    namespace_config = SimpleNamespace(
-        ttl=None, checks=make_checks(cancelled=True)
-    )
+    namespace_config = SimpleNamespace(ttl=None, checks=make_checks(cancelled=True))
 
     status, annotations = collector._evaluate_namespace_health(
         "ci-test", namespace, namespace_config, alerts=[]
@@ -293,9 +270,7 @@ def test_evaluate_namespace_health_preserves_cancelled_after_gitlab_failure():
     """Already cancelled namespaces should stay cancelled on lookup failure."""
     collector = make_gitlab_collector(status=None)
     namespace = make_pipeline_namespace(status=NamespaceStatus.CANCELLED.value)
-    namespace_config = SimpleNamespace(
-        ttl=None, checks=make_checks(cancelled=True)
-    )
+    namespace_config = SimpleNamespace(ttl=None, checks=make_checks(cancelled=True))
 
     status, annotations = collector._evaluate_namespace_health(
         "ci-test", namespace, namespace_config, alerts=[]
@@ -311,12 +286,8 @@ def test_evaluate_namespace_health_preserves_cancelled_after_gitlab_failure():
 def test_evaluate_namespace_health_preserves_superseded():
     """Already superseded namespaces should stay superseded."""
     collector = make_gitlab_collector(status=CANCELED_STATUS)
-    namespace = make_pipeline_namespace(
-        status=NamespaceStatus.SUPERSEDED.value
-    )
-    namespace_config = SimpleNamespace(
-        ttl=None, checks=make_checks(cancelled=True)
-    )
+    namespace = make_pipeline_namespace(status=NamespaceStatus.SUPERSEDED.value)
+    namespace_config = SimpleNamespace(ttl=None, checks=make_checks(cancelled=True))
 
     status, annotations = collector._evaluate_namespace_health(
         "ci-test", namespace, namespace_config, alerts=[]

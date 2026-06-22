@@ -68,9 +68,7 @@ class ThreadManager:
             thread.join()
             logging.debug("Thread for task '%s' completed", task_name)
 
-    def wait_for_task_stop(
-        self, stop_event: threading.Event, timeout: float
-    ) -> bool:
+    def wait_for_task_stop(self, stop_event: threading.Event, timeout: float) -> bool:
         """
         Wait until either the controller or task stop event is set.
         """
@@ -94,9 +92,7 @@ class ThreadManager:
         with self._wake:
             self._wake.notify_all()
 
-    def __shutdown(
-        self, signum: int, frame
-    ) -> None:  # pylint: disable=unused-argument
+    def __shutdown(self, signum: int, frame) -> None:  # pylint: disable=unused-argument
         """
         Handle the shutdown signal.
 

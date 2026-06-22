@@ -111,18 +111,14 @@ class ActionController(Notifier, LeaderController):
 
             resource_str = self._format_labels_resources(alert["labels"])
             if resource_str:
-                processed_alerts[alertname]["failing_resources"].append(
-                    resource_str
-                )
+                processed_alerts[alertname]["failing_resources"].append(resource_str)
             runbook_url = alert["annotations"].get("runbook_url")
 
             if runbook_url:
                 processed_alerts[alertname]["runbook_url"] = runbook_url
 
         for alert_data in processed_alerts.values():
-            alert_data["failing_resources"] = "; ".join(
-                alert_data["failing_resources"]
-            )
+            alert_data["failing_resources"] = "; ".join(alert_data["failing_resources"])
         return processed_alerts
 
     def _summarize_failing_resources(self, resources_json: str) -> str:
@@ -154,9 +150,7 @@ class ActionController(Notifier, LeaderController):
         summaries = []
         for alert in resources:
             alertname = alert.get("labels", {}).get("alertname", "unknown")
-            resource_str = self._format_labels_resources(
-                alert.get("labels", {})
-            )
+            resource_str = self._format_labels_resources(alert.get("labels", {}))
             summaries.append(
                 f"{alertname}: {resource_str}" if resource_str else alertname
             )
@@ -181,15 +175,11 @@ class ActionController(Notifier, LeaderController):
         ]
 
         for namespace in namespaces:
-            ns_config = match_namespace(
-                self.config.namespaces, self.to_dto(namespace)
-            )
+            ns_config = match_namespace(self.config.namespaces, self.to_dto(namespace))
             if ns_config is None:
                 continue
 
-            phase_config: ActionNamespacePhaseConfig = getattr(
-                ns_config, status
-            )
+            phase_config: ActionNamespacePhaseConfig = getattr(ns_config, status)
             if not phase_config.delete:
                 logging.debug(
                     "Namespace '%s' is %s but won't be deleted",
@@ -207,14 +197,11 @@ class ActionController(Notifier, LeaderController):
 
             annotations = namespace.metadata.annotations or {}
             failing_resources = self._summarize_failing_resources(
-                annotations.get(
-                    NamespaceAnnotations.FAILING_RESOURCES.value, ""
-                )
+                annotations.get(NamespaceAnnotations.FAILING_RESOURCES.value, "")
             )
             if failing_resources:
                 logging.info(
-                    "Namespace '%s' had failing resources before "
-                    "deletion: %s",
+                    "Namespace '%s' had failing resources before deletion: %s",
                     namespace.metadata.name,
                     failing_resources,
                 )
@@ -295,18 +282,14 @@ class ActionController(Notifier, LeaderController):
                     ),
                     CicdAnnotations.NOTIFICATION_ADDRESS.value: ".+",
                 },
-                exclude_annotations={
-                    NamespaceAnnotations.NOTIFIED_TS.value: ".+"
-                },
+                exclude_annotations={NamespaceAnnotations.NOTIFIED_TS.value: ".+"},
             )
             if namespace.metadata.name not in self.forbidden_namespaces
         ]
 
         for namespace in namespaces:
             annotations = namespace.metadata.annotations or {}
-            ns_config = match_namespace(
-                self.config.namespaces, self.to_dto(namespace)
-            )
+            ns_config = match_namespace(self.config.namespaces, self.to_dto(namespace))
             if ns_config is None:
                 continue
 
@@ -314,16 +297,12 @@ class ActionController(Notifier, LeaderController):
             failing_resources = annotations.get(
                 NamespaceAnnotations.FAILING_RESOURCES.value
             )
-            phase_config: ActionNamespacePhaseConfig = getattr(
-                ns_config, status
-            )
+            phase_config: ActionNamespacePhaseConfig = getattr(ns_config, status)
             if not phase_config.notify_on_status:
                 continue
 
             if self.notify_user(
-                address=annotations.get(
-                    CicdAnnotations.NOTIFICATION_ADDRESS.value, ""
-                ),
+                address=annotations.get(CicdAnnotations.NOTIFICATION_ADDRESS.value, ""),
                 template=f"{status}-namespace-notification.j2",
                 status=status,
                 target_namespace=namespace.metadata.name,
@@ -340,9 +319,5 @@ class ActionController(Notifier, LeaderController):
                 alert_suggestions=ALERT_SUGGESTIONS,
             ):
                 annotations[NamespaceAnnotations.NOTIFIED_TS.value] = utc()
-                annotations[NamespaceAnnotations.NOTIFIED_STATUS.value] = (
-                    status
-                )
-                self.patch_namespace(
-                    namespace.metadata.name, annotations=annotations
-                )
+                annotations[NamespaceAnnotations.NOTIFIED_STATUS.value] = status
+                self.patch_namespace(namespace.metadata.name, annotations=annotations)

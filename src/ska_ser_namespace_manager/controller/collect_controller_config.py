@@ -66,9 +66,7 @@ class CollectNamespaceConfig(NamespaceMatcher):
     * checks: Optional namespace lifecycle checks
     """
 
-    ttl: (
-        Annotated[datetime.timedelta, BeforeValidator(parse_timedelta)] | None
-    ) = None
+    ttl: Annotated[datetime.timedelta, BeforeValidator(parse_timedelta)] | None = None
     settling_period: (
         Annotated[datetime.timedelta, BeforeValidator(parse_timedelta)] | None
     ) = datetime.timedelta(minutes=5)
@@ -79,9 +77,7 @@ class CollectNamespaceConfig(NamespaceMatcher):
     actions: Optional[Dict[CollectActions, CollectTaskConfig]] = None
 
     def model_post_init(self, _):
-        default_actions = {
-            action: CollectTaskConfig() for action in CollectActions
-        }
+        default_actions = {action: CollectTaskConfig() for action in CollectActions}
         if self.actions is None:
             self.actions = default_actions
         else:
@@ -89,9 +85,7 @@ class CollectNamespaceConfig(NamespaceMatcher):
                 self.actions[action] = CollectTaskConfig(
                     **{
                         **CollectTaskConfig().model_dump(),
-                        **self.actions.get(
-                            action, CollectTaskConfig()
-                        ).model_dump(),
+                        **self.actions.get(action, CollectTaskConfig()).model_dump(),
                     }
                 )
 
@@ -120,9 +114,7 @@ class PeopleAPIConfig(BaseModel):
             ) as cafile:
                 cafile.write(self.ca.encode("utf-8"))
                 self.ca_path = cafile.name
-                logging.info(
-                    "People API CA Certificate written to '%s'", self.ca_path
-                )
+                logging.info("People API CA Certificate written to '%s'", self.ca_path)
 
 
 class PrometheusConfig(BaseModel):
@@ -151,9 +143,7 @@ class PrometheusConfig(BaseModel):
             ) as cafile:
                 cafile.write(self.ca.encode("utf-8"))
                 self.ca_path = cafile.name
-                logging.info(
-                    "Prometheus CA Certificate written to '%s'", self.ca_path
-                )
+                logging.info("Prometheus CA Certificate written to '%s'", self.ca_path)
 
 
 class GitLabConfig(BaseModel):
@@ -173,13 +163,13 @@ class GitLabConfig(BaseModel):
     api_base: Optional[str] = "https://gitlab.com"
     requester: Optional[str] = ""
     private_token: Optional[str] = None
-    cache_ttl: Annotated[
-        datetime.timedelta, BeforeValidator(parse_timedelta)
-    ] = datetime.timedelta(minutes=5)
+    cache_ttl: Annotated[datetime.timedelta, BeforeValidator(parse_timedelta)] = (
+        datetime.timedelta(minutes=5)
+    )
     cache_max_entries: int = 10000
-    request_timeout: Annotated[
-        datetime.timedelta, BeforeValidator(parse_timedelta)
-    ] = datetime.timedelta(seconds=10)
+    request_timeout: Annotated[datetime.timedelta, BeforeValidator(parse_timedelta)] = (
+        datetime.timedelta(seconds=10)
+    )
 
     def model_post_init(self, _):
         if self.enabled and not self.private_token:

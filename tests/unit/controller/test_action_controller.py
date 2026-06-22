@@ -112,9 +112,7 @@ def action_controller(
         action_controller_instance.metrics_manager = MagicMock()
         action_controller_instance.leader_lock = MagicMock()
         action_controller_instance.shutdown_event = MagicMock()
-        action_controller_instance.shutdown_event.is_set = MagicMock(
-            return_value=False
-        )
+        action_controller_instance.shutdown_event.is_set = MagicMock(return_value=False)
         yield action_controller_instance
 
 
@@ -132,19 +130,20 @@ def test_action_controller_init():
         controller.kubeconfig = kubeconfig
         controller.config_class = config_class
 
-    with patch.object(
-        LeaderController, "__init__", autospec=True
-    ) as mock_leader_init, patch.object(
-        Notifier, "__init__", autospec=True, return_value=None
-    ) as notifier_init, patch(
-        "ska_ser_namespace_manager.controller.action_controller."
-        "os.environ.get",
-        side_effect=mock_environ_get,
-    ), patch(
-        "ska_ser_namespace_manager.controller.action_controller."
-        "MetricsManager",
-        autospec=True,
-    ) as metrics_manager:
+    with (
+        patch.object(LeaderController, "__init__", autospec=True) as mock_leader_init,
+        patch.object(
+            Notifier, "__init__", autospec=True, return_value=None
+        ) as notifier_init,
+        patch(
+            "ska_ser_namespace_manager.controller.action_controller.os.environ.get",
+            side_effect=mock_environ_get,
+        ),
+        patch(
+            "ska_ser_namespace_manager.controller.action_controller.MetricsManager",
+            autospec=True,
+        ) as metrics_manager,
+    ):
         mock_leader_init.side_effect = set_controller_config
         action_controller_instance = ActionController()
 
@@ -154,9 +153,7 @@ def test_action_controller_init():
         assert action_controller_instance.config == action_controller_config
 
         mock_leader_init.assert_called_once()
-        controller, config_class, tasks, kubeconfig = (
-            mock_leader_init.call_args.args
-        )
+        controller, config_class, tasks, kubeconfig = mock_leader_init.call_args.args
         assert controller == action_controller_instance
         assert config_class == ActionControllerConfig
         assert [task.__name__ for task in tasks] == [
@@ -167,9 +164,7 @@ def test_action_controller_init():
             "notify_status_namespaces",
         ]
         assert kubeconfig is None
-        assert action_controller_instance.current_pod_name == (
-            "action-controller-0"
-        )
+        assert action_controller_instance.current_pod_name == ("action-controller-0")
         metrics_manager.assert_called_once_with(
             action_controller_config.metrics,
             owner="action-controller-0",
@@ -220,9 +215,7 @@ def test_delete_namespaces_with_status_match(action_controller):
     }
     mock_namespace.status.phase = "Active"
 
-    action_controller.get_namespaces_by = MagicMock(
-        return_value=[mock_namespace]
-    )
+    action_controller.get_namespaces_by = MagicMock(return_value=[mock_namespace])
     action_controller.to_dto = MagicMock(
         return_value=Namespace(
             name="test-namespace",
@@ -239,20 +232,19 @@ def test_delete_namespaces_with_status_match(action_controller):
     phase_config.delete = True
     phase_config.notify_on_delete = True
 
-    with patch(
-        "ska_ser_namespace_manager.controller.action_controller.match_namespace",  # pylint: disable=line-too-long # noqa: E501
-        return_value=True,
-    ), patch(
-        "ska_ser_namespace_manager.controller.action_controller.getattr",
-        return_value=phase_config,
+    with (
+        patch(
+            "ska_ser_namespace_manager.controller.action_controller.match_namespace",  # pylint: disable=line-too-long # noqa: E501
+            return_value=True,
+        ),
+        patch(
+            "ska_ser_namespace_manager.controller.action_controller.getattr",
+            return_value=phase_config,
+        ),
     ):
-        action_controller._delete_namespaces_with_status(
-            NamespaceStatus.STALE.value
-        )
+        action_controller._delete_namespaces_with_status(NamespaceStatus.STALE.value)
 
-    action_controller.delete_namespace.assert_called_once_with(
-        "test-namespace"
-    )
+    action_controller.delete_namespace.assert_called_once_with("test-namespace")
     action_controller.metrics_manager.record_namespace_deletion.assert_called_once_with(  # pylint: disable=line-too-long # noqa: E501
         NamespaceStatus.STALE.value
     )
@@ -263,14 +255,10 @@ def test_delete_namespaces_with_status_match(action_controller):
 def test_delete_namespaces_with_status_match_no_notify(action_controller):
     mock_namespace = MagicMock()
     mock_namespace.metadata.name = "test-namespace"
-    mock_namespace.metadata.annotations = {
-        NamespaceAnnotations.STATUS.value: "stale"
-    }
+    mock_namespace.metadata.annotations = {NamespaceAnnotations.STATUS.value: "stale"}
     mock_namespace.status.phase = "Active"
 
-    action_controller.get_namespaces_by = MagicMock(
-        return_value=[mock_namespace]
-    )
+    action_controller.get_namespaces_by = MagicMock(return_value=[mock_namespace])
     action_controller.to_dto = MagicMock(
         return_value=Namespace(
             name="test-namespace",
@@ -285,18 +273,19 @@ def test_delete_namespaces_with_status_match_no_notify(action_controller):
     phase_config.delete = True
     phase_config.notify_on_delete = False
 
-    with patch(
-        "ska_ser_namespace_manager.controller.action_controller.match_namespace",  # pylint: disable=line-too-long # noqa: E501
-        return_value=True,
-    ), patch(
-        "ska_ser_namespace_manager.controller.action_controller.getattr",
-        return_value=phase_config,
+    with (
+        patch(
+            "ska_ser_namespace_manager.controller.action_controller.match_namespace",  # pylint: disable=line-too-long # noqa: E501
+            return_value=True,
+        ),
+        patch(
+            "ska_ser_namespace_manager.controller.action_controller.getattr",
+            return_value=phase_config,
+        ),
     ):
         action_controller._delete_namespaces_with_status("stale")
 
-    action_controller.delete_namespace.assert_called_once_with(
-        "test-namespace"
-    )
+    action_controller.delete_namespace.assert_called_once_with("test-namespace")
     action_controller.metrics_manager.record_namespace_deletion.assert_called_once_with(  # pylint: disable=line-too-long # noqa: E501
         NamespaceStatus.STALE.value
     )
@@ -309,15 +298,11 @@ def test_delete_namespaces_with_status_match_metrics_disabled(
 ):
     mock_namespace = MagicMock()
     mock_namespace.metadata.name = "test-namespace"
-    mock_namespace.metadata.annotations = {
-        NamespaceAnnotations.STATUS.value: "stale"
-    }
+    mock_namespace.metadata.annotations = {NamespaceAnnotations.STATUS.value: "stale"}
     mock_namespace.status.phase = "Active"
 
     action_controller.config.metrics.enabled = False
-    action_controller.get_namespaces_by = MagicMock(
-        return_value=[mock_namespace]
-    )
+    action_controller.get_namespaces_by = MagicMock(return_value=[mock_namespace])
     action_controller.to_dto = MagicMock(
         return_value=Namespace(
             name="test-namespace",
@@ -332,18 +317,19 @@ def test_delete_namespaces_with_status_match_metrics_disabled(
     phase_config.delete = True
     phase_config.notify_on_delete = False
 
-    with patch(
-        "ska_ser_namespace_manager.controller.action_controller.match_namespace",  # pylint: disable=line-too-long # noqa: E501
-        return_value=True,
-    ), patch(
-        "ska_ser_namespace_manager.controller.action_controller.getattr",
-        return_value=phase_config,
+    with (
+        patch(
+            "ska_ser_namespace_manager.controller.action_controller.match_namespace",  # pylint: disable=line-too-long # noqa: E501
+            return_value=True,
+        ),
+        patch(
+            "ska_ser_namespace_manager.controller.action_controller.getattr",
+            return_value=phase_config,
+        ),
     ):
         action_controller._delete_namespaces_with_status("stale")
 
-    action_controller.delete_namespace.assert_called_once_with(
-        "test-namespace"
-    )
+    action_controller.delete_namespace.assert_called_once_with("test-namespace")
     action_controller.metrics_manager.record_namespace_deletion.assert_not_called()  # pylint: disable=line-too-long # noqa: E501
     action_controller.metrics_manager.save_metrics.assert_not_called()
     action_controller.notify_user.assert_not_called()
@@ -352,14 +338,10 @@ def test_delete_namespaces_with_status_match_metrics_disabled(
 def test_delete_namespaces_with_status_match_no_delete(action_controller):
     mock_namespace = MagicMock()
     mock_namespace.metadata.name = "test-namespace"
-    mock_namespace.metadata.annotations = {
-        NamespaceAnnotations.STATUS.value: "stale"
-    }
+    mock_namespace.metadata.annotations = {NamespaceAnnotations.STATUS.value: "stale"}
     mock_namespace.status.phase = "Active"
 
-    action_controller.get_namespaces_by = MagicMock(
-        return_value=[mock_namespace]
-    )
+    action_controller.get_namespaces_by = MagicMock(return_value=[mock_namespace])
     action_controller.to_dto = MagicMock(
         return_value=Namespace(
             name="test-namespace",
@@ -374,12 +356,15 @@ def test_delete_namespaces_with_status_match_no_delete(action_controller):
     phase_config.delete = False
     phase_config.notify_on_delete = False
 
-    with patch(
-        "ska_ser_namespace_manager.controller.action_controller.match_namespace",  # pylint: disable=line-too-long # noqa: E501
-        return_value=True,
-    ), patch(
-        "ska_ser_namespace_manager.controller.action_controller.getattr",
-        return_value=phase_config,
+    with (
+        patch(
+            "ska_ser_namespace_manager.controller.action_controller.match_namespace",  # pylint: disable=line-too-long # noqa: E501
+            return_value=True,
+        ),
+        patch(
+            "ska_ser_namespace_manager.controller.action_controller.getattr",
+            return_value=phase_config,
+        ),
     ):
         action_controller._delete_namespaces_with_status("stale")
 
@@ -397,9 +382,7 @@ def test_delete_namespaces_with_status_terminating(action_controller):
     }
     mock_namespace.status.phase = "Terminating"
 
-    action_controller.get_namespaces_by = MagicMock(
-        return_value=[mock_namespace]
-    )
+    action_controller.get_namespaces_by = MagicMock(return_value=[mock_namespace])
     action_controller.to_dto = MagicMock(
         return_value=Namespace(
             name="test-namespace",
@@ -416,16 +399,17 @@ def test_delete_namespaces_with_status_terminating(action_controller):
     phase_config.delete = True
     phase_config.notify_on_delete = True
 
-    with patch(
-        "ska_ser_namespace_manager.controller.action_controller.match_namespace",  # pylint: disable=line-too-long # noqa: E501
-        return_value=True,
-    ), patch(
-        "ska_ser_namespace_manager.controller.action_controller.getattr",
-        return_value=phase_config,
+    with (
+        patch(
+            "ska_ser_namespace_manager.controller.action_controller.match_namespace",  # pylint: disable=line-too-long # noqa: E501
+            return_value=True,
+        ),
+        patch(
+            "ska_ser_namespace_manager.controller.action_controller.getattr",
+            return_value=phase_config,
+        ),
     ):
-        action_controller._delete_namespaces_with_status(
-            NamespaceStatus.STALE.value
-        )
+        action_controller._delete_namespaces_with_status(NamespaceStatus.STALE.value)
 
     action_controller.delete_namespace.assert_not_called()
     action_controller.metrics_manager.record_namespace_deletion.assert_not_called()  # pylint: disable=line-too-long # noqa: E501
@@ -499,9 +483,7 @@ def test_notify_status_namespaces_match(action_controller):
         NamespaceAnnotations.STATUS.value: NamespaceStatus.FAILING.value,
         CicdAnnotations.NOTIFICATION_ADDRESS.value: "test-address",
     }
-    action_controller.get_namespaces_by = MagicMock(
-        return_value=[mock_namespace]
-    )
+    action_controller.get_namespaces_by = MagicMock(return_value=[mock_namespace])
     action_controller.to_dto = MagicMock(
         return_value=Namespace(
             name="test-namespace",
@@ -519,12 +501,15 @@ def test_notify_status_namespaces_match(action_controller):
     action_controller.notify_user = MagicMock(return_value=True)
     action_controller.patch_namespace = MagicMock()
 
-    with patch(
-        "ska_ser_namespace_manager.controller.action_controller.match_namespace",  # pylint: disable=line-too-long # noqa: E501
-        return_value=True,
-    ), patch(
-        "ska_ser_namespace_manager.controller.action_controller.getattr",
-        return_value=phase_config,
+    with (
+        patch(
+            "ska_ser_namespace_manager.controller.action_controller.match_namespace",  # pylint: disable=line-too-long # noqa: E501
+            return_value=True,
+        ),
+        patch(
+            "ska_ser_namespace_manager.controller.action_controller.getattr",
+            return_value=phase_config,
+        ),
     ):
         action_controller.notify_status_namespaces()
 
@@ -540,9 +525,7 @@ def test_notify_status_namespaces_cancelled(action_controller):
         NamespaceAnnotations.STATUS.value: NamespaceStatus.CANCELLED.value,
         CicdAnnotations.NOTIFICATION_ADDRESS.value: "test-address",
     }
-    action_controller.get_namespaces_by = MagicMock(
-        return_value=[mock_namespace]
-    )
+    action_controller.get_namespaces_by = MagicMock(return_value=[mock_namespace])
     action_controller.to_dto = MagicMock(
         return_value=Namespace(
             name="test-namespace",
@@ -558,12 +541,15 @@ def test_notify_status_namespaces_cancelled(action_controller):
     action_controller.notify_user = MagicMock(return_value=True)
     action_controller.patch_namespace = MagicMock()
 
-    with patch(
-        "ska_ser_namespace_manager.controller.action_controller.match_namespace",  # pylint: disable=line-too-long # noqa: E501
-        return_value=True,
-    ), patch(
-        "ska_ser_namespace_manager.controller.action_controller.getattr",
-        return_value=phase_config,
+    with (
+        patch(
+            "ska_ser_namespace_manager.controller.action_controller.match_namespace",  # pylint: disable=line-too-long # noqa: E501
+            return_value=True,
+        ),
+        patch(
+            "ska_ser_namespace_manager.controller.action_controller.getattr",
+            return_value=phase_config,
+        ),
     ):
         action_controller.notify_status_namespaces()
 
@@ -583,17 +569,13 @@ def test_notify_status_namespaces_superseded(action_controller):
         NamespaceAnnotations.STATUS.value: NamespaceStatus.SUPERSEDED.value,
         CicdAnnotations.NOTIFICATION_ADDRESS.value: "test-address",
     }
-    action_controller.get_namespaces_by = MagicMock(
-        return_value=[mock_namespace]
-    )
+    action_controller.get_namespaces_by = MagicMock(return_value=[mock_namespace])
     action_controller.to_dto = MagicMock(
         return_value=Namespace(
             name="test-namespace",
             labels={},
             annotations={
-                NamespaceAnnotations.STATUS.value: (
-                    NamespaceStatus.SUPERSEDED.value
-                ),
+                NamespaceAnnotations.STATUS.value: (NamespaceStatus.SUPERSEDED.value),
                 CicdAnnotations.NOTIFICATION_ADDRESS.value: "test-address",
             },
         )
@@ -603,13 +585,15 @@ def test_notify_status_namespaces_superseded(action_controller):
     action_controller.notify_user = MagicMock(return_value=True)
     action_controller.patch_namespace = MagicMock()
 
-    with patch(
-        "ska_ser_namespace_manager.controller.action_controller."
-        "match_namespace",
-        return_value=True,
-    ), patch(
-        "ska_ser_namespace_manager.controller.action_controller.getattr",
-        return_value=phase_config,
+    with (
+        patch(
+            "ska_ser_namespace_manager.controller.action_controller.match_namespace",
+            return_value=True,
+        ),
+        patch(
+            "ska_ser_namespace_manager.controller.action_controller.getattr",
+            return_value=phase_config,
+        ),
     ):
         action_controller.notify_status_namespaces()
 
@@ -628,9 +612,7 @@ def test_notify_status_namespaces_match_no_notify(action_controller):
         NamespaceAnnotations.STATUS.value: "failing",
         CicdAnnotations.NOTIFICATION_ADDRESS.value: "test-address",
     }
-    action_controller.get_namespaces_by = MagicMock(
-        return_value=[mock_namespace]
-    )
+    action_controller.get_namespaces_by = MagicMock(return_value=[mock_namespace])
     action_controller.to_dto = MagicMock(
         return_value=Namespace(
             name="test-namespace",
@@ -649,12 +631,15 @@ def test_notify_status_namespaces_match_no_notify(action_controller):
     action_controller.notify_user = MagicMock(return_value=True)
     action_controller.patch_namespace = MagicMock()
 
-    with patch(
-        "ska_ser_namespace_manager.controller.action_controller.match_namespace",  # pylint: disable=line-too-long # noqa: E501
-        return_value=True,
-    ), patch(
-        "ska_ser_namespace_manager.controller.action_controller.getattr",
-        return_value=phase_config,
+    with (
+        patch(
+            "ska_ser_namespace_manager.controller.action_controller.match_namespace",  # pylint: disable=line-too-long # noqa: E501
+            return_value=True,
+        ),
+        patch(
+            "ska_ser_namespace_manager.controller.action_controller.getattr",
+            return_value=phase_config,
+        ),
     ):
         action_controller.notify_status_namespaces()
 
@@ -668,10 +653,7 @@ def test_summarize_failing_resources_empty(action_controller):
 
 
 def test_summarize_failing_resources_invalid_json(action_controller):
-    assert (
-        action_controller._summarize_failing_resources("not-json")
-        == "not-json"
-    )
+    assert action_controller._summarize_failing_resources("not-json") == "not-json"
 
 
 def test_summarize_failing_resources_string_list(action_controller):
@@ -708,19 +690,13 @@ def test_delete_namespaces_logs_failing_resources(action_controller, caplog):
     mock_namespace.metadata.name = "test-namespace"
     mock_namespace.metadata.annotations = {
         NamespaceAnnotations.STATUS.value: NamespaceStatus.FAILED.value,
-        NamespaceAnnotations.FAILING_RESOURCES.value: json.dumps(
-            ["my-deployment"]
-        ),
+        NamespaceAnnotations.FAILING_RESOURCES.value: json.dumps(["my-deployment"]),
     }
     mock_namespace.status.phase = "Active"
 
-    action_controller.get_namespaces_by = MagicMock(
-        return_value=[mock_namespace]
-    )
+    action_controller.get_namespaces_by = MagicMock(return_value=[mock_namespace])
     action_controller.to_dto = MagicMock(
-        return_value=Namespace(
-            name="test-namespace", labels={}, annotations={}
-        )
+        return_value=Namespace(name="test-namespace", labels={}, annotations={})
     )
     action_controller.delete_namespace = MagicMock()
     action_controller.notify_user = MagicMock()
@@ -729,28 +705,24 @@ def test_delete_namespaces_logs_failing_resources(action_controller, caplog):
     phase_config.delete = True
     phase_config.notify_on_delete = False
 
-    with patch(
-        "ska_ser_namespace_manager.controller.action_controller.match_namespace",  # pylint: disable=line-too-long # noqa: E501
-        return_value=True,
-    ), patch(
-        "ska_ser_namespace_manager.controller.action_controller.getattr",
-        return_value=phase_config,
-    ), caplog.at_level(logging.INFO):
-        action_controller._delete_namespaces_with_status(
-            NamespaceStatus.FAILED.value
-        )
+    with (
+        patch(
+            "ska_ser_namespace_manager.controller.action_controller.match_namespace",  # pylint: disable=line-too-long # noqa: E501
+            return_value=True,
+        ),
+        patch(
+            "ska_ser_namespace_manager.controller.action_controller.getattr",
+            return_value=phase_config,
+        ),
+        caplog.at_level(logging.INFO),
+    ):
+        action_controller._delete_namespaces_with_status(NamespaceStatus.FAILED.value)
 
-    assert (
-        "had failing resources before deletion: my-deployment" in caplog.text
-    )
-    action_controller.delete_namespace.assert_called_once_with(
-        "test-namespace"
-    )
+    assert "had failing resources before deletion: my-deployment" in caplog.text
+    action_controller.delete_namespace.assert_called_once_with("test-namespace")
 
 
-def test_delete_namespaces_no_failing_resources_no_log(
-    action_controller, caplog
-):
+def test_delete_namespaces_no_failing_resources_no_log(action_controller, caplog):
     mock_namespace = MagicMock()
     mock_namespace.metadata.name = "test-namespace"
     mock_namespace.metadata.annotations = {
@@ -758,13 +730,9 @@ def test_delete_namespaces_no_failing_resources_no_log(
     }
     mock_namespace.status.phase = "Active"
 
-    action_controller.get_namespaces_by = MagicMock(
-        return_value=[mock_namespace]
-    )
+    action_controller.get_namespaces_by = MagicMock(return_value=[mock_namespace])
     action_controller.to_dto = MagicMock(
-        return_value=Namespace(
-            name="test-namespace", labels={}, annotations={}
-        )
+        return_value=Namespace(name="test-namespace", labels={}, annotations={})
     )
     action_controller.delete_namespace = MagicMock()
     action_controller.notify_user = MagicMock()
@@ -773,18 +741,18 @@ def test_delete_namespaces_no_failing_resources_no_log(
     phase_config.delete = True
     phase_config.notify_on_delete = False
 
-    with patch(
-        "ska_ser_namespace_manager.controller.action_controller.match_namespace",  # pylint: disable=line-too-long # noqa: E501
-        return_value=True,
-    ), patch(
-        "ska_ser_namespace_manager.controller.action_controller.getattr",
-        return_value=phase_config,
-    ), caplog.at_level(logging.INFO):
-        action_controller._delete_namespaces_with_status(
-            NamespaceStatus.STALE.value
-        )
+    with (
+        patch(
+            "ska_ser_namespace_manager.controller.action_controller.match_namespace",  # pylint: disable=line-too-long # noqa: E501
+            return_value=True,
+        ),
+        patch(
+            "ska_ser_namespace_manager.controller.action_controller.getattr",
+            return_value=phase_config,
+        ),
+        caplog.at_level(logging.INFO),
+    ):
+        action_controller._delete_namespaces_with_status(NamespaceStatus.STALE.value)
 
     assert "had failing resources before deletion" not in caplog.text
-    action_controller.delete_namespace.assert_called_once_with(
-        "test-namespace"
-    )
+    action_controller.delete_namespace.assert_called_once_with("test-namespace")

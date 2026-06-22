@@ -1,10 +1,15 @@
 PROJECT = ska-ser-namespace-manager
 HELM_RELEASE ?= ska-ser-namespace-manager
 
+# Run docs (sphinx) through uv so it uses the project's .venv, where the
+# docs dependency group is installed. Without this, docs.mk falls back to the
+# system python3, which has no sphinx ("No module named sphinx").
+DOCS_PYTHON_RUNNER = uv run python3
+
 include .make/base.mk
 include .make/oci.mk
 include .make/k8s.mk
-include .make/python.mk
+include .make/python-uv.mk
 include .make/helm.mk
 
 -include PrivateRules.mak
@@ -34,13 +39,6 @@ endif
 K8S_EXTRA_VALUES ?=
 K8S_CHART_PARAMS += $(foreach extra_values_file,$(K8S_EXTRA_VALUES),-f <(envsubst < $(extra_values_file)))
 
-PYTHON_SWITCHES_FOR_PYLINT = \
-	--disable "fixme,duplicate-code,arguments-differ" \
-	--min-public-methods 0 \
-	--max-attributes 10 \
-	--max-positional-arguments 8 \
-	--max-args 8 \
-	--max-locals 20
 PYTHON_TEST_FILE = ./tests/unit
 PYTHON_VARS_AFTER_PYTEST = --disable-warnings
 K8S_TEST_TEST_COMMAND = $(PYTHON_VARS_BEFORE_PYTEST) $(PYTHON_RUNNER) \
