@@ -77,6 +77,10 @@ class TestPeopleDatabaseConfig:
         assert config.credentials is None
         assert config.spreadsheet_id is None
 
+    def test_default_people_database_config_requires_enabled_fields(self):
+        with pytest.raises(ValueError):
+            PeopleDatabaseConfig()
+
     def test_people_database_defaults_to_disabled(self):
         ConfigLoader().dispose(APIConfig)
         config = ConfigLoader().load(APIConfig, {"https_enabled": False})
@@ -97,3 +101,13 @@ class TestPeopleDatabaseConfig:
                     "client_email": "dummy",
                 },
             )
+
+    def test_empty_people_database_mapping_defaults_to_disabled(self):
+        config = ConfigLoader().load(
+            APIConfig,
+            {"https_enabled": False, "people_database": {}},
+        )
+
+        assert not config.people_database.enabled
+        assert config.people_database.credentials is None
+        assert config.people_database.spreadsheet_id is None

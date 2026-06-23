@@ -41,6 +41,6 @@ K8S_CHART_PARAMS += $(foreach extra_values_file,$(K8S_EXTRA_VALUES),-f <(envsubs
 
 PYTHON_TEST_FILE = ./tests/unit
 PYTHON_VARS_AFTER_PYTEST = --disable-warnings
-K8S_TEST_TEST_COMMAND = $(PYTHON_VARS_BEFORE_PYTEST) $(PYTHON_RUNNER) \
+K8S_TEST_TEST_COMMAND = $(PYTHON_VARS_BEFORE_PYTEST) $(K8S_TEST_PYTHON_RUNNER) \
 	pytest --disable-warnings ./tests/integration -v -s --log-cli-level=INFO \
 	| tee pytest.stdout

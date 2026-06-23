@@ -6,7 +6,7 @@ api component
 import os
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from ska_ser_namespace_manager.metrics.metrics_config import MetricsConfig
 
@@ -87,6 +87,18 @@ class APIConfig(BaseModel):
         default_factory=lambda: PeopleDatabaseConfig(enabled=False)
     )
     metrics: Optional[MetricsConfig] = MetricsConfig()
+
+    @model_validator(mode="before")
+    @classmethod
+    def disable_empty_people_database(cls, data):
+        """
+        Treats an explicitly empty people database mapping as disabled.
+        """
+        if isinstance(data, dict) and data.get("people_database") == {}:
+            data = dict(data)
+            data["people_database"] = {"enabled": False}
+
+        return data
 
     def model_post_init(self, _):
         if self.https_enabled:
