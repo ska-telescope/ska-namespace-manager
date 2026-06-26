@@ -28,15 +28,13 @@ class PeopleDB(metaclass=Singleton):  # pragma: no cover
         config: APIConfig = ConfigLoader().load(APIConfig)
         self.config = config.people_database
         self.api = None
-        if not self.config.enabled:
-            return
-
-        self.api = PeopleDatabaseApi(
-            service_account_data=self.config.credentials.model_dump(),
-            spreadsheet_id=self.config.spreadsheet_id,
-            spreadsheet_range=self.config.spreadsheet_range,
-            cache_ttl=self.config.cache_ttl,
-        )
+        if self.config.enabled:
+            self.api = PeopleDatabaseApi(
+                service_account_data=self.config.credentials.model_dump(),
+                spreadsheet_id=self.config.spreadsheet_id,
+                spreadsheet_range=self.config.spreadsheet_range,
+                cache_ttl=self.config.cache_ttl,
+            )
 
     async def refresh(self) -> bool:
         """

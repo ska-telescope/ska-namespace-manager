@@ -6,12 +6,12 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 from ska_cicd_services_api.people_database_api import PeopleDatabaseUser
+from src.api import app
 
 from ska_ser_namespace_manager.api.api_config import (
     GoogleServiceAccount,
     PeopleDatabaseConfig,
 )
-from src.api import app
 
 dummy_credentials = GoogleServiceAccount(
     project_id="dummy",

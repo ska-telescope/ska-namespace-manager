@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## 0.3.3 - 2026-06-26
+
+- **Allow to disable PeopleAPI**
+- **Improved logging**
+  - Added more explicit logging on faulty namespaces to aid in pinpointing reasons after a namespace is deleted
+
 ## 0.3.1 - 2026-05-26
 
 - **Allow secret injection from third-parties**

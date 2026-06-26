@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import pytest
 from kubernetes import client
-
 from tests.integration.utils import (
     Clients,
     PeopleIdentity,

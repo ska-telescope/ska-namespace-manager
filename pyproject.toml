@@ -51,8 +51,28 @@ url = "https://artefact.skao.int/repository/pypi-internal/simple"
 name = "PyPI-public"
 url = "https://pypi.org/simple"
 
+[tool.ruff]
+target-version = "py310"
+src = ["src", "tests"]
+# Submodule (.make) and the generated Sphinx docs tree (conf.py + committed
+# _build output) are not part of the project's lint scope.
+extend-exclude = [".make", "docs"]
+
 [tool.ruff.lint]
-select = ["E", "F", "W", "I"]
+# E,F,W  -> flake8 ; I -> isort ; PL -> pylint subset
+select = ["E", "F", "W", "I", "PL"]
+# Mirror the historical pylint config (.pylintrc disabled the C/R
+# categories wholesale and several design checks), so only keep the
+# pylint error/warning subset that was actually enforced before.
+ignore = [
+    "PLC",     # convention   (pylint: disable=C)
+    "PLR",     # refactor     (pylint: disable=R, incl. magic-value/too-many-*)
+    "PLW2901", # redefined-loop-name (not enforced previously)
+]
+
+[tool.ruff.lint.isort]
+# Match the previous isort "black" profile (line_length handled above).
+force-sort-within-sections = false
 
 [build-system]
 requires = ["uv_build>=0.10.10,<0.12.0"]

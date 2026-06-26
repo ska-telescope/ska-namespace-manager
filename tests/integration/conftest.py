@@ -20,7 +20,6 @@ from typing import Callable, Dict, Iterator, List, Optional
 import pytest
 from kubernetes import client
 from kubernetes.client.rest import ApiException
-
 from tests.integration.utils import (
     Clients,
     MetricsClient,

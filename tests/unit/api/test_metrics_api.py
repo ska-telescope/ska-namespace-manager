@@ -6,9 +6,9 @@ from unittest.mock import Mock, patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 from prometheus_client import CONTENT_TYPE_LATEST
+from src.api import app
 
 from ska_ser_namespace_manager.metrics.metrics_config import MetricsConfig
-from src.api import app
 
 
 @pytest.mark.asyncio
