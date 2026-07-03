@@ -29,7 +29,11 @@ from ska_ser_namespace_manager.core.types import (
     NamespaceAnnotations,
     NamespaceStatus,
 )
-from ska_ser_namespace_manager.core.utils import format_utc, utc
+from ska_ser_namespace_manager.core.utils import (
+    format_labels_resources,
+    format_utc,
+    utc,
+)
 
 
 class NamespaceCollector(Collector):
@@ -74,8 +78,7 @@ class NamespaceCollector(Collector):
         )
         if pipeline_status in [CANCELED_STATUS, NOT_FOUND_STATUS]:
             logging.info(
-                "Namespace '%s' originated from a cancelled or deleted "
-                "pipeline",
+                "Namespace '%s' originated from a cancelled or deleted pipeline",
                 namespace.metadata.name,
             )
 
@@ -178,9 +181,7 @@ class NamespaceCollector(Collector):
             logging.error(f"Error fetching alerts from Prometheus: {e}")
             return []
 
-    def _matches_alert_labels(
-        self, namespace: V1Namespace, alert: dict
-    ) -> bool:
+    def _matches_alert_labels(self, namespace: V1Namespace, alert: dict) -> bool:
         """
         Check whether a Prometheus alert applies to this namespace collector.
         """
@@ -212,9 +213,7 @@ class NamespaceCollector(Collector):
         creation_timestamp = namespace.metadata.creation_timestamp.replace(
             tzinfo=timezone.utc
         )
-        is_stale = (
-            datetime.now(pytz.UTC) - creation_timestamp >= namespace_config.ttl
-        )
+        is_stale = datetime.now(pytz.UTC) - creation_timestamp >= namespace_config.ttl
         ttl_timeframe = format_timespan(namespace_config.ttl)
         annotations = {}
         if is_stale:
@@ -227,9 +226,7 @@ class NamespaceCollector(Collector):
 
         return is_stale, annotations
 
-    def _check_resource_status(
-        self, namespace: str, resource_type: str
-    ) -> List[str]:
+    def _check_resource_status(self, namespace: str, resource_type: str) -> List[str]:
         """
         Check if any resources of the given type in the specified namespace
         have errors.
@@ -271,9 +268,7 @@ class NamespaceCollector(Collector):
                     )
 
         except Exception as exc:  # pylint: disable=broad-exception-caught
-            logging.error(
-                "Exception when retrieving %s: %s", resource_type, exc
-            )
+            logging.error("Exception when retrieving %s: %s", resource_type, exc)
             traceback.print_exception(exc)
 
         return failing_resources
@@ -285,9 +280,7 @@ class NamespaceCollector(Collector):
             set(
                 resource
                 for resource_type in resource_types
-                for resource in self._check_resource_status(
-                    namespace, resource_type
-                )
+                for resource in self._check_resource_status(namespace, resource_type)
             )
         )
 
@@ -306,7 +299,16 @@ class NamespaceCollector(Collector):
                 )
                 return False
         else:
-            logging.warning("Alert '%s' is firing.", alert_identifier)
+            resources = format_labels_resources(alert["labels"])
+            if resources:
+                logging.warning(
+                    "Alert '%s' is firing for %s.",
+                    alert_identifier,
+                    resources,
+                )
+            else:
+                logging.warning("Alert '%s' is firing.", alert_identifier)
+
         return True
 
     def _process_alerts(self, alerts: list) -> List[dict]:
@@ -322,9 +324,7 @@ class NamespaceCollector(Collector):
                 alert_data = {
                     "labels": alert["labels"],
                     "annotations": {
-                        "runbook_url": alert["annotations"].get(
-                            "runbook_url", ""
-                        ),
+                        "runbook_url": alert["annotations"].get("runbook_url", ""),
                     },
                 }
                 alerts_processed.append(dict(alert_data))
@@ -344,9 +344,7 @@ class NamespaceCollector(Collector):
         try:
             period = getattr(namespace_config, period_type)
         except AttributeError as e:
-            logging.error(
-                "Namespace configuration has no %s attribute.", period_type
-            )
+            logging.error("Namespace configuration has no %s attribute.", period_type)
             raise AttributeError from e
 
         time_instant = status_timestamp + period
@@ -376,19 +374,13 @@ class NamespaceCollector(Collector):
         ]:
             return NamespaceStatus.UNSTABLE
 
-        if (
-            current_status == NamespaceStatus.UNSTABLE
-            and self._is_after_period(
-                "settling_period", annotations, namespace_config
-            )
+        if current_status == NamespaceStatus.UNSTABLE and self._is_after_period(
+            "settling_period", annotations, namespace_config
         ):
             return NamespaceStatus.FAILING
 
-        if (
-            current_status == NamespaceStatus.FAILING
-            and self._is_after_period(
-                "grace_period", annotations, namespace_config
-            )
+        if current_status == NamespaceStatus.FAILING and self._is_after_period(
+            "grace_period", annotations, namespace_config
         ):
             return NamespaceStatus.FAILED
 
@@ -418,9 +410,7 @@ class NamespaceCollector(Collector):
             failing_resources = self._process_alerts(alerts)
 
         new_annotations = {
-            NamespaceAnnotations.FAILING_RESOURCES.value: json.dumps(
-                failing_resources
-            )
+            NamespaceAnnotations.FAILING_RESOURCES.value: json.dumps(failing_resources)
         }
         if len(failing_resources) == 0:
             return NamespaceStatus.OK, new_annotations
@@ -478,9 +468,7 @@ class NamespaceCollector(Collector):
             namespace_name, namespace_config, namespace, matching_alerts
         )
 
-    def check_namespace(
-        self, namespace_name: str, namespace: V1Namespace
-    ) -> None:
+    def check_namespace(self, namespace_name: str, namespace: V1Namespace) -> None:
         """
         Check the namespace for staleness and failures throught Prometheus
         alerts or fallback to kubernetes API.

@@ -47,9 +47,7 @@ class PrometheusMetricsHelper:
         return restore_map
 
     @staticmethod
-    def _get_sample_labels(
-        metric: Collector, labels: dict[str, str]
-    ) -> dict[str, str]:
+    def _get_sample_labels(metric: Collector, labels: dict[str, str]) -> dict[str, str]:
         """
         Get labels that belong to the collector rather than the sample.
         """
@@ -82,9 +80,7 @@ class PrometheusMetricsHelper:
         Restore Gauge samples from a parsed Prometheus metric family.
         """
         for sample in family.samples:
-            labels = PrometheusMetricsHelper._get_sample_labels(
-                metric, sample.labels
-            )
+            labels = PrometheusMetricsHelper._get_sample_labels(metric, sample.labels)
             child = PrometheusMetricsHelper._get_metric_child(metric, labels)
             child.set(sample.value)
 
@@ -97,9 +93,7 @@ class PrometheusMetricsHelper:
             if not sample.name.endswith("_total"):
                 continue
 
-            labels = PrometheusMetricsHelper._get_sample_labels(
-                metric, sample.labels
-            )
+            labels = PrometheusMetricsHelper._get_sample_labels(metric, sample.labels)
             child = PrometheusMetricsHelper._get_metric_child(metric, labels)
             PrometheusMetricsHelper._set_metric_value(child, sample.value)
 
@@ -109,9 +103,7 @@ class PrometheusMetricsHelper:
         Restore Summary samples from a parsed Prometheus metric family.
         """
         for sample in family.samples:
-            labels = PrometheusMetricsHelper._get_sample_labels(
-                metric, sample.labels
-            )
+            labels = PrometheusMetricsHelper._get_sample_labels(metric, sample.labels)
             child = PrometheusMetricsHelper._get_metric_child(metric, labels)
             if sample.name.endswith("_count"):
                 getattr(child, "_count").set(sample.value)
@@ -168,16 +160,12 @@ class PrometheusMetricsHelper:
             tuple[dict[float, float], float | None],
         ] = {}
         for sample in family.samples:
-            labels = PrometheusMetricsHelper._get_sample_labels(
-                metric, sample.labels
-            )
+            labels = PrometheusMetricsHelper._get_sample_labels(metric, sample.labels)
             group_key = tuple(sorted(labels.items()))
             bucket_values, sample_sum = groups.get(group_key, ({}, None))
             if sample.name.endswith("_bucket"):
                 bucket_values[
-                    PrometheusMetricsHelper._parse_histogram_bound(
-                        sample.labels["le"]
-                    )
+                    PrometheusMetricsHelper._parse_histogram_bound(sample.labels["le"])
                 ] = sample.value
             if sample.name.endswith("_sum"):
                 sample_sum = sample.value
@@ -196,9 +184,7 @@ class PrometheusMetricsHelper:
         """
         label_names = set(PrometheusMetricsHelper.get_label_names(metric))
         for sample in family.samples:
-            labels = PrometheusMetricsHelper._get_sample_labels(
-                metric, sample.labels
-            )
+            labels = PrometheusMetricsHelper._get_sample_labels(metric, sample.labels)
             info_labels = {
                 key: value
                 for key, value in sample.labels.items()
@@ -217,9 +203,7 @@ class PrometheusMetricsHelper:
             if sample.value != 1:
                 continue
 
-            labels = PrometheusMetricsHelper._get_sample_labels(
-                metric, sample.labels
-            )
+            labels = PrometheusMetricsHelper._get_sample_labels(metric, sample.labels)
             child = PrometheusMetricsHelper._get_metric_child(metric, labels)
             child.state(sample.labels[family_name])
 
@@ -280,9 +264,7 @@ class PrometheusMetricsHelper:
         """
         Restore known metric samples from Prometheus text content.
         """
-        restore_map = PrometheusMetricsHelper._build_metric_restore_map(
-            metrics
-        )
+        restore_map = PrometheusMetricsHelper._build_metric_restore_map(metrics)
         for family in text_string_to_metric_families(metrics_content):
             if family.name.endswith("_created"):
                 base_name = family.name[: -len("_created")]
@@ -291,9 +273,7 @@ class PrometheusMetricsHelper:
 
             metric_definition = restore_map.get(family.name)
             if metric_definition is None:
-                logging.warning(
-                    "Unrecognized or unsupported metric: %s", family.name
-                )
+                logging.warning("Unrecognized or unsupported metric: %s", family.name)
                 continue
 
             metric, expected_type = metric_definition
@@ -316,9 +296,7 @@ class PrometheusMetricsHelper:
         Restore metrics from a Prometheus textfile.
         """
         with open(metrics_file, "r", encoding="utf-8") as file_handle:
-            PrometheusMetricsHelper.restore_metrics(
-                metrics, file_handle.read()
-            )
+            PrometheusMetricsHelper.restore_metrics(metrics, file_handle.read())
 
     @staticmethod
     def write_metrics_file(

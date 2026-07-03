@@ -179,6 +179,12 @@ Runtime configuration is provided through the Helm chart in
 The default values manage `ci-.*` namespaces and enable Prometheus metrics. The
 cancelled and superseded checks are configurable per namespace matcher.
 
+The People database is optional. Environments that do not require it can set
+`api.config.people_database.enabled: false`, in which case `spreadsheet_id` and
+`credentials` may be omitted — the API still starts and passes its readiness
+probe, and `GET /api/people` responds with `not found`. When
+`enabled: true` (the default), `spreadsheet_id` and credentials must be provided.
+
 ### Layered configuration via VaultStaticSecret
 
 Each component reads every YAML file found in `CONFIG_PATH` (`/etc/config` by

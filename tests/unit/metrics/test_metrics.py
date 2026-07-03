@@ -77,9 +77,7 @@ def parse_metric_samples(metrics_output):
     samples = {}
     for family in text_string_to_metric_families(metrics_output):
         for sample in family.samples:
-            samples[(sample.name, tuple(sorted(sample.labels.items())))] = (
-                sample.value
-            )
+            samples[(sample.name, tuple(sorted(sample.labels.items())))] = sample.value
 
     return samples
 
@@ -169,10 +167,7 @@ def test_update_metrics(metrics_manager):
         "projectId": "654321",
         "namespace": "test-namespace",
     }
-    assert (
-        parsed_metrics["namespace_manager_ns_status"]["labels"]
-        == expected_labels
-    )
+    assert parsed_metrics["namespace_manager_ns_status"]["labels"] == expected_labels
     assert parsed_metrics["namespace_manager_ns_status"]["value"] == 2.0
 
 
@@ -271,10 +266,7 @@ def test_save_metrics(metrics_manager, temp_metrics_path):
         "projectId": "0654321",
         "namespace": "test-namespace",
     }
-    assert (
-        parsed_metrics["namespace_manager_ns_status"]["labels"]
-        == expected_labels
-    )
+    assert parsed_metrics["namespace_manager_ns_status"]["labels"] == expected_labels
     assert parsed_metrics["namespace_manager_ns_status"]["value"] == 0.0
 
 
@@ -306,10 +298,7 @@ def test_load_metrics(metrics_manager, temp_metrics_path):
         "projectId": "123",
         "namespace": "test-namespace",
     }
-    assert (
-        parsed_metrics["namespace_manager_ns_status"]["labels"]
-        == expected_labels
-    )
+    assert parsed_metrics["namespace_manager_ns_status"]["labels"] == expected_labels
     assert parsed_metrics["namespace_manager_ns_status"]["value"] == 0.0
 
 
@@ -337,9 +326,7 @@ def test_metrics_manager_restores_metrics_on_instantiation(
                 CicdLabels.PIPELINE_ID.value: "123456",
                 CicdLabels.PROJECT_ID.value: "654321",
             },
-            annotations={
-                NamespaceAnnotations.STATUS.value: NamespaceStatus.OK.value
-            },
+            annotations={NamespaceAnnotations.STATUS.value: NamespaceStatus.OK.value},
         )
     )
     metrics_manager.update_namespace_metrics(test_namespace)
@@ -424,9 +411,7 @@ def test_delete_stale_metrics_removes_unassigned_namespace(metrics_manager):
                 CicdLabels.PIPELINE_ID.value: "123456",
                 CicdLabels.PROJECT_ID.value: "654321",
             },
-            annotations={
-                NamespaceAnnotations.STATUS.value: NamespaceStatus.OK.value
-            },
+            annotations={NamespaceAnnotations.STATUS.value: NamespaceStatus.OK.value},
         )
     )
     stale_namespace = V1Namespace(
@@ -476,9 +461,7 @@ def test_delete_stale_metrics_files_removes_inactive_pod_files(
     ]:
         metrics_file.write_text("test", encoding="utf-8")
 
-    deleted_files = metrics_manager.delete_stale_metrics_files(
-        ["api-1", "collect-1"]
-    )
+    deleted_files = metrics_manager.delete_stale_metrics_files(["api-1", "collect-1"])
 
     assert deleted_files == ["old-pod.prom"]
     assert active_api_file.exists()
@@ -511,9 +494,7 @@ def test_delete_stale_metrics_files_logs_delete_errors(
     stale_file = Path(temp_metrics_path) / "old-pod.prom"
     stale_file.write_text("test", encoding="utf-8")
 
-    with patch.object(
-        Path, "unlink", side_effect=OSError("permission denied")
-    ):
+    with patch.object(Path, "unlink", side_effect=OSError("permission denied")):
         deleted_files = metrics_manager.delete_stale_metrics_files(["api-1"])
 
     assert deleted_files == []
@@ -539,9 +520,7 @@ def test_get_merged_metrics_reads_multiple_fresh_files(temp_metrics_path):
                 CicdLabels.PIPELINE_ID.value: "123456",
                 CicdLabels.PROJECT_ID.value: "654321",
             },
-            annotations={
-                NamespaceAnnotations.STATUS.value: NamespaceStatus.OK.value
-            },
+            annotations={NamespaceAnnotations.STATUS.value: NamespaceStatus.OK.value},
         )
     )
     namespace_two = V1Namespace(
@@ -556,9 +535,7 @@ def test_get_merged_metrics_reads_multiple_fresh_files(temp_metrics_path):
                 CicdLabels.PROJECT_ID.value: "654321",
             },
             annotations={
-                NamespaceAnnotations.STATUS.value: (
-                    NamespaceStatus.FAILING.value
-                )
+                NamespaceAnnotations.STATUS.value: (NamespaceStatus.FAILING.value)
             },
         )
     )
@@ -639,9 +616,7 @@ def test_get_merged_metrics_keeps_owner_labelled_delete_counters(
     assert samples[second_key] == second_value
 
 
-def test_get_merged_metrics_ignores_missing_prometheus_files(
-    temp_metrics_path, caplog
-):
+def test_get_merged_metrics_ignores_missing_prometheus_files(temp_metrics_path, caplog):
     """
     Missing metrics files should not stop metric merging.
     """

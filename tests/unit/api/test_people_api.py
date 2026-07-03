@@ -6,12 +6,12 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 from ska_cicd_services_api.people_database_api import PeopleDatabaseUser
+from src.api import app
 
 from ska_ser_namespace_manager.api.api_config import (
     GoogleServiceAccount,
     PeopleDatabaseConfig,
 )
-from src.api import app
 
 dummy_credentials = GoogleServiceAccount(
     project_id="dummy",
@@ -31,6 +31,14 @@ dummy_credentials = GoogleServiceAccount(
 )
 
 
+def get_mock_api(mock_people_db):
+    """
+    Attaches a mock embedded People Database API to the wrapper mock.
+    """
+    mock_people_db.api = AsyncMock()
+    return mock_people_db.api
+
+
 @pytest.mark.asyncio
 async def test_not_found_email():
     with patch(
@@ -41,13 +49,15 @@ async def test_not_found_email():
             credentials=dummy_credentials,
             spreadsheet_id="dummy",
         )
-        mock_people_db.get_user_by_email = AsyncMock(return_value=None)
+        mock_api = get_mock_api(mock_people_db)
+        mock_api.get_user_by_email = AsyncMock(return_value=None)
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as ac:
             response = await ac.get("/api/people?email=marvin")
             assert response.status_code == http.HTTPStatus.NOT_FOUND
             assert response.json() == {"status": "not found"}
+            mock_api.get_user_by_email.assert_awaited_once_with("marvin")
 
 
 @pytest.mark.asyncio
@@ -60,7 +70,8 @@ async def test_not_found_slack_id():
             credentials=dummy_credentials,
             spreadsheet_id="dummy",
         )
-        mock_people_db.get_user_by_slack_id = AsyncMock(return_value=None)
+        mock_api = get_mock_api(mock_people_db)
+        mock_api.get_user_by_slack_id = AsyncMock(return_value=None)
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as ac:
@@ -68,6 +79,7 @@ async def test_not_found_slack_id():
 
             assert response.status_code == http.HTTPStatus.NOT_FOUND
             assert response.json() == {"status": "not found"}
+            mock_api.get_user_by_slack_id.assert_awaited_once_with("marvin")
 
 
 @pytest.mark.asyncio
@@ -80,13 +92,15 @@ async def test_not_found_gitlab_handle():
             credentials=dummy_credentials,
             spreadsheet_id="dummy",
         )
-        mock_people_db.get_user_by_gitlab_handle = AsyncMock(return_value=None)
+        mock_api = get_mock_api(mock_people_db)
+        mock_api.get_user_by_gitlab_handle = AsyncMock(return_value=None)
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as ac:
             response = await ac.get("/api/people?gitlab_handle=marvin")
             assert response.status_code == http.HTTPStatus.NOT_FOUND
             assert response.json() == {"status": "not found"}
+            mock_api.get_user_by_gitlab_handle.assert_awaited_once_with("marvin")
 
 
 @pytest.mark.asyncio
@@ -99,9 +113,10 @@ async def test_not_found_all():
             credentials=dummy_credentials,
             spreadsheet_id="dummy",
         )
-        mock_people_db.get_user_by_email = AsyncMock(return_value=None)
-        mock_people_db.get_user_by_slack_id = AsyncMock(return_value=None)
-        mock_people_db.get_user_by_gitlab_handle = AsyncMock(return_value=None)
+        mock_api = get_mock_api(mock_people_db)
+        mock_api.get_user_by_email = AsyncMock(return_value=None)
+        mock_api.get_user_by_slack_id = AsyncMock(return_value=None)
+        mock_api.get_user_by_gitlab_handle = AsyncMock(return_value=None)
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as ac:
@@ -111,6 +126,9 @@ async def test_not_found_all():
 
             assert response.status_code == http.HTTPStatus.NOT_FOUND
             assert response.json() == {"status": "not found"}
+            mock_api.get_user_by_email.assert_awaited_once_with("marvin")
+            mock_api.get_user_by_gitlab_handle.assert_awaited_once_with("marvin")
+            mock_api.get_user_by_slack_id.assert_awaited_once_with("marvin")
 
 
 @pytest.mark.asyncio
@@ -123,9 +141,10 @@ async def test_not_found_ignore():
             credentials=dummy_credentials,
             spreadsheet_id="dummy",
         )
-        mock_people_db.get_user_by_email = AsyncMock(return_value=None)
-        mock_people_db.get_user_by_slack_id = AsyncMock(return_value=None)
-        mock_people_db.get_user_by_gitlab_handle = AsyncMock(return_value=None)
+        mock_api = get_mock_api(mock_people_db)
+        mock_api.get_user_by_email = AsyncMock(return_value=None)
+        mock_api.get_user_by_slack_id = AsyncMock(return_value=None)
+        mock_api.get_user_by_gitlab_handle = AsyncMock(return_value=None)
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as ac:
@@ -133,6 +152,9 @@ async def test_not_found_ignore():
 
             assert response.status_code == http.HTTPStatus.OK
             assert response.json() == {"status": "not found"}
+            mock_api.get_user_by_email.assert_not_called()
+            mock_api.get_user_by_gitlab_handle.assert_not_called()
+            mock_api.get_user_by_slack_id.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -152,13 +174,15 @@ async def test_email():
             credentials=dummy_credentials,
             spreadsheet_id="dummy",
         )
-        mock_people_db.get_user_by_email = AsyncMock(return_value=user)
+        mock_api = get_mock_api(mock_people_db)
+        mock_api.get_user_by_email = AsyncMock(return_value=user)
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as ac:
             response = await ac.get("/api/people?email=marvin")
             assert response.status_code == http.HTTPStatus.OK
             assert response.json() == user.model_dump()
+            mock_api.get_user_by_email.assert_awaited_once_with("marvin")
 
 
 @pytest.mark.asyncio
@@ -178,7 +202,8 @@ async def test_slack_id():
             credentials=dummy_credentials,
             spreadsheet_id="dummy",
         )
-        mock_people_db.get_user_by_slack_id = AsyncMock(return_value=user)
+        mock_api = get_mock_api(mock_people_db)
+        mock_api.get_user_by_slack_id = AsyncMock(return_value=user)
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as ac:
@@ -186,6 +211,7 @@ async def test_slack_id():
 
             assert response.status_code == http.HTTPStatus.OK
             assert response.json() == user.model_dump()
+            mock_api.get_user_by_slack_id.assert_awaited_once_with("marvin")
 
 
 @pytest.mark.asyncio
@@ -205,13 +231,15 @@ async def test_gitlab_handle():
             credentials=dummy_credentials,
             spreadsheet_id="dummy",
         )
-        mock_people_db.get_user_by_gitlab_handle = AsyncMock(return_value=user)
+        mock_api = get_mock_api(mock_people_db)
+        mock_api.get_user_by_gitlab_handle = AsyncMock(return_value=user)
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as ac:
             response = await ac.get("/api/people?gitlab_handle=marvin")
             assert response.status_code == http.HTTPStatus.OK
             assert response.json() == user.model_dump()
+            mock_api.get_user_by_gitlab_handle.assert_awaited_once_with("marvin")
 
 
 @pytest.mark.asyncio
@@ -225,9 +253,7 @@ async def test_people_db_disabled():
             spreadsheet_id="dummy",
             enabled=False,
         )
-        mock_people_db.get_user_by_email = AsyncMock(return_value=None)
-        mock_people_db.get_user_by_slack_id = AsyncMock(return_value=None)
-        mock_people_db.get_user_by_gitlab_handle = AsyncMock(return_value=None)
+        mock_people_db.api = None
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as ac:

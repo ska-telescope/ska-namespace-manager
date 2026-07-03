@@ -84,9 +84,7 @@ class CollectController(LeaderController):
         self.metrics_manager = MetricsManager(
             self.config.metrics, owner=self.current_pod_name
         )
-        self.namespace_collector = NamespaceCollector(
-            CollectorConfig, kubeconfig
-        )
+        self.namespace_collector = NamespaceCollector(CollectorConfig, kubeconfig)
         self.add_tasks(
             [
                 self.check_assigned_namespaces,
@@ -123,9 +121,7 @@ class CollectController(LeaderController):
         """
         Get expected collect-controller pod names from the StatefulSet.
         """
-        stateful_set_name = getattr(
-            self.config.context, "stateful_set_name", None
-        )
+        stateful_set_name = getattr(self.config.context, "stateful_set_name", None)
         if not isinstance(stateful_set_name, str) or not stateful_set_name:
             return None
 
@@ -196,8 +192,7 @@ class CollectController(LeaderController):
 
         if not self.current_pod_name:
             logging.warning(
-                "Skipping namespace checks because current pod name is "
-                "unavailable"
+                "Skipping namespace checks because current pod name is unavailable"
             )
             return []
 
@@ -215,9 +210,7 @@ class CollectController(LeaderController):
             managed_namespaces, key=lambda item: item.metadata.name
         ):
             hash_index = int(
-                hashlib.sha256(
-                    namespace.metadata.name.encode("utf-8")
-                ).hexdigest(),
+                hashlib.sha256(namespace.metadata.name.encode("utf-8")).hexdigest(),
                 16,
             ) % len(pod_names)
             if pod_names[hash_index] == self.current_pod_name:
@@ -339,8 +332,7 @@ class CollectController(LeaderController):
         Run a periodic namespace check thread for a namespace.
         """
         logging.info(
-            "Starting namespace check thread '%s' for namespace '%s' with "
-            "period '%ss'",
+            "Starting namespace check thread '%s' for namespace '%s' with period '%ss'",
             threading.current_thread().name,
             namespace,
             period.total_seconds(),
@@ -415,17 +407,13 @@ class CollectController(LeaderController):
         unmanaged_namespaces = [
             namespace
             for namespace in self.get_namespaces_by(
-                exclude_annotations={
-                    NamespaceAnnotations.MANAGED.value: "true"
-                }
+                exclude_annotations={NamespaceAnnotations.MANAGED.value: "true"}
             )
             if namespace.metadata.name not in self.forbidden_namespaces
         ]
 
         for namespace in unmanaged_namespaces:
-            ns_config = match_namespace(
-                self.config.namespaces, self.to_dto(namespace)
-            )
+            ns_config = match_namespace(self.config.namespaces, self.to_dto(namespace))
             if ns_config:
                 namespace = namespace.metadata.name
                 logging.info(
@@ -458,9 +446,7 @@ class CollectController(LeaderController):
         """
         Mark older deployments for the same CI identity as superseded.
         """
-        grouped_namespaces: dict[
-            tuple[str, str, str, str], list[V1Namespace]
-        ] = {}
+        grouped_namespaces: dict[tuple[str, str, str, str], list[V1Namespace]] = {}
         managed_namespaces = [
             namespace
             for namespace in self.get_namespaces_by(
@@ -475,10 +461,7 @@ class CollectController(LeaderController):
             namespace_config = match_namespace(
                 self.config.namespaces, self.to_dto(namespace)
             )
-            if (
-                namespace_config is None
-                or not namespace_config.checks.superseded
-            ):
+            if namespace_config is None or not namespace_config.checks.superseded:
                 continue
 
             group_key = self._get_superseded_group_key(namespace)
@@ -497,9 +480,7 @@ class CollectController(LeaderController):
 
         for namespaces in grouped_namespaces.values():
             active_namespaces = [
-                namespace
-                for namespace in namespaces
-                if can_mark_superseded(namespace)
+                namespace for namespace in namespaces if can_mark_superseded(namespace)
             ]
             if len(active_namespaces) < 2:
                 continue
@@ -529,14 +510,11 @@ class CollectController(LeaderController):
                     continue
                 for namespace in deployment:
                     logging.info(
-                        "Marking namespace '%s' as superseded by newer "
-                        "namespace '%s'",
+                        "Marking namespace '%s' as superseded by newer namespace '%s'",
                         namespace.metadata.name,
                         newest_namespace.metadata.name,
                     )
-                    status_timestamp = datetime.datetime.now(
-                        datetime.timezone.utc
-                    )
+                    status_timestamp = datetime.datetime.now(datetime.timezone.utc)
                     time_to_delete = datetime.timedelta(seconds=5)
                     try:
                         self.patch_namespace(
@@ -580,9 +558,7 @@ class CollectController(LeaderController):
             )
             if namespace.metadata.name not in self.forbidden_namespaces
         ]
-        assigned_namespaces = self._get_assigned_managed_namespaces(
-            managed_namespaces
-        )
+        assigned_namespaces = self._get_assigned_managed_namespaces(managed_namespaces)
         active_namespaces = set()
 
         for namespace in assigned_namespaces:
@@ -623,9 +599,7 @@ class CollectController(LeaderController):
             )
             if namespace.metadata.name not in self.forbidden_namespaces
         ]
-        assigned_namespaces = self._get_assigned_managed_namespaces(
-            managed_namespaces
-        )
+        assigned_namespaces = self._get_assigned_managed_namespaces(managed_namespaces)
         self.metrics_manager.delete_stale_metrics(
             [ns.metadata.name for ns in assigned_namespaces]
         )
@@ -647,18 +621,14 @@ class CollectController(LeaderController):
 
         pods = self.get_namespace_pods_by(
             namespace=self.config.context.namespace,
-            labels={
-                "app.kubernetes.io/instance": (self.NAMESPACE_MANAGER_INSTANCE)
-            },
+            labels={"app.kubernetes.io/instance": (self.NAMESPACE_MANAGER_INSTANCE)},
         )
         pod_names = sorted(
             {
                 pod.metadata.name
                 for pod in pods
                 if pod.metadata.deletion_timestamp is None
-                and (pod.metadata.labels or {}).get(
-                    "app.kubernetes.io/component"
-                )
+                and (pod.metadata.labels or {}).get("app.kubernetes.io/component")
                 in self.NAMESPACE_MANAGER_COMPONENTS
             }
         )

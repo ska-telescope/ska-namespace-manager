@@ -20,15 +20,19 @@ from ska_ser_namespace_manager.controller.controller import (
 @pytest.fixture(name="mock_kubernetes_api", autouse=True)
 def mock_kubernetes_api_fixture():
     """Provide a mocked Kubernetes API for controller tests."""
-    with patch(
-        "ska_ser_namespace_manager.controller.controller.KubernetesAPI",
-        autospec=True,
-    ) as mock_api_class, patch(
-        "ska_ser_namespace_manager.core.kubernetes_api.config.load_kube_config",  # pylint: disable=line-too-long # noqa: E501
-        new_callable=MagicMock(),
-    ), patch(
-        "ska_ser_namespace_manager.core.kubernetes_api.config.load_incluster_config",  # pylint: disable=line-too-long # noqa: E501
-        new_callable=MagicMock(),
+    with (
+        patch(
+            "ska_ser_namespace_manager.controller.controller.KubernetesAPI",
+            autospec=True,
+        ) as mock_api_class,
+        patch(
+            "ska_ser_namespace_manager.core.kubernetes_api.config.load_kube_config",  # pylint: disable=line-too-long # noqa: E501
+            new_callable=MagicMock(),
+        ),
+        patch(
+            "ska_ser_namespace_manager.core.kubernetes_api.config.load_incluster_config",  # pylint: disable=line-too-long # noqa: E501
+            new_callable=MagicMock(),
+        ),
     ):
         mock_api_instance = mock_api_class.return_value
         mock_api_instance.v1 = MagicMock()
@@ -47,12 +51,8 @@ def controller_fixture():
     with patch(
         "ska_ser_namespace_manager.controller.controller.ConfigLoader"
     ) as mock_config_loader:
-        mock_config_loader.return_value.load.return_value = (
-            mock_config_instance
-        )
-        controller_instance = Controller(
-            config_class=mock_config_class, tasks=[]
-        )
+        mock_config_loader.return_value.load.return_value = mock_config_instance
+        controller_instance = Controller(config_class=mock_config_class, tasks=[])
         yield controller_instance
 
 
@@ -139,9 +139,7 @@ def test_cleanup_stops_managed_tasks(controller):
 
     def managed_task(stop_event):
         """Run until the task or controller requests shutdown."""
-        while (
-            not stop_event.is_set() and not controller.shutdown_event.is_set()
-        ):
+        while not stop_event.is_set() and not controller.shutdown_event.is_set():
             time.sleep(0.01)
         stopped.set()
 
@@ -295,8 +293,7 @@ def test_conditional_controller_task_decorator():
 
         @conditional_controller_task(
             period=datetime.timedelta(milliseconds=10),
-            run_if=lambda ctrl: ctrl.config.context.namespace
-            == "default-namespace",
+            run_if=lambda ctrl: ctrl.config.context.namespace == "default-namespace",
         )
         def conditional_task(self):
             """Increment the counter when the condition is true."""
@@ -328,8 +325,7 @@ def test_conditional_controller_task_decorator():
 
         @conditional_controller_task(
             period=datetime.timedelta(milliseconds=10),
-            run_if=lambda ctrl: ctrl.config.context.namespace
-            == "default-namespace",
+            run_if=lambda ctrl: ctrl.config.context.namespace == "default-namespace",
         )
         def faulty_task(self):
             """Raise an exception when the condition is true."""
@@ -364,8 +360,7 @@ def test_conditional_controller_task_decorator():
 
         @conditional_controller_task(
             period=datetime.timedelta(milliseconds=10),
-            run_if=lambda ctrl: ctrl.config.context.namespace
-            == "wrong-namespace",
+            run_if=lambda ctrl: ctrl.config.context.namespace == "wrong-namespace",
         )
         def conditional_task(self):
             """Increment the counter when the condition is true."""
@@ -375,9 +370,7 @@ def test_conditional_controller_task_decorator():
         "ska_ser_namespace_manager.controller.controller.ConfigLoader"
     ) as mock_config_loader:
         mock_config_loader.return_value.load.return_value = mock_config
-        false_controller = ConditionalFalseController(
-            config_class=dict, tasks=[]
-        )
+        false_controller = ConditionalFalseController(config_class=dict, tasks=[])
 
     task_thread = threading.Thread(target=false_controller.conditional_task)
     task_thread.start()

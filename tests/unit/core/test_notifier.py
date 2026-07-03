@@ -5,15 +5,14 @@ from ska_ser_namespace_manager.core.utils import encode_slack_address
 
 
 def test_notify_user_success():
-    with patch(
-        "ska_ser_namespace_manager.core.notifier.TemplateFactory"
-    ) as mock_template_factory, patch(
-        "ska_ser_namespace_manager.core.notifier.App", autospec=True
-    ) as mock_app:
+    with (
+        patch(
+            "ska_ser_namespace_manager.core.notifier.TemplateFactory"
+        ) as mock_template_factory,
+        patch("ska_ser_namespace_manager.core.notifier.App", autospec=True) as mock_app,
+    ):
         # Setup mock return values
-        mock_template_factory.return_value.render.return_value = (
-            "Mocked Message"
-        )
+        mock_template_factory.return_value.render.return_value = "Mocked Message"
         mock_app.return_value.client.chat_postMessage = MagicMock()
         notifier = Notifier(slack_token="fake_slack_token")
         success = notifier.notify_user(
@@ -25,27 +24,22 @@ def test_notify_user_success():
 
 
 def test_notify_user_no_slack_token():
-    with patch(
-        "ska_ser_namespace_manager.core.template_factory.TemplateFactory"
-    ):
+    with patch("ska_ser_namespace_manager.core.template_factory.TemplateFactory"):
         # Instantiate the Notifier with no Slack token
         notifier = Notifier(slack_token=None)
-        success = notifier.notify_user(
-            "encoded_address", "template_name", "status"
-        )
+        success = notifier.notify_user("encoded_address", "template_name", "status")
         assert success is False
 
 
 def test_notify_user_failure():
-    with patch(
-        "ska_ser_namespace_manager.core.notifier.TemplateFactory"
-    ) as mock_template_factory, patch(
-        "ska_ser_namespace_manager.core.notifier.App", autospec=True
-    ) as mock_app:
+    with (
+        patch(
+            "ska_ser_namespace_manager.core.notifier.TemplateFactory"
+        ) as mock_template_factory,
+        patch("ska_ser_namespace_manager.core.notifier.App", autospec=True) as mock_app,
+    ):
         # Setup mock return values
-        mock_template_factory.return_value.render.return_value = (
-            "Mocked Message"
-        )
+        mock_template_factory.return_value.render.return_value = "Mocked Message"
         mock_app.return_value.client.chat_postMessage = MagicMock()
         notifier = Notifier(slack_token="fake_slack_token")
         assert not notifier.notify_user(
@@ -58,15 +52,14 @@ def test_notify_user_failure():
 
 
 def test_notify_user_slack_exception():
-    with patch(
-        "ska_ser_namespace_manager.core.notifier.TemplateFactory"
-    ) as mock_template_factory, patch(
-        "ska_ser_namespace_manager.core.notifier.App", autospec=True
-    ) as mock_app:
+    with (
+        patch(
+            "ska_ser_namespace_manager.core.notifier.TemplateFactory"
+        ) as mock_template_factory,
+        patch("ska_ser_namespace_manager.core.notifier.App", autospec=True) as mock_app,
+    ):
         # Setup mock return values
-        mock_template_factory.return_value.render.return_value = (
-            "Mocked Message"
-        )
+        mock_template_factory.return_value.render.return_value = "Mocked Message"
         mock_app.return_value.client.chat_postMessage.side_effect = Exception(
             "Failed to fetch pods"
         )
@@ -79,9 +72,10 @@ def test_notify_user_slack_exception():
 
 
 def test_marvin_quote():
-    with patch(
-        "ska_ser_namespace_manager.core.notifier.TemplateFactory"
-    ), patch("ska_ser_namespace_manager.core.notifier.App", autospec=True):
+    with (
+        patch("ska_ser_namespace_manager.core.notifier.TemplateFactory"),
+        patch("ska_ser_namespace_manager.core.notifier.App", autospec=True),
+    ):
         notifier = Notifier(slack_token="fake_slack_token")
         assert len(notifier.get_marvin_quote("failing")) > 0
         assert len(notifier.get_marvin_quote(None)) > 0

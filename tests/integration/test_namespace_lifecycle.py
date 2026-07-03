@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import time
 
-from ska_ser_namespace_manager.core.types import CicdLabels
 from tests.integration.utils import (
     Clients,
     MetricsClient,
@@ -21,6 +20,8 @@ from tests.integration.utils import (
     wait_for_metric,
     wait_for_status,
 )
+
+from ska_ser_namespace_manager.core.types import CicdLabels
 
 
 def test_ok_namespace_stays_ok(

@@ -26,9 +26,7 @@ def parse_metric_samples(metrics_output):
     samples = {}
     for family in text_string_to_metric_families(metrics_output):
         for sample in family.samples:
-            samples[(sample.name, tuple(sorted(sample.labels.items())))] = (
-                sample.value
-            )
+            samples[(sample.name, tuple(sorted(sample.labels.items())))] = sample.value
 
     return samples
 
@@ -62,9 +60,7 @@ def remove_created_samples(samples):
     Remove created timestamp samples from parsed metrics.
     """
     return {
-        key: value
-        for key, value in samples.items()
-        if not key[0].endswith("_created")
+        key: value for key, value in samples.items() if not key[0].endswith("_created")
     }
 
 
@@ -130,15 +126,11 @@ def test_restore_metrics_restores_counter_and_histogram():
         namespace="test-namespace"
     ).observe(3.0)
     metrics_content = generate_latest(source_registry).decode("utf-8")
-    restored_registry, restored_metrics = (
-        build_counter_and_histogram_registry()
-    )
+    restored_registry, restored_metrics = build_counter_and_histogram_registry()
 
     PrometheusMetricsHelper.restore_metrics(restored_metrics, metrics_content)
 
-    expected_samples = remove_created_samples(
-        parse_metric_samples(metrics_content)
-    )
+    expected_samples = remove_created_samples(parse_metric_samples(metrics_content))
     restored_samples = remove_created_samples(
         parse_metric_samples(generate_latest(restored_registry))
     )

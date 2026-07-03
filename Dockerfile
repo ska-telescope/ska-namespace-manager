@@ -1,18 +1,11 @@
-FROM artefact.skao.int/ska-build-python:0.4.1 as requirements
+FROM artefact.skao.int/ska-build-python:0.5.0 as requirements
 
 RUN mkdir -p /opt/ska_ser_namespace_manager
 WORKDIR /opt/ska_ser_namespace_manager
 
-COPY poetry.lock pyproject.toml /opt/ska_ser_namespace_manager/
+COPY uv.lock pyproject.toml /opt/ska_ser_namespace_manager/
 
-ENV POETRY_NO_INTERACTION=1
-ENV POETRY_VIRTUALENVS_IN_PROJECT=1
-ENV POETRY_VIRTUALENVS_CREATE=1
-
-#no-root is required because in the build
-#step we only want to install dependencies
-#not the code under development
-RUN poetry install --no-root
+RUN uv sync --frozen --no-dev --no-install-project
 
 FROM artefact.skao.int/ska-python:0.3.1
 

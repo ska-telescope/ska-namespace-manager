@@ -51,9 +51,7 @@ async def exception_handler_request(request, exc):  # pragma: no cover
 
 
 @app.exception_handler(RequestValidationError)
-async def requestvalidation_exception_handler_request(
-    request, exc
-):  # pragma: no cover
+async def requestvalidation_exception_handler_request(request, exc):  # pragma: no cover
     """
     Exception handler to return a standard HTTP response and log
     request information for debugging
@@ -86,9 +84,7 @@ async def readiness():
     return JSONResponse(
         content=jsonable_encoder({"status": "ok" if ready else "error"}),
         status_code=(
-            http.HTTPStatus.OK
-            if ready
-            else http.HTTPStatus.INTERNAL_SERVER_ERROR
+            http.HTTPStatus.OK if ready else http.HTTPStatus.INTERNAL_SERVER_ERROR
         ),
     )
 
@@ -104,9 +100,7 @@ if __name__ == "__main__":
     uvicorn.run(
         "api:app",
         host="0.0.0.0",
-        port=int(
-            config.https_port if config.https_enabled else config.http_port
-        ),
+        port=int(config.https_port if config.https_enabled else config.http_port),
         reload=False,
         ssl_keyfile=config.key_path if config.https_enabled else None,
         ssl_certfile=config.cert_path if config.https_enabled else None,

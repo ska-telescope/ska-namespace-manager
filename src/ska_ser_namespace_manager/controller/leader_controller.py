@@ -51,9 +51,7 @@ class LeaderController(Controller):
             self.add_tasks([self.__acquire_lease])
 
     def __acquire_lease_period(self) -> datetime.timedelta:
-        return max(
-            self.config.leader_election.lease_ttl.total_seconds() / 2, 0.5
-        )
+        return max(self.config.leader_election.lease_ttl.total_seconds() / 2, 0.5)
 
     @controller_task(period=__acquire_lease_period)
     def __acquire_lease(self) -> None:

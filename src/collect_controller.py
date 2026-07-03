@@ -3,6 +3,7 @@
 action_controller provides the execution script for the CollectController
 component
 """
+
 import argparse
 
 from ska_ser_namespace_manager.controller.collect_controller import (

@@ -8,10 +8,23 @@ import pytz
 from ska_ser_namespace_manager.core.utils import (
     decode_slack_address,
     encode_slack_address,
+    format_labels_resources,
     format_utc,
     parse_timedelta,
     utc,
 )
+
+
+def test_format_labels_resources():
+    assert format_labels_resources({}) == ""
+    assert format_labels_resources({"alertname": "KubePodNotReady"}) == ""
+    assert (
+        format_labels_resources({"pod": "my-pod", "severity": "critical"})
+        == "pod=my-pod"
+    )
+    assert format_labels_resources({"pod": "my-pod", "deployment": "my-deploy"}) == (
+        "pod=my-pod, deployment=my-deploy"
+    )
 
 
 def test_parse_timedelta():
@@ -34,8 +47,7 @@ def test_format_utc():
         == "2022-05-21T12:34:56Z"
     )
     assert (
-        format_utc(datetime.datetime(2022, 5, 21, 12, 34, 56))
-        == "2022-05-21T12:34:56Z"
+        format_utc(datetime.datetime(2022, 5, 21, 12, 34, 56)) == "2022-05-21T12:34:56Z"
     )
 
 
@@ -47,9 +59,7 @@ def test_encode_slack_address():
     name = "John Doe"
     slack_id = "U1234567890"
     encoded = encode_slack_address(name, slack_id)
-    expected = base64.b64encode(f"{name}::{slack_id}".encode("utf-8")).decode(
-        "utf-8"
-    )
+    expected = base64.b64encode(f"{name}::{slack_id}".encode("utf-8")).decode("utf-8")
     assert encoded == expected
 
 

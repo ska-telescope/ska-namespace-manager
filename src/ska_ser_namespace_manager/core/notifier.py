@@ -28,16 +28,13 @@ class Notifier:
         self.template_factory = TemplateFactory()
         if not slack_token:
             logging.warning(
-                "Slack bot token is not configured, notifications"
-                " will not be sent"
+                "Slack bot token is not configured, notifications will not be sent"
             )
             self.slack_client = None
         else:
             self.slack_client = App(token=slack_token)
 
-    def notify_user(
-        self, address: str, template: str, status: str, **kwargs
-    ) -> bool:
+    def notify_user(self, address: str, template: str, status: str, **kwargs) -> bool:
         """
         Notifies a user that some action is to be or was taken using slack
         direct messages
@@ -65,7 +62,7 @@ class Notifier:
                     user=user,
                     status=status,
                     quote=self.get_marvin_quote(status),
-                    **kwargs
+                    **kwargs,
                 ),
             )
         except Exception as exc:  # pylint: disable=broad-exception-caught

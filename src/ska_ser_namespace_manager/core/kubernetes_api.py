@@ -160,9 +160,7 @@ class KubernetesAPI:
             traceback.print_exception(exc)
             return []
 
-    def get_namespace_pods(
-        self, namespace: str
-    ) -> Optional[List[client.V1Pod]]:
+    def get_namespace_pods(self, namespace: str) -> Optional[List[client.V1Pod]]:
         """
         Get the list of pods for a namespace.
 
@@ -254,9 +252,7 @@ class KubernetesAPI:
         """
         Gets a namespaced StatefulSet.
         """
-        logging.debug(
-            "Fetching StatefulSet '%s' in namespace '%s'", name, namespace
-        )
+        logging.debug("Fetching StatefulSet '%s' in namespace '%s'", name, namespace)
         try:
             return self.apps_v1.read_namespaced_stateful_set(
                 name=name,
@@ -303,9 +299,7 @@ class KubernetesAPI:
             body["metadata"]["annotations"] = annotations
 
         try:
-            self.v1.patch_namespace(
-                name=namespace, body=body, _request_timeout=10
-            )
+            self.v1.patch_namespace(name=namespace, body=body, _request_timeout=10)
             logging.debug("Namespace %s patched successfully", namespace)
         except Exception as exc:  # pylint: disable=broad-exception-caught
             logging.error("Failed to patch namespace '%s': %s", namespace, exc)
@@ -328,9 +322,7 @@ class KubernetesAPI:
             )
             logging.debug("Namespace '%s' deleted successfully", namespace)
         except Exception as exc:  # pylint: disable=broad-exception-caught
-            logging.error(
-                "Failed to delete namespace '%s': %s", namespace, exc
-            )
+            logging.error("Failed to delete namespace '%s': %s", namespace, exc)
             traceback.print_exception(exc)
 
     def get_cronjobs_by(
@@ -370,11 +362,9 @@ class KubernetesAPI:
                     f"{key}!={value}" for key, value in exclude_labels.items()
                 )
 
-            cronjobs: List[client.V1CronJob] = (
-                self.batch_v1.list_namespaced_cron_job(
-                    namespace=namespace, _request_timeout=10
-                ).items
-            )
+            cronjobs: List[client.V1CronJob] = self.batch_v1.list_namespaced_cron_job(
+                namespace=namespace, _request_timeout=10
+            ).items
             filtered_cronjobs = []
             for cronjob in cronjobs:
                 cronjob_annotations = cronjob.metadata.annotations or {}

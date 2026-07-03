@@ -95,9 +95,7 @@ class ConfigLoader(metaclass=Singleton):
 
         config_source = config
         if config_source is None:
-            config_source = os.environ.get(
-                "CONFIG_PATH", "/etc/config/config.yml"
-            )
+            config_source = os.environ.get("CONFIG_PATH", "/etc/config/config.yml")
         config_data = config
         if config is None or isinstance(config_source, str):
             config_path = (

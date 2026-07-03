@@ -71,21 +71,20 @@ def test_gitlab_pipeline_client_reuses_session_and_api():
         request_timeout=timedelta(seconds=10),
     )
 
-    with patch(
-        "ska_ser_namespace_manager.collector.gitlab_pipeline_client.aiohttp.ClientSession",  # pylint: disable=line-too-long # noqa: E501
-        FakeSession,
-    ), patch(
-        "ska_ser_namespace_manager.collector.gitlab_pipeline_client.GitLabApi",
-        FakeGitLabApi,
+    with (
+        patch(
+            "ska_ser_namespace_manager.collector.gitlab_pipeline_client.aiohttp.ClientSession",  # pylint: disable=line-too-long # noqa: E501
+            FakeSession,
+        ),
+        patch(
+            "ska_ser_namespace_manager.collector.gitlab_pipeline_client.GitLabApi",
+            FakeGitLabApi,
+        ),
     ):
         client = GitLabPipelineClient(config)
         try:
-            assert client.get_pipeline_info("123", "456") == {
-                "status": "running"
-            }
-            assert client.get_pipeline_info("123", "789") == {
-                "status": "running"
-            }
+            assert client.get_pipeline_info("123", "456") == {"status": "running"}
+            assert client.get_pipeline_info("123", "789") == {"status": "running"}
         finally:
             client.close()
 
@@ -96,9 +95,7 @@ def test_gitlab_pipeline_client_reuses_session_and_api():
         ("123", "789"),
     ]
     assert FakeGitLabApi.instances[0].api_base == "https://gitlab.example.test"
-    assert FakeGitLabApi.instances[0].gitlab_api_requester == (
-        "namespace-manager"
-    )
+    assert FakeGitLabApi.instances[0].gitlab_api_requester == ("namespace-manager")
     assert FakeGitLabApi.instances[0].gitlab_api_private_token == "token"
     assert FakeSession.instances[0].closed is True
 
@@ -116,12 +113,15 @@ def test_gitlab_pipeline_client_caches_status():
         request_timeout=timedelta(seconds=10),
     )
 
-    with patch(
-        "ska_ser_namespace_manager.collector.gitlab_pipeline_client.aiohttp.ClientSession",  # pylint: disable=line-too-long # noqa: E501
-        FakeSession,
-    ), patch(
-        "ska_ser_namespace_manager.collector.gitlab_pipeline_client.GitLabApi",
-        FakeGitLabApi,
+    with (
+        patch(
+            "ska_ser_namespace_manager.collector.gitlab_pipeline_client.aiohttp.ClientSession",  # pylint: disable=line-too-long # noqa: E501
+            FakeSession,
+        ),
+        patch(
+            "ska_ser_namespace_manager.collector.gitlab_pipeline_client.GitLabApi",
+            FakeGitLabApi,
+        ),
     ):
         client = GitLabPipelineClient(config)
         try:
@@ -136,26 +136,18 @@ def test_gitlab_pipeline_client_caches_status():
 
 def test_gitlab_pipeline_client_refreshes_expired_requested_key():
     """Expired requested status cache entries should be refreshed."""
-    config = SimpleNamespace(
-        cache_ttl=timedelta(minutes=5), cache_max_entries=10
-    )
+    config = SimpleNamespace(cache_ttl=timedelta(minutes=5), cache_max_entries=10)
     client = GitLabPipelineClient(config)
     client._pipeline_status_cache = {  # pylint: disable=protected-access
         ("old", "1"): (datetime(2024, 1, 1, tzinfo=timezone.utc), "running"),
     }
-    client._pipeline_status_cache_queue = (
-        deque(  # pylint: disable=protected-access
-            [(("old", "1"), datetime(2024, 1, 1, tzinfo=timezone.utc))]
-        )
+    client._pipeline_status_cache_queue = deque(  # pylint: disable=protected-access
+        [(("old", "1"), datetime(2024, 1, 1, tzinfo=timezone.utc))]
     )
-    client.get_pipeline_info = lambda _project_id, _pipeline_id: {
-        "status": "success"
-    }
+    client.get_pipeline_info = lambda _project_id, _pipeline_id: {"status": "success"}
 
     assert client.get_pipeline_status("old", "1") == "success"
-    assert (
-        client._pipeline_status_cache[("old", "1")][1] == "success"
-    )  # pylint: disable=protected-access
+    assert client._pipeline_status_cache[("old", "1")][1] == "success"  # pylint: disable=protected-access
 
 
 def test_gitlab_pipeline_client_evicts_oldest_status_when_cache_full():
@@ -173,29 +165,21 @@ def test_gitlab_pipeline_client_evicts_oldest_status_when_cache_full():
             "running",
         ),
     }
-    client._pipeline_status_cache_queue = (
-        deque(  # pylint: disable=protected-access
-            [
-                (("oldest", "1"), now - timedelta(minutes=2)),
-                (("older", "2"), now - timedelta(minutes=1)),
-            ]
-        )
+    client._pipeline_status_cache_queue = deque(  # pylint: disable=protected-access
+        [
+            (("oldest", "1"), now - timedelta(minutes=2)),
+            (("older", "2"), now - timedelta(minutes=1)),
+        ]
     )
-    client.get_pipeline_info = lambda _project_id, _pipeline_id: {
-        "status": "success"
-    }
+    client.get_pipeline_info = lambda _project_id, _pipeline_id: {"status": "success"}
 
     assert client.get_pipeline_status("new", "3") == "success"
-    assert (
-        len(client._pipeline_status_cache) == 2
-    )  # pylint: disable=protected-access
+    assert len(client._pipeline_status_cache) == 2  # pylint: disable=protected-access
     assert (
         "oldest",
         "1",
     ) not in client._pipeline_status_cache  # pylint: disable=protected-access
-    assert list(
-        client._pipeline_status_cache_queue
-    ) == [  # pylint: disable=protected-access
+    assert list(client._pipeline_status_cache_queue) == [  # pylint: disable=protected-access
         (("older", "2"), now - timedelta(minutes=1)),
         (
             ("new", "3"),
@@ -206,13 +190,9 @@ def test_gitlab_pipeline_client_evicts_oldest_status_when_cache_full():
 
 def test_gitlab_pipeline_client_handles_not_found():
     """GitLab 404 should be interpreted as a deleted pipeline."""
-    config = SimpleNamespace(
-        cache_ttl=timedelta(minutes=5), cache_max_entries=10
-    )
+    config = SimpleNamespace(cache_ttl=timedelta(minutes=5), cache_max_entries=10)
     client = GitLabPipelineClient(config)
-    client.get_pipeline_info = lambda _project_id, _pipeline_id: (
-        _ for _ in ()
-    ).throw(  # pylint: disable=line-too-long # noqa: E501
+    client.get_pipeline_info = lambda _project_id, _pipeline_id: (_ for _ in ()).throw(  # pylint: disable=line-too-long # noqa: E501
         HTTPException(http.HTTPStatus.NOT_FOUND)
     )
 
@@ -221,13 +201,9 @@ def test_gitlab_pipeline_client_handles_not_found():
 
 def test_gitlab_pipeline_client_handles_rate_limit():
     """GitLab rate limiting should be inconclusive."""
-    config = SimpleNamespace(
-        cache_ttl=timedelta(minutes=5), cache_max_entries=10
-    )
+    config = SimpleNamespace(cache_ttl=timedelta(minutes=5), cache_max_entries=10)
     client = GitLabPipelineClient(config)
-    client.get_pipeline_info = lambda _project_id, _pipeline_id: (
-        _ for _ in ()
-    ).throw(  # pylint: disable=line-too-long # noqa: E501
+    client.get_pipeline_info = lambda _project_id, _pipeline_id: (_ for _ in ()).throw(  # pylint: disable=line-too-long # noqa: E501
         RateLimitExceeded(None)
     )
 
@@ -279,12 +255,8 @@ def test_gitlab_pipeline_client_concurrent_init_failure_does_not_hang():
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 results[key] = ("err", exc)
 
-        thread_a = threading.Thread(
-            target=call, args=("a", "1", "2"), daemon=True
-        )
-        thread_b = threading.Thread(
-            target=call, args=("b", "3", "4"), daemon=True
-        )
+        thread_a = threading.Thread(target=call, args=("a", "1", "2"), daemon=True)
+        thread_b = threading.Thread(target=call, args=("b", "3", "4"), daemon=True)
 
         thread_a.start()
         assert init_entered.wait(timeout=2)
@@ -296,9 +268,9 @@ def test_gitlab_pipeline_client_concurrent_init_failure_does_not_hang():
         thread_b.join(timeout=5)
 
     assert not thread_a.is_alive(), "starting caller hung"
-    assert (
-        not thread_b.is_alive()
-    ), "concurrent caller hung waiting on an orphaned future"
+    assert not thread_b.is_alive(), (
+        "concurrent caller hung waiting on an orphaned future"
+    )
     assert results["a"][0] == "err"
     assert isinstance(results["a"][1], RuntimeError)
     assert results["b"][0] == "err"
