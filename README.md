@@ -5,6 +5,16 @@ keeps temporary environments visible, applies lifecycle policies, exports
 namespace health metrics, and deletes namespaces that are stale, failed,
 cancelled, or superseded.
 
+Full documentation lives under [`docs/src`](docs/src) and is built with
+`make docs-build html`:
+
+- [Getting started](docs/src/howto-run-and-deploy.rst) — run it locally, in a
+  container, or deploy the Helm chart.
+- [Reference](docs/src/reference-configuration.rst) — configuration keys,
+  endpoints, metrics and chart values.
+- [How it works](docs/src/explanation-namespace-lifecycle.rst) — matching, the
+  status state machine, sharding and leader election.
+
 The service is designed for CI/CD clusters where resource demand is bursty and
 unpredictable. It helps operators and developers by:
 
@@ -187,8 +197,10 @@ probe, and `GET /api/people` responds with `not found`. When
 
 ### Layered configuration via VaultStaticSecret
 
-Each component reads every YAML file found in `CONFIG_PATH` (`/etc/config` by
-default), sorted alphabetically, and deep-merges them: later filenames override
+Each component reads every YAML file found in `CONFIG_PATH` when it points at a
+directory — which is what the chart mounts (`/etc/config`; the built-in default
+is the single file `/etc/config/config.yml`). Files are read in alphabetical
+order and deep-merged: later filenames override
 earlier ones, nested dictionaries merge key-by-key, and lists are replaced
 wholesale. A `null` value in an overlay leaves the base value untouched. The
 chart-managed base secret writes its content to `00-base.yml` so any
@@ -255,19 +267,20 @@ cd ska-ser-namespace-manager
 git submodule update --init --recursive
 ```
 
-Use Python 3.10 and the repository Poetry environment. The standard local
-checks are:
+Use Python 3.10. Dependencies are managed with `uv`, and the make targets run
+inside that environment already:
 
 ```bash
-poetry run make python-format
-poetry run make python-lint
-poetry run make python-test
+uv sync
+make python-format
+make python-lint
+make python-test
 ```
 
 To install the chart into a local Kubernetes environment:
 
 ```bash
-poetry run make k8s-install-chart
+make k8s-install-chart
 ```
 
 If deploying to the
@@ -275,7 +288,7 @@ If deploying to the
 build a local image first:
 
 ```bash
-poetry run make oci-build-all CAR_OCI_REGISTRY_HOST=localhost:5000
+make oci-build-all CAR_OCI_REGISTRY_HOST=localhost:5000
 ```
 
 Then set the registry to `<local ip>:5000` where relevant in your values file.
@@ -294,7 +307,7 @@ api:
     createSelfSignedCert: true
   config:
     people_database:
-      spreadsheet_id: 1WekvYFWkPRiWoB2yzp1BrMRwwu0fRqf20d7XbqO6OJg
+      spreadsheet_id: <people database spreadsheet id>
       spreadsheet_range: "System Team API!A2:Z1001"
       credentials: <decoded people_database_credentials value>
 

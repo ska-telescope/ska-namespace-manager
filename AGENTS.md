@@ -23,13 +23,14 @@ git submodule update --init --recursive
 ### Formatting, linting, and tests
 
 - Formatting, linting, and tests are provided through the repository `Makefile`.
-- Always run `make` targets through the repository Poetry environment using `poetry run make ...`.
+- Dependencies are managed with **uv**; the make targets already run tooling inside that environment, so no `poetry run` prefix is needed.
 - Use the following commands:
 
 ```bash
-poetry run make python-format
-poetry run make python-lint
-poetry run make python-test
+uv sync
+make python-format
+make python-lint
+make python-test
 ```
 
 - After making changes, always run:
@@ -128,7 +129,7 @@ When making code changes, agents should generally follow this sequence:
 - Controllers inherit from `Controller`/`LeaderController`, which combine Kubernetes access, thread management, config loading, and optional file-lock leader election. Preserve that layering when adding behavior.
 - Namespace selection is matcher-driven. `NamespaceMatcher` supports `names`, `any`, and `all`, with precedence `all > any > names`. Reuse `match_namespace()` instead of adding ad hoc matching logic.
 - Namespace lifecycle state is annotation-driven. The annotation keys in `core/types.py` are part of the operational contract with collectors, controllers, templates, and chart manifests. Do not rename them casually.
-- Collect-controller metrics are split between replica-local `/internal/metrics` and the public `/metrics` endpoint. The public endpoint is intended to represent the leader-aggregated view, while non-leaders proxy to the leader when possible.
+- Neither controller exposes an HTTP port. Each process writes its own metrics to `<metrics.registry_path>/<pod name>.prom` on a shared `ReadWriteMany` volume, and the API merges every `*.prom` file it finds into a single response at `GET /api/metrics`. The collect-controller leader deletes metrics files belonging to pods that no longer exist.
 - Notification behavior is rendered from Jinja templates in `src/ska_ser_namespace_manager/resources/templates/`. When changing Slack message content, update the templates rather than hardcoding strings in controllers.
 - Config is loaded through typed Pydantic models via `ConfigLoader`. Keep new config in typed models and preserve compatibility with the YAML structure consumed by the Helm chart values and rendered secrets/config maps.
 
@@ -137,15 +138,15 @@ When making code changes, agents should generally follow this sequence:
 - Keep changes Python 3.10 and Pydantic v2 compatible. This repo uses `model_post_init()` and `model_dump_json()` patterns already present in the codebase.
 - Entrypoint scripts at `src/*.py` are thin wrappers. Put business logic in package modules under `src/ska_ser_namespace_manager/`, not in the top-level scripts.
 - Use the existing `core.logging.logging` logger and current exception-handling style for controller/API code. Prefer actionable logs that include namespace names, actions, and status values.
-- Preserve the current namespace status vocabulary: `ok`, `stale`, `failing`, `failed`, `unstable`, `unknown`.
+- Preserve the current namespace status vocabulary: `ok`, `stale`, `failing`, `failed`, `unstable`, `cancelled`, `superseded`, `unknown`.
 - Be careful with ownership and notification flows. Slack addresses are encoded/decoded through `core.utils`, and notification content comes from Jinja templates plus `Notifier`.
 - `FORBIDDEN_NAMESPACES` and the controller’s own namespace are intentionally excluded from management. Do not broaden namespace selection without checking those safeguards.
 
 ### Dependency constraints
 
 - This project already depends on FastAPI, Kubernetes Python client, Slack Bolt, Jinja2, and SKAO internal APIs. Ask before introducing new third-party dependencies.
-- `ska-cicd-services-api` is pinned exactly to `0.31.0`. Treat SKAO internal dependency changes as potentially breaking and verify them carefully before updating.
-- The Docker image and CI pipeline assume Poetry-managed dependencies and the current package layout under `src/`. Avoid packaging changes unless explicitly requested.
+- `ska-cicd-services-api` is pinned exactly to `1.2.0`. Treat SKAO internal dependency changes as potentially breaking and verify them carefully before updating.
+- The Docker image and CI pipeline assume uv-managed dependencies (`uv.lock`, `uv sync --frozen`) and the current package layout under `src/`. Avoid packaging changes unless explicitly requested.
 - There is a strong repository convention that configuration models are typed `BaseModel` classes. Do not introduce raw dict-based config plumbing where a model should exist.
 
 ### Testing notes

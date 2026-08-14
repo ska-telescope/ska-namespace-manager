@@ -36,8 +36,8 @@ dev = [
 ]
 docs = [
     "sphinx>=7.4.5,<8.0.0",
-    "sphinx-rtd-theme>=2.0.0,<3.0.0",
-    "recommonmark>=0.7.1,<0.8.0",
+    "ska-ser-sphinx-theme",
+    "sphinxcontrib-mermaid>=1.0.0,<2.0.0",
 ]
 
 [tool.uv]
@@ -81,3 +81,6 @@ build-backend = "uv_build"
 [tool.uv.build-backend]
 module-name = "ska_ser_namespace_manager"
 module-root = "src"
+
+[tool.uv.sources]
+ska-ser-sphinx-theme = { git = "https://gitlab.com/ska-telescope/ska-ser-sphinx-theme.git", rev = "st-2664-new-theme" }
