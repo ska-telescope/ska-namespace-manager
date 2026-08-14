@@ -8,6 +8,9 @@ resolution-markers = [
     "python_full_version < '3.11'",
 ]
 
+[manifest]
+overrides = [{ name = "gidgetlab", extras = ["aiohttp"], specifier = ">=2.1.2,<3.0.0" }]
+
 [[package]]
 name = "accessible-pygments"
 version = "0.0.5"
@@ -930,11 +933,11 @@ wheels = [
 
 [[package]]
 name = "gidgetlab"
-version = "1.1.0"
+version = "2.1.2"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/e0/98/deefad2c559934017c4417c5b47259155bc3e0262b4110ae7f760e88fb0e/gidgetlab-1.1.0.tar.gz", hash = "sha256:314ec2cddc898317ec45d99068665dbf33c0fee1f52df6671f28ad35bb51f902", size = 28768, upload-time = "2023-10-23T11:11:03.764Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e8/c2/e8cd6794cd3ac19d763c71e3679ea610980a75a6a2e8df23ac78912ee9ce/gidgetlab-2.1.2.tar.gz", hash = "sha256:cdbb39aa1a344a4a3e40cb30ccd4e559794937664d59908e94d4850b1354be90", size = 34489, upload-time = "2026-07-31T07:50:37.55Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d3/5b/ba74da3bfd3b52ea3c8b2b1015025cf4684992d79d1295e186e35bebe82e/gidgetlab-1.1.0-py3-none-any.whl", hash = "sha256:56f23d7cc8241bfc2b3703aaf5783877f5b6c101db623c6fbfb0e7c6f006ad1a", size = 23325, upload-time = "2023-10-23T11:11:02.521Z" },
+    { url = "https://files.pythonhosted.org/packages/19/99/c585a1f4d30a42f8bf5d6ca8f0bba1e5de057e42e0fec20a6b3e2cbb0925/gidgetlab-2.1.2-py3-none-any.whl", hash = "sha256:166950236ea4aa35f28f1b54ce26356a3ee0926bb92cb02cc03315ee536d88fe", size = 26886, upload-time = "2026-07-31T07:50:36.417Z" },
 ]
 
 [package.optional-dependencies]
