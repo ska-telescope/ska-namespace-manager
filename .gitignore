@@ -26,7 +26,6 @@ PrivateRules.mak
 Chart.lock
 **/charts/*.tgz
 **/charts/*/environments/templated
-local.y*ml
 manifests.yaml
 local_*config.y*ml
 pytest.stdout

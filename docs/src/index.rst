@@ -72,7 +72,7 @@ inside the collect controller, and the only shared storage is a
    :style: feature
 
    - title: Getting started
-     description: Run a component locally, in a container, or deploy the Helm chart to a cluster.
+     description: Build the image, deploy the chart to a local cluster, and watch a namespace through its lifecycle.
      icon: lightning
      icon-color: pink
      link: howto-run-and-deploy.html

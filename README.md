@@ -8,8 +8,8 @@ cancelled, or superseded.
 Full documentation lives under [`docs/src`](docs/src) and is built with
 `make docs-build html`:
 
-- [Getting started](docs/src/howto-run-and-deploy.rst) — run it locally, in a
-  container, or deploy the Helm chart.
+- [Getting started](docs/src/howto-run-and-deploy.rst) — build the image, deploy
+  the chart to a local cluster, and watch a namespace through its lifecycle.
 - [Reference](docs/src/reference-configuration.rst) — configuration keys,
   endpoints, metrics and chart values.
 - [How it works](docs/src/explanation-namespace-lifecycle.rst) — matching, the

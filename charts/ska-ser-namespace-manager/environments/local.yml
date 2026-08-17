@@ -1,0 +1,119 @@
+# Minimal, self-contained deployment for a local cluster (minikube, kind, k3d).
+#
+# Nothing here needs Vault, the SKAO People Database, Prometheus, GitLab or
+# Slack. Every external integration is switched off.
+image:
+  repository: localhost:5000/ska-ser-namespace-manager
+  pullPolicy: IfNotPresent
+  tag: 0.3.2-dirty
+
+config:
+  metrics:
+    enabled: true
+    registry_path: /etc/metrics
+    pvc:
+      # minikube's built-in hostpath provisioner. It is single-node, so the
+      # ReadWriteMany claim the chart asks for is satisfied.
+      storageClassName: standard
+      size: 64Mi
+
+api:
+  replicas: 1
+
+  config:
+    people_database:
+      enabled: false
+      # Both must be null: the chart's default values render a credentials
+      # skeleton that fails validation even when the database is disabled.
+      spreadsheet_id: null
+      credentials: null
+
+  pki:
+    # Chart-generated self-signed certificate. Keeping HTTPS on avoids having
+    # to re-point the probes, which target port 9443 with scheme HTTPS.
+    createSelfSignedCert: true
+
+  service:
+    https:
+      enabled: true
+      port: 443
+      # LoadBalancer would stay pending without `minikube tunnel`.
+      type: NodePort
+      nodePort: 30469
+
+  resources:
+    limits:
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
+
+collectController:
+  replicas: 1
+
+  config:
+    prometheus:
+      enabled: false
+    gitlab:
+      enabled: false
+    namespaces:
+      - names:
+          - ci-.*
+        # Short enough to watch the whole lifecycle without waiting around.
+        ttl: 5m
+        settling_period: 1m
+        grace_period: 1m
+        checks:
+          cancelled: false
+          superseded: false
+        actions:
+          check-namespace:
+            schedule: "30s"
+
+  resources:
+    limits:
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+actionController:
+  replicas: 1
+
+  config:
+    notifier:
+      token: null
+    namespaces:
+      - names:
+          - ci-.*
+        stale:
+          delete: true
+          notify_on_delete: false
+          notify_on_status: false
+        failed:
+          delete: true
+          notify_on_delete: false
+          notify_on_status: false
+        failing:
+          delete: false
+          notify_on_delete: false
+          notify_on_status: false
+        unstable:
+          delete: false
+          notify_on_delete: false
+          notify_on_status: false
+        cancelled:
+          delete: true
+          notify_on_delete: false
+          notify_on_status: false
+        superseded:
+          delete: true
+          notify_on_delete: false
+          notify_on_status: false
+
+  resources:
+    limits:
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
