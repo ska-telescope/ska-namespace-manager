@@ -11,7 +11,7 @@ Before you start
 ----------------
 
 You need a running local Kubernetes cluster and a working ``kubectl`` context.
-Please check `ska-cicd-deploy-minikube <https://gitlab.com/ska-telescope/sdi/ska-cicd-deploy-minikube>`_,
+See `ska-cicd-deploy-minikube <https://gitlab.com/ska-telescope/sdi/ska-cicd-deploy-minikube>`_,
 which provisions a minikube cluster configured the way the SKAO clusters are.
 
 The ``local`` environment values need nothing else: Vault, the SKAO People
@@ -92,7 +92,7 @@ Deploy the chart
 ``make k8s-template-chart`` with the same variables to render the manifests
 without installing, and ``make k8s-uninstall-chart`` to remove the release.
 
-Three workloads should come up — the API Deployment, the collect controller
+Three workloads start up — the API Deployment, the collect controller
 StatefulSet, and the action controller Deployment:
 
 .. code-block:: bash

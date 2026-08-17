@@ -13,7 +13,7 @@ These rules are intended to be shared across SKAO Python repositories unless a p
 ### Repository setup
 
 - This repository uses a **git submodule** that contains project-wide tooling and standards.
-- Always initialize and update submodules before working:
+- Always initialise and update submodules before working:
 
 
 ```bash
@@ -43,13 +43,13 @@ make python-test
 ### Linting policy
 
 - Do **not** add `# pylint: disable` comments to code sections unless you have formally asked first.
-- These comments can hide genuine design issues and should be treated as an exception, not a convenience.
+- These comments can hide genuine design issues and must be treated as an exception, not a convenience.
 
 ### Dependency maintenance
 
 - During dedicated maintenance work, review dependencies on a sensible cadence, approximately weekly.
 - Update to the latest compatible versions that do not require substantial refactoring.
-- If an upgrade would require significant code changes, migration work, or behavior changes, ask before proceeding.
+- If an upgrade would require significant code changes, migration work, or behaviour changes, ask before proceeding.
 
 ### Code styling
 
@@ -65,7 +65,7 @@ make python-test
 ### Change boundaries
 
 - Prefer small, reviewable changes over broad rewrites.
-- Preserve public APIs and external behavior unless explicitly asked to change them.
+- Preserve public APIs and external behaviour unless explicitly asked to change them.
 - Ask before changing CI, packaging, release configuration, config schemas, or persisted data formats.
 - Ask before introducing new dependencies, concurrency, caching, or background-processing patterns.
 
@@ -75,11 +75,11 @@ make python-test
 - For bug fixes, add a regression test where practical.
 - Do not delete or weaken tests simply to make the test suite pass without asking first.
 - Keep Python 3.10 compatibility in both code and tests.
-- Avoid patching code in an effort to increase code coverage if that produceces meaningless tests.
+- Avoid patching code in an effort to increase code coverage if that produces meaningless tests.
 
 ### Documentation, logging, and safety
 
-- Update docstrings and relevant documentation when behavior changes.
+- Update docstrings and relevant documentation when behaviour changes.
 - Prefer clear, actionable exceptions and meaningful log messages.
 - Never commit secrets, tokens, credentials, or private keys.
 - Do not log sensitive configuration values or secret material.
@@ -121,16 +121,16 @@ When making code changes, agents should generally follow this sequence:
   - `src/api.py`: FastAPI service for health, annotation-derived namespace status metrics, and People API-backed ownership lookups.
   - `src/collect_controller.py`: controller that collects ownership and health data in-process and exposes collect metrics.
   - `src/action_controller.py`: controller that deletes stale/failed namespaces and sends Slack notifications for `failing`, `unstable`, and delete events.
-- The repo also ships the Helm chart under `charts/ska-ser-namespace-manager` and expects the application to run in Kubernetes. Prefer preserving deployment behavior and config shape unless asked otherwise.
+- The repo also ships the Helm chart under `charts/ska-ser-namespace-manager` and expects the application to run in Kubernetes. Prefer preserving deployment behaviour and config shape unless asked otherwise.
 
 ### Architecture notes
 
 - Main package code lives under `src/ska_ser_namespace_manager/` and is split into `api/`, `collector/`, `controller/`, `core/`, and `metrics/`.
-- Controllers inherit from `Controller`/`LeaderController`, which combine Kubernetes access, thread management, config loading, and optional file-lock leader election. Preserve that layering when adding behavior.
+- Controllers inherit from `Controller`/`LeaderController`, which combine Kubernetes access, thread management, config loading, and optional file-lock leader election. Preserve that layering when adding behaviour.
 - Namespace selection is matcher-driven. `NamespaceMatcher` supports `names`, `any`, and `all`, with precedence `all > any > names`. Reuse `match_namespace()` instead of adding ad hoc matching logic.
 - Namespace lifecycle state is annotation-driven. The annotation keys in `core/types.py` are part of the operational contract with collectors, controllers, templates, and chart manifests. Do not rename them casually.
 - Neither controller exposes an HTTP port. Each process writes its own metrics to `<metrics.registry_path>/<pod name>.prom` on a shared `ReadWriteMany` volume, and the API merges every `*.prom` file it finds into a single response at `GET /api/metrics`. The collect-controller leader deletes metrics files belonging to pods that no longer exist.
-- Notification behavior is rendered from Jinja templates in `src/ska_ser_namespace_manager/resources/templates/`. When changing Slack message content, update the templates rather than hardcoding strings in controllers.
+- Notification behaviour is rendered from Jinja templates in `src/ska_ser_namespace_manager/resources/templates/`. When changing Slack message content, update the templates rather than hardcoding strings in controllers.
 - Config is loaded through typed Pydantic models via `ConfigLoader`. Keep new config in typed models and preserve compatibility with the YAML structure consumed by the Helm chart values and rendered secrets/config maps.
 
 ### Local conventions
@@ -152,7 +152,7 @@ When making code changes, agents should generally follow this sequence:
 ### Testing notes
 
 - Unit tests are the meaningful local safety net. `make python-test` is configured to run `./tests/unit`.
-- For logic changes in controllers, matchers, config loading, notifier behavior, or Kubernetes wrappers, add or update unit tests near the touched module.
+- For logic changes in controllers, matchers, config loading, notifier behaviour, or Kubernetes wrappers, add or update unit tests near the touched module.
 - When changing chart values, templates, or runtime config shape, also review whether tests need to assert the new config contract even if there is no full chart test suite.
 
 ### Release or CI notes

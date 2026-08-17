@@ -3,16 +3,14 @@
 SKA Namespace Manager
 =====================
 
-Pipelines create ephemeral namespaces which sometimes are not deleted correctly,
-ending up with a lot of stale namespaces that consume cluster resources. The SKA
+Pipelines create ephemeral namespaces that are not always cleaned up, leaving stale namespaces that consume cluster resources. The SKA
 Namespace Manager is a Kubernetes operator that watches the namespaces it is
 configured to own, decides whether each one is healthy, stale, cancelled or superseded, tells the owner
 what is about to happen, and then deletes the namespace when it is no longer needed.
 
 
-It runs as three cooperating processes, a REST API, a collect controller that
-observes and annotates namespaces, and an action controller that notifies and
-deletes, all deployed from the Helm chart that ships in this repository.
+It runs as three cooperating processes: a REST API, a collect controller that
+observes and annotates namespaces, an action controller that notifies and deletes namespaces, all deployed from the Helm chart that ships in this repository.
 
 .. mermaid::
    :alt: Component architecture of the SKA Namespace Manager: the REST API, the

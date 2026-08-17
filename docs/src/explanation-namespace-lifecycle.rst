@@ -9,7 +9,7 @@ is exposed to users and teams claiming too many resources, stale and failing dep
 is using any more, and outright resource or job exhaustion.
 
 The goal of the namespace manager is to optimise cluster usage and give every user a fair share. 
-Because the manager deletes other people's namespaces, developers are notified when their environments are removed.
+Because the manager deletes other people's namespaces, the manager notifies developers when it removes their environments.
 
 The three components of the namespace manager
 ---------------------------------------------
@@ -128,7 +128,7 @@ that applies wins:
 Health is assessed from Prometheus alerts when Prometheus is enabled: alerts
 are fetched from ``/api/v1/alerts``, filtered to those whose ``namespace``
 label matches (and whose ``datacentre`` label matches, when a datacentre is
-configured), and whitelisted alert names are ignored unless their severity is
+configured), and allowlisted alert names are ignored unless their severity is
 ``critical``. When Prometheus is disabled, the collector falls back to the
 Kubernetes API and treats any Deployment, StatefulSet or ReplicaSet with fewer
 available replicas than desired as failing.
@@ -161,7 +161,7 @@ managed namespaces are grouped by CI identity — project plus merge request (or
 project plus branch when there is no merge request), plus the job name — and
 within a group they are bucketed by ``cicd.skao.int/jobId``. If a group holds
 more than one deployment, every namespace outside the newest one is marked
-``superseded`` with a five second finalisation window, so the older
+``superseded`` with a five-second finalisation window, so the older
 environments for a re-run pipeline disappear promptly.
 
 Namespaces missing the labels the identity is built from are skipped, which
