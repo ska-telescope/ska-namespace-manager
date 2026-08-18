@@ -15,7 +15,6 @@ These rules are intended to be shared across SKAO Python repositories unless a p
 - This repository uses a **git submodule** that contains project-wide tooling and standards.
 - Always initialise and update submodules before working:
 
-
 ```bash
 git submodule update --init --recursive
 ```
@@ -60,7 +59,6 @@ make python-test
 - Newline after `if/for` blocks and before `return`/`yield`, except `if ...: return` single-line block style where return stays immediately inside block.
 - Keep functions ordered by usage in larger files.
 - Class method order: `__init__`, `@property`, `@staticmethod/@classmethod`, private methods, then public methods by ORDER of usage (ie, function that uses other functions should be last)
-- Keep functions ordered by usage in larger files.
 
 ### Change boundaries
 
@@ -71,7 +69,7 @@ make python-test
 
 ### Testing expectations
 
-- Add or update tests for any behavior change.
+- Add or update tests for any behaviour change.
 - For bug fixes, add a regression test where practical.
 - Do not delete or weaken tests simply to make the test suite pass without asking first.
 - Keep Python 3.10 compatibility in both code and tests.
