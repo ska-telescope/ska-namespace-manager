@@ -1,0 +1,15 @@
+/*
+ * Mermaid renders one SVG regardless of the light/dark page theme, and the
+ * diagrams in this documentation use a light palette (see mermaid_init_js in
+ * conf.py). Give every diagram a light card of its own so it stays legible
+ * when the reader has selected dark mode.
+ */
+.mermaid {
+  background: #ffffff;
+  border: 1px solid #d0d7de;
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1.5rem 0;
+  overflow-x: auto;
+  text-align: center;
+}

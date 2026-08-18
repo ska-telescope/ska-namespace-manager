@@ -5,6 +5,16 @@ keeps temporary environments visible, applies lifecycle policies, exports
 namespace health metrics, and deletes namespaces that are stale, failed,
 cancelled, or superseded.
 
+Full documentation lives under [`docs/src`](docs/src) and is built with
+`make docs-build html`:
+
+- [Getting started](docs/src/howto-run-and-deploy.rst) — build the image, deploy
+  the chart to a local cluster, and watch a namespace through its lifecycle.
+- [Reference](docs/src/reference-configuration.rst) — configuration keys,
+  endpoints, metrics and chart values.
+- [How it works](docs/src/explanation-namespace-lifecycle.rst) — matching, the
+  status state machine, sharding and leader election.
+
 The service is designed for CI/CD clusters where resource demand is bursty and
 unpredictable. It helps operators and developers by:
 
@@ -28,48 +38,47 @@ The Helm chart deploys three runtime surfaces:
   records deletion metrics, and sends Slack notifications.
 
 ```mermaid
-flowchart TD
-    subgraph app["SKA Namespace Manager"]
-        direction LR
-        collect["Collect controller<br/>manage · check · annotate"]
-        action["Action controller<br/>notify · delete"]
-        api["FastAPI service<br/>/health · /api/people · /api/metrics"]
+flowchart LR
+    prom["Prometheus"]
+    gitlab["GitLab API"]
+
+    subgraph nsm["SKA Namespace Manager (Helm release)"]
+        direction TB
+        collect["Collect controller<br/><i>StatefulSet</i><br/>adopt · check · annotate"]
+        action["Action controller<br/><i>Deployment</i><br/>notify · delete"]
+        volume[("Shared ReadWriteMany volume<br/>metrics files · leader lock")]
+        api["REST API<br/><i>Deployment</i><br/>/health · /api/people · /api/metrics<br/><i>scraped by Prometheus</i>"]
     end
 
     k8s["Kubernetes API"]
-    ns[("Namespaces<br/>labels & annotations")]
-    prom["Prometheus alerts"]
-    gitlab["GitLab pipeline API"]
-    people[("People database")]
-    metrics[/"Shared metrics registry<br/>Prometheus text files"/]
+    ns["Managed namespaces<br/>their manager.cicd.skao.int annotations<br/>hold the lifecycle state"]
+    people[("SKAO People Database")]
     slack["Slack"]
 
-    collect <--> k8s
-    action <--> k8s
-    k8s <--> ns
+    prom -- "firing alerts" --> collect
+    gitlab -- "pipeline status" --> collect
 
-    prom --> collect
-    gitlab --> collect
+    collect -- "annotate status" --> k8s
+    action -- "read status, delete" --> k8s
+    k8s --> ns
 
-    collect --> metrics
-    action --> metrics
-    metrics --> api
-    api --> people
-    action --> slack
+    collect -- "metrics, leader lock" --> volume
+    action -- "metrics" --> volume
+    volume -- "merged *.prom" --> api
+    api -- "ownership lookup" --> people
+    action -- "notifications" --> slack
 
-    classDef controller fill:#1f6feb,stroke:#0b3d91,color:#ffffff,font-weight:bold;
-    classDef service fill:#8250df,stroke:#3b1f7a,color:#ffffff,font-weight:bold;
-    classDef platform fill:#e6f0ff,stroke:#1f6feb,color:#0b2545;
+    classDef controller fill:#dbeafe,stroke:#1f6feb,color:#0b2545,font-weight:bold;
+    classDef service fill:#ede9fe,stroke:#8250df,color:#2d1065,font-weight:bold;
+    classDef platform fill:#eef2f6,stroke:#8b98a5,color:#1c2b36;
     classDef store fill:#fff4e5,stroke:#d97706,color:#7a3e00;
     classDef integration fill:#eaf7ea,stroke:#2da44e,color:#0f3d1f;
-    classDef artifact fill:#fde8ef,stroke:#cf222e,color:#5c0011;
 
     class collect,action controller;
     class api service;
     class k8s platform;
-    class ns,people store;
+    class ns,people,volume store;
     class prom,gitlab,slack integration;
-    class metrics artifact;
 ```
 
 Namespace selection is driven by configured matchers. A namespace can match by
@@ -84,54 +93,46 @@ status; the action controller acts on it.
 
 ```mermaid
 stateDiagram-v2
-    direction TB
-    [*] --> unknown: namespace matches config
+    direction LR
+    [*] --> unknown: adopted by the<br/>collect controller
 
-    unknown --> ok: no stale or failing condition
-    unknown --> unstable: failing resources detected
-    unknown --> stale: TTL elapsed
-    unknown --> cancelled: originating pipeline cancelled or missing
-    unknown --> superseded: newer CI deployment found
+    unknown --> ok: nothing failing
+    unknown --> unstable: something failing
+    ok --> unstable: something failing
 
-    ok --> unstable: Prometheus or resource check fails
-    ok --> stale: TTL elapsed
-    ok --> cancelled: originating pipeline cancelled or missing
-    ok --> superseded: newer CI deployment found
+    state "degrading, one step per check" as degrading {
+        direction LR
+        unstable --> failing: still failing after<br/>settling_period
+        failing --> failed: still failing after<br/>grace_period
+    }
 
-    unstable --> ok: alerts clear
-    unstable --> failing: settling period elapsed
-    unstable --> stale: TTL elapsed
-    unstable --> cancelled: originating pipeline cancelled or missing
-    unstable --> superseded: newer CI deployment found
+    degrading --> ok: nothing failing
 
-    failing --> ok: alerts clear
-    failing --> failed: grace period elapsed
-    failing --> stale: TTL elapsed
-    failing --> cancelled: originating pipeline cancelled or missing
-    failing --> superseded: newer CI deployment found
+    state one_way <<choice>>
+    unknown --> one_way
+    ok --> one_way
+    degrading --> one_way
 
-    failed --> ok: alerts clear
-    failed --> stale: TTL elapsed
-    failed --> cancelled: originating pipeline cancelled or missing
-    failed --> superseded: newer CI deployment found
+    one_way --> stale: older than ttl
+    one_way --> cancelled: originating pipeline<br/>cancelled or gone
+    one_way --> superseded: newer deployment of<br/>the same CI identity
 
-    stale --> deleted: action controller deletes
-    failed --> deleted: action controller deletes
-    cancelled --> deleted: action controller deletes
-    superseded --> deleted: action controller deletes
+    state "deleted by the action controller" as deleted
+    failed --> deleted
+    stale --> deleted
+    cancelled --> deleted
+    superseded --> deleted
     deleted --> [*]
 
     classDef initial fill:#eef2f6,stroke:#8b98a5,color:#1c2b36;
     classDef healthy fill:#eaf7ea,stroke:#2da44e,color:#0f3d1f,font-weight:bold;
-    classDef degraded fill:#fff4e5,stroke:#d97706,color:#7a3e00;
+    classDef unhealthy fill:#fff4e5,stroke:#d97706,color:#7a3e00;
     classDef terminal fill:#fde8ef,stroke:#cf222e,color:#5c0011;
-    classDef removed fill:#1b1f24,stroke:#000000,color:#ffffff,font-weight:bold;
 
     class unknown initial
     class ok healthy
-    class unstable,failing degraded
+    class unstable,failing unhealthy
     class stale,failed,cancelled,superseded terminal
-    class deleted removed
 ```
 
 The supported status values are:
@@ -187,8 +188,10 @@ probe, and `GET /api/people` responds with `not found`. When
 
 ### Layered configuration via VaultStaticSecret
 
-Each component reads every YAML file found in `CONFIG_PATH` (`/etc/config` by
-default), sorted alphabetically, and deep-merges them: later filenames override
+Each component reads every YAML file found in `CONFIG_PATH` when it points at a
+directory — which is what the chart mounts (`/etc/config`; the built-in default
+is the single file `/etc/config/config.yml`). Files are read in alphabetical
+order and deep-merged: later filenames override
 earlier ones, nested dictionaries merge key-by-key, and lists are replaced
 wholesale. A `null` value in an overlay leaves the base value untouched. The
 chart-managed base secret writes its content to `00-base.yml` so any
@@ -255,19 +258,20 @@ cd ska-ser-namespace-manager
 git submodule update --init --recursive
 ```
 
-Use Python 3.10 and the repository Poetry environment. The standard local
-checks are:
+Use Python 3.10. Dependencies are managed with `uv`, and the make targets run
+inside that environment already:
 
 ```bash
-poetry run make python-format
-poetry run make python-lint
-poetry run make python-test
+uv sync
+make python-format
+make python-lint
+make python-test
 ```
 
 To install the chart into a local Kubernetes environment:
 
 ```bash
-poetry run make k8s-install-chart
+make k8s-install-chart
 ```
 
 If deploying to the
@@ -275,7 +279,7 @@ If deploying to the
 build a local image first:
 
 ```bash
-poetry run make oci-build-all CAR_OCI_REGISTRY_HOST=localhost:5000
+make oci-build-all CAR_OCI_REGISTRY_HOST=localhost:5000
 ```
 
 Then set the registry to `<local ip>:5000` where relevant in your values file.
@@ -294,7 +298,7 @@ api:
     createSelfSignedCert: true
   config:
     people_database:
-      spreadsheet_id: 1WekvYFWkPRiWoB2yzp1BrMRwwu0fRqf20d7XbqO6OJg
+      spreadsheet_id: <people database spreadsheet id>
       spreadsheet_range: "System Team API!A2:Z1001"
       credentials: <decoded people_database_credentials value>
 

@@ -36,12 +36,17 @@ dev = [
 ]
 docs = [
     "sphinx>=7.4.5,<8.0.0",
-    "sphinx-rtd-theme>=2.0.0,<3.0.0",
-    "recommonmark>=0.7.1,<0.8.0",
+    "ska-ser-sphinx-theme",
+    "sphinxcontrib-mermaid>=1.0.0,<2.0.0",
 ]
 
 [tool.uv]
 default-groups = ["dev", "docs"]
+# ska-cicd-services-api pins gidgetlab<2.0.0, but gidgetlab 1.x imports the
+# stdlib "cgi" module, removed in Python 3.13. The ubuntu26 base images ship
+# Python 3.14, so force gidgetlab 2.x (API-compatible with the calls
+# ska_cicd_services_api.gitlab_api makes) until services-api relaxes the pin.
+override-dependencies = ["gidgetlab[aiohttp]>=2.1.2,<3.0.0"]
 
 [[tool.uv.index]]
 name = "ska-nexus"
@@ -81,3 +86,6 @@ build-backend = "uv_build"
 [tool.uv.build-backend]
 module-name = "ska_ser_namespace_manager"
 module-root = "src"
+
+[tool.uv.sources]
+ska-ser-sphinx-theme = { git = "https://gitlab.com/ska-telescope/ska-ser-sphinx-theme.git", rev = "st-2664-new-theme" }

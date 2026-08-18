@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## 0.3.3 - 2026-06-26
 
+- Major documentation refactor.
+- Added RTD integration.
+- Update base images.
+
+## 0.3.2 - 2026-06-26
+
 - **Allow to disable PeopleAPI**
 - **Improved logging**
   - Added more explicit logging on faulty namespaces to aid in pinpointing reasons after a namespace is deleted

@@ -13,8 +13,7 @@ These rules are intended to be shared across SKAO Python repositories unless a p
 ### Repository setup
 
 - This repository uses a **git submodule** that contains project-wide tooling and standards.
-- Always initialize and update submodules before working:
-
+- Always initialise and update submodules before working:
 
 ```bash
 git submodule update --init --recursive
@@ -23,13 +22,14 @@ git submodule update --init --recursive
 ### Formatting, linting, and tests
 
 - Formatting, linting, and tests are provided through the repository `Makefile`.
-- Always run `make` targets through the repository Poetry environment using `poetry run make ...`.
+- Dependencies are managed with **uv**; the make targets already run tooling inside that environment, so no `poetry run` prefix is needed.
 - Use the following commands:
 
 ```bash
-poetry run make python-format
-poetry run make python-lint
-poetry run make python-test
+uv sync
+make python-format
+make python-lint
+make python-test
 ```
 
 - After making changes, always run:
@@ -42,13 +42,13 @@ poetry run make python-test
 ### Linting policy
 
 - Do **not** add `# pylint: disable` comments to code sections unless you have formally asked first.
-- These comments can hide genuine design issues and should be treated as an exception, not a convenience.
+- These comments can hide genuine design issues and must be treated as an exception, not a convenience.
 
 ### Dependency maintenance
 
 - During dedicated maintenance work, review dependencies on a sensible cadence, approximately weekly.
 - Update to the latest compatible versions that do not require substantial refactoring.
-- If an upgrade would require significant code changes, migration work, or behavior changes, ask before proceeding.
+- If an upgrade would require significant code changes, migration work, or behaviour changes, ask before proceeding.
 
 ### Code styling
 
@@ -59,26 +59,25 @@ poetry run make python-test
 - Newline after `if/for` blocks and before `return`/`yield`, except `if ...: return` single-line block style where return stays immediately inside block.
 - Keep functions ordered by usage in larger files.
 - Class method order: `__init__`, `@property`, `@staticmethod/@classmethod`, private methods, then public methods by ORDER of usage (ie, function that uses other functions should be last)
-- Keep functions ordered by usage in larger files.
 
 ### Change boundaries
 
 - Prefer small, reviewable changes over broad rewrites.
-- Preserve public APIs and external behavior unless explicitly asked to change them.
+- Preserve public APIs and external behaviour unless explicitly asked to change them.
 - Ask before changing CI, packaging, release configuration, config schemas, or persisted data formats.
 - Ask before introducing new dependencies, concurrency, caching, or background-processing patterns.
 
 ### Testing expectations
 
-- Add or update tests for any behavior change.
+- Add or update tests for any behaviour change.
 - For bug fixes, add a regression test where practical.
 - Do not delete or weaken tests simply to make the test suite pass without asking first.
 - Keep Python 3.10 compatibility in both code and tests.
-- Avoid patching code in an effort to increase code coverage if that produceces meaningless tests.
+- Avoid patching code in an effort to increase code coverage if that produces meaningless tests.
 
 ### Documentation, logging, and safety
 
-- Update docstrings and relevant documentation when behavior changes.
+- Update docstrings and relevant documentation when behaviour changes.
 - Prefer clear, actionable exceptions and meaningful log messages.
 - Never commit secrets, tokens, credentials, or private keys.
 - Do not log sensitive configuration values or secret material.
@@ -120,16 +119,16 @@ When making code changes, agents should generally follow this sequence:
   - `src/api.py`: FastAPI service for health, annotation-derived namespace status metrics, and People API-backed ownership lookups.
   - `src/collect_controller.py`: controller that collects ownership and health data in-process and exposes collect metrics.
   - `src/action_controller.py`: controller that deletes stale/failed namespaces and sends Slack notifications for `failing`, `unstable`, and delete events.
-- The repo also ships the Helm chart under `charts/ska-ser-namespace-manager` and expects the application to run in Kubernetes. Prefer preserving deployment behavior and config shape unless asked otherwise.
+- The repo also ships the Helm chart under `charts/ska-ser-namespace-manager` and expects the application to run in Kubernetes. Prefer preserving deployment behaviour and config shape unless asked otherwise.
 
 ### Architecture notes
 
 - Main package code lives under `src/ska_ser_namespace_manager/` and is split into `api/`, `collector/`, `controller/`, `core/`, and `metrics/`.
-- Controllers inherit from `Controller`/`LeaderController`, which combine Kubernetes access, thread management, config loading, and optional file-lock leader election. Preserve that layering when adding behavior.
+- Controllers inherit from `Controller`/`LeaderController`, which combine Kubernetes access, thread management, config loading, and optional file-lock leader election. Preserve that layering when adding behaviour.
 - Namespace selection is matcher-driven. `NamespaceMatcher` supports `names`, `any`, and `all`, with precedence `all > any > names`. Reuse `match_namespace()` instead of adding ad hoc matching logic.
 - Namespace lifecycle state is annotation-driven. The annotation keys in `core/types.py` are part of the operational contract with collectors, controllers, templates, and chart manifests. Do not rename them casually.
-- Collect-controller metrics are split between replica-local `/internal/metrics` and the public `/metrics` endpoint. The public endpoint is intended to represent the leader-aggregated view, while non-leaders proxy to the leader when possible.
-- Notification behavior is rendered from Jinja templates in `src/ska_ser_namespace_manager/resources/templates/`. When changing Slack message content, update the templates rather than hardcoding strings in controllers.
+- Neither controller exposes an HTTP port. Each process writes its own metrics to `<metrics.registry_path>/<pod name>.prom` on a shared `ReadWriteMany` volume, and the API merges every `*.prom` file it finds into a single response at `GET /api/metrics`. The collect-controller leader deletes metrics files belonging to pods that no longer exist.
+- Notification behaviour is rendered from Jinja templates in `src/ska_ser_namespace_manager/resources/templates/`. When changing Slack message content, update the templates rather than hardcoding strings in controllers.
 - Config is loaded through typed Pydantic models via `ConfigLoader`. Keep new config in typed models and preserve compatibility with the YAML structure consumed by the Helm chart values and rendered secrets/config maps.
 
 ### Local conventions
@@ -137,21 +136,21 @@ When making code changes, agents should generally follow this sequence:
 - Keep changes Python 3.10 and Pydantic v2 compatible. This repo uses `model_post_init()` and `model_dump_json()` patterns already present in the codebase.
 - Entrypoint scripts at `src/*.py` are thin wrappers. Put business logic in package modules under `src/ska_ser_namespace_manager/`, not in the top-level scripts.
 - Use the existing `core.logging.logging` logger and current exception-handling style for controller/API code. Prefer actionable logs that include namespace names, actions, and status values.
-- Preserve the current namespace status vocabulary: `ok`, `stale`, `failing`, `failed`, `unstable`, `unknown`.
+- Preserve the current namespace status vocabulary: `ok`, `stale`, `failing`, `failed`, `unstable`, `cancelled`, `superseded`, `unknown`.
 - Be careful with ownership and notification flows. Slack addresses are encoded/decoded through `core.utils`, and notification content comes from Jinja templates plus `Notifier`.
 - `FORBIDDEN_NAMESPACES` and the controller’s own namespace are intentionally excluded from management. Do not broaden namespace selection without checking those safeguards.
 
 ### Dependency constraints
 
 - This project already depends on FastAPI, Kubernetes Python client, Slack Bolt, Jinja2, and SKAO internal APIs. Ask before introducing new third-party dependencies.
-- `ska-cicd-services-api` is pinned exactly to `0.31.0`. Treat SKAO internal dependency changes as potentially breaking and verify them carefully before updating.
-- The Docker image and CI pipeline assume Poetry-managed dependencies and the current package layout under `src/`. Avoid packaging changes unless explicitly requested.
+- `ska-cicd-services-api` is pinned exactly to `1.2.0`. Treat SKAO internal dependency changes as potentially breaking and verify them carefully before updating.
+- The Docker image and CI pipeline assume uv-managed dependencies (`uv.lock`, `uv sync --frozen`) and the current package layout under `src/`. Avoid packaging changes unless explicitly requested.
 - There is a strong repository convention that configuration models are typed `BaseModel` classes. Do not introduce raw dict-based config plumbing where a model should exist.
 
 ### Testing notes
 
 - Unit tests are the meaningful local safety net. `make python-test` is configured to run `./tests/unit`.
-- For logic changes in controllers, matchers, config loading, notifier behavior, or Kubernetes wrappers, add or update unit tests near the touched module.
+- For logic changes in controllers, matchers, config loading, notifier behaviour, or Kubernetes wrappers, add or update unit tests near the touched module.
 - When changing chart values, templates, or runtime config shape, also review whether tests need to assert the new config contract even if there is no full chart test suite.
 
 ### Release or CI notes
