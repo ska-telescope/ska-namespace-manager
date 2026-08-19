@@ -1,6 +1,6 @@
 [project]
 name = "ska-ser-namespace-manager"
-version = "0.3.2"
+version = "0.3.3"
 description = "SKA Kubernetes Namespace Manager"
 authors = [{ name = "System Team" }]
 license = "BSD-3-Clause"

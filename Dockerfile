@@ -5,7 +5,7 @@ WORKDIR /opt/ska_ser_namespace_manager
 
 COPY uv.lock pyproject.toml /opt/ska_ser_namespace_manager/
 
-RUN uv sync --frozen --no-dev --no-install-project
+RUN uv sync --frozen --no-default-groups --no-install-project
 
 FROM artefact.skao.int/ska-python-ubuntu26:1.0.0
 

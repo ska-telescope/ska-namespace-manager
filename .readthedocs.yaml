@@ -8,8 +8,8 @@ build:
     post_create_environment:
       - pip install uv
     post_install:
-      - uv export --frozen --no-default-groups --group docs --no-emit-project --no-hashes --output-file /tmp/docs-requirements.txt
-      - python -m pip install --extra-index-url https://artefact.skao.int/repository/pypi-internal/simple --extra-index-url https://gitlab.com/api/v4/projects/47734451/packages/pypi/simple -r /tmp/docs-requirements.txt
+      - uv export --frozen --only-group docs --no-emit-project --no-hashes --output-file /tmp/docs-requirements.txt
+      - python -m pip install --no-deps --extra-index-url https://artefact.skao.int/repository/pypi-internal/simple --extra-index-url https://gitlab.com/api/v4/projects/47734451/packages/pypi/simple -r /tmp/docs-requirements.txt
 
 sphinx:
   configuration: docs/src/conf.py
