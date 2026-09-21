@@ -1,4 +1,4 @@
-FROM artefact.skao.int/ska-build-python-ubuntu26:1.0.0 as requirements
+FROM artefact.skao.int/ska-build-python-ubuntu26:1.0.2 as requirements
 
 RUN mkdir -p /opt/ska_ser_namespace_manager
 WORKDIR /opt/ska_ser_namespace_manager
@@ -7,7 +7,7 @@ COPY uv.lock pyproject.toml /opt/ska_ser_namespace_manager/
 
 RUN uv sync --frozen --no-default-groups --no-install-project
 
-FROM artefact.skao.int/ska-python-ubuntu26:1.0.0
+FROM artefact.skao.int/ska-python-ubuntu26:1.0.2
 
 WORKDIR /opt/ska_ser_namespace_manager
 #Adding the virtualenv binaries

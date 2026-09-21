@@ -12,9 +12,9 @@ copyright = "2019-2026 SKA Observatory"
 author = "SKA System Team"
 
 # The short X.Y.Z version.
-version = '0.3.3'
+version = '0.3.4'
 # The full version, including alpha/beta/rc pre-release tags.
-release = '0.3.3'
+release = '0.3.4'
 
 # -- General configuration ---------------------------------------------------
 
